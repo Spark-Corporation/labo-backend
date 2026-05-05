@@ -64,6 +64,29 @@ The system must handle:
 
 ---
 
+### 1.4 CDC Traceability
+
+The CDC (`CAHIER DES CHARGES LOGICIEL DE GESTION DU LABORATOIRE.docx.pdf`) is the binding scope contract for this project. Every module and feature in this document maps to one or more CDC sections:
+
+| LIMS module / feature | CDC section(s) |
+|---|---|
+| `iam` (auth, habilitations, signing chain) | §I (identifiants de connexion), §II (historique des actions, comptes), §IV (signer électroniquement le dossier), §VIII (caisse ↔ compte réceptionniste) |
+| `patient` | §I Accueil et enregistrement des patients |
+| `order` (lab files, samples, urgency) | §II Dossier Analyse, §VI Prélèvements à réaliser, §IX Gestion des dossiers |
+| `catalog` (configurations) | §VII Gestion des disciplines; Onglet Configurations (matrices, disciplines, récap, bilan société, préleveurs, antibiotiques, spécialités prescripteurs, analyses simples / groupées) |
+| `result` (entry, validation, antibiogram) | §IV Résultats par Patient, §V Recherche par paramètre, §X Validation biologique |
+| `billing` (invoices, society panels) | §II Facturation; Gestion comptable §1 Factures |
+| `cashbox` (registers, journal, expenses, home-collection fees) | §VIII Comptes et caisses; Gestion comptable §2 Dépenses, §3 Caisses, §4 Journal des caisses, §5 Frais de Prélèvement à domicile |
+| `delivery` (print / mail / online) | §IV mode de diffusion (Mail, en ligne) |
+| `stats` | Onglet Statistiques |
+| `notification` (Mail, WhatsApp) | §III Devis (envoi par Mail / WhatsApp), §IV Résultats (envoi par Mail) |
+| `attachment` (scan direct) | §IV "Joindre des fichiers par scan direct (détection des scanners dans le réseau)" |
+| Quotes (`quote`) | §III Devis |
+
+Anything not traceable to a CDC clause is **out of scope** and requires a CDC amendment before it can be added to this project.
+
+---
+
 ## 2. Technology Stack
 
 ### 2.1 Core
@@ -140,7 +163,7 @@ This style fits the scope of a single-lab deployment, simplifies operations, and
 
 | Module | Responsibility |
 |---|---|
-| `iam` | Users, roles, permissions, authentication, audit |
+| `iam` | Users, habilitations (roles + permissions), authentication via secured-x, dossier electronic signature, audit trail via secured-x signing chain |
 | `patient` | Patient identity, file lookup, merge, contacts |
 | `catalog` | Analyses (simple/grouped), disciplines, matrices, techniques, recipients, antibiotics, prescribers |
 | `order` | Lab files (dossiers), quotes, sample collection events |
@@ -153,8 +176,8 @@ This style fits the scope of a single-lab deployment, simplifies operations, and
 | `attachment` | Scanned documents and lab-report file storage |
 
 ### 3.4 Cross-cutting Adapters
-- `security` — JWT issuing, password hashing, MFA
-- `audit` — Hibernate Envers + application-level event log
+- `security` — provided by **secured-x** library: JWT (RS256) issuing, Argon2id password hashing (via `secured-x-provider-local`), per-user Ed25519 action signing chain, role/permission enforcement (via `secured-x-rbac`)
+- `audit` — Hibernate Envers (row-level history on critical tables) + secured-x signing chain (per-user action history, dossier electronic signature)
 - `config` — global Spring configuration
 
 ---
@@ -328,6 +351,52 @@ CREATE TABLE lab_files (
 );
 ```
 
+```sql
+-- LIMS-side credential store consumed by secured-x's LocalAuthProvider
+CREATE TABLE local_credentials (
+    subject       VARCHAR(26) PRIMARY KEY REFERENCES users(id),
+    argon2_hash   VARCHAR(255) NOT NULL,
+    algo_params   JSONB NOT NULL,                   -- memory_kb, iterations, parallelism
+    created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+    disabled_at   TIMESTAMPTZ,
+    last_login_at TIMESTAMPTZ
+);
+
+-- secured-x per-user Ed25519 key-pair store (private key encrypted at rest)
+CREATE TABLE user_key_pairs (
+    key_id      VARCHAR(36) PRIMARY KEY,
+    subject     VARCHAR(26) NOT NULL REFERENCES users(id),
+    public_key  BYTEA NOT NULL,
+    private_key BYTEA NOT NULL,
+    created_at  TIMESTAMPTZ NOT NULL,
+    expires_at  TIMESTAMPTZ,
+    active      BOOLEAN NOT NULL DEFAULT TRUE
+);
+CREATE INDEX idx_user_key_pairs_subject ON user_key_pairs(subject);
+
+-- secured-x append-only signed-action audit chain
+CREATE TABLE signed_actions (
+    action_id       VARCHAR(36) PRIMARY KEY,
+    subject         VARCHAR(26) NOT NULL,
+    action          VARCHAR(255) NOT NULL,
+    resource        VARCHAR(512),
+    timestamp       TIMESTAMPTZ NOT NULL,
+    correlation_id  VARCHAR(36),
+    key_id          VARCHAR(36) NOT NULL REFERENCES user_key_pairs(key_id),
+    metadata        JSONB,
+    previous_hash   VARCHAR(44),
+    sequence_number BIGINT NOT NULL,
+    signature       TEXT NOT NULL,
+    UNIQUE (subject, sequence_number)
+);
+CREATE INDEX idx_signed_actions_subject_seq ON signed_actions(subject, sequence_number);
+CREATE INDEX idx_signed_actions_timestamp   ON signed_actions(timestamp);
+
+-- enforce append-only at DB level (RULE blocks UPDATE / DELETE)
+CREATE RULE no_update_signed_actions AS ON UPDATE TO signed_actions DO INSTEAD NOTHING;
+CREATE RULE no_delete_signed_actions AS ON DELETE TO signed_actions DO INSTEAD NOTHING;
+```
+
 ### 6.3 Reference Intervals
 Reference intervals are **per analysis × patient category × age range × sex**, with multiple modes (Standard, Comment, None). Modeled with a single table and a `mode` discriminator:
 
@@ -335,7 +404,7 @@ Reference intervals are **per analysis × patient category × age range × sex**
 CREATE TABLE reference_intervals (
     id UUID PRIMARY KEY,
     analysis_id UUID NOT NULL REFERENCES analyses(id),
-    category VARCHAR(20) NOT NULL,    -- MAN, WOMAN, CHILD, NEWBORN
+    category VARCHAR(25) NOT NULL,    -- HOMME, FEMME, ENFANT, NOURRISSON_NOUVEAU_NE
     sex CHAR(1),
     age_min INT, age_max INT, age_unit VARCHAR(10),
     mode VARCHAR(15) NOT NULL,        -- STANDARD, COMMENT, NONE
@@ -357,10 +426,13 @@ CREATE TABLE antibiotics (
     intermediate_upper NUMERIC(5,2)
 );
 ```
-Interpretation logic:
-- `m < lower` → **R**
-- `m > upper` → **S**
-- `lower ≤ m ≤ upper` → **I**
+Interpretation logic per CDC §6 "Liste d'antibiotiques" — given measured diameter `m`, reference diameter `M`, and intermediate bounds `X1 < X2` bracketing `M`:
+
+- `m < M` → **R** (Résistant)
+- `m > M` → **S** (Sensible)
+- `X1 < m < X2` → **I** (Intermédiaire)
+
+Schema mapping: `intermediate_lower` = X1, `intermediate_upper` = X2, `reference_diameter` = M. Implementation in `AntibiogramInterpreter.interpret(...)` (Appendix A.3): if `intermediate_lower ≤ m ≤ intermediate_upper` → I; else `m < reference_diameter` → R; else S.
 
 ### 6.5 Migrations (Liquibase)
 
@@ -471,6 +543,36 @@ databaseChangeLog:
 - `mvn liquibase:rollbackOneUpdateSQL` is generated alongside, so a rollback path is reviewed before a release goes live.
 - A nightly `liquibase:diff` job compares the JPA-derived schema against the running database and alerts on drift.
 - A small smoke test in CI runs `update` then `rollback` to the previous tag against an empty PostgreSQL container, ensuring every changeset has a working reverse path.
+
+---
+
+### 6.6 Numbering Conventions
+
+Per CDC, several identifiers have a strict format:
+
+**Daily ID** (CDC §IV "Configuration des étiquettes — L'ID journalier") — format: `<discipline-prefix><dd><MM><yy>-<seq>`
+
+| Prefix | Discipline |
+|---|---|
+| `1` | Biochimie |
+| `2` | Hématologie |
+| `3` | Immuno-sérologie |
+| `4` | Microbiologie |
+| `5` | Biologie moléculaire |
+
+Example: `1151024-001` = Biochimie, 15 Oct 2024, 1st sample of the day.
+
+Generated atomically per discipline via `SELECT … FOR UPDATE` on a `daily_counters(day, discipline_prefix)` row.
+
+**Invoice number** (CDC Gestion comptable §1 Factures) — format: `<labCode><yyMMdd>-<seq>` where `labCode` = `LTA` (laboratoires Togo) or `LBA` (laboratoires Bénin).
+
+Example: `LTA24-1710-005` = Togo lab, 17 Oct 2024, 5th invoice of the day.
+
+**Patient lab code** (CDC §I "Génération automatique d'un code laboratoire") — format: `<labPrefix>-<yyMMdd>-<seq>`, per-lab counter, generated within the patient-creation transaction so failures roll back the counter.
+
+**Quote number** (CDC §III "Générer automatiquement un numéro de devis") — format: `DEV-<yyMMdd>-<seq>`, per-day counter.
+
+**Étiquettes (labels)** (CDC §IV "Configuration des étiquettes") — 4 cm × 2.5 cm thermal labels; barcode encodes the daily ID; label prints patient nom + prénom + date naissance + âge + sexe + first 5 analyses.
 
 ---
 
@@ -594,10 +696,14 @@ Heavy aggregates are precomputed nightly into materialized views (`mv_daily_file
 ## 9. Security & Authentication
 
 ### 9.1 Authentication
-- **Local auth** with username + password (Argon2id hashing, 19 MB memory, 2 iterations, 1 thread)
-- **JWT** access tokens (15 min) + refresh tokens (8 h, rotating)
-- **MFA** (TOTP, RFC 6238) recommended for biologists and admins
-- Brute-force protection: progressive lockout after failed attempts, IP throttling via Bucket4j
+Authentication is provided by the **secured-x** library (sibling project at `~/Documents/development/projects/personal/secured-x`). LIMS extends the library by:
+
+- Implementing the `LocalAuthProvider` SPI from `secured-x-provider-local` — username + password with **Argon2id** hashing (19 MB memory, 2 iterations, 1 thread).
+- Implementing the `RoleResolver` SPI from `secured-x-rbac` to map LIMS users to roles + permissions ("habilitations" per CDC §VIII / Gestion comptable).
+- Implementing the `LocalCredentialStore`, `UserKeyPairStore`, and `AuditChainStore` SPIs against LIMS PostgreSQL (`local_credentials`, `user_key_pairs`, `signed_actions` tables — see §6.2).
+- Configuring JWT lifetimes via `application.yml`: access token 15 min, refresh token 8 h, rotating.
+
+The `/auth/login`, `/auth/refresh`, `/auth/logout` endpoints come from `secured-x-spring-boot-starter`. JWT signing uses RS256 with a PEM key pair; the public key is rotatable. MFA, password reset, and brute-force lockout are **not** in CDC scope and are not implemented.
 
 ### 9.2 Authorization
 Role-based with fine-grained permissions:
@@ -605,7 +711,6 @@ Role-based with fine-grained permissions:
 | Role | Sample permissions |
 |---|---|
 | `RECEPTIONIST` | patient.create, lab-file.create, payment.collect |
-| `COLLECTOR` | sample.record |
 | `TECHNICIAN` | result.enter, result.validate-tech |
 | `BIOLOGIST` | result.validate-bio, file.publish |
 | `CASHIER` | invoice.read, payment.collect, expense.record |
@@ -618,14 +723,47 @@ Method-level enforcement via `@PreAuthorize("hasAuthority('result.validate-bio')
 ### 9.3 Data Protection
 - TLS 1.3 only, HSTS enabled
 - Secrets in environment / Vault, never in code
-- PII columns encrypted at the application layer where regulation demands (id document numbers, portal passwords)
+- Patient portal passwords are hashed (Argon2id), never stored in plaintext (CDC §I "Identifiants de connexion pour consulter les résultats")
 - Database backups encrypted at rest
-- Audit log for every read of a patient file by a user (separate `audit_access` table)
+- Read access to patient files is captured automatically by the secured-x signing filter (per-request Ed25519 signature in `signed_actions`, see §9.4) — no separate `audit_access` table
 
 ### 9.4 Audit Trail
-Two layers:
-- **Hibernate Envers** maintains row-level history on all critical tables (`patients`, `lab_files`, `result_entries`, `invoices`, `users`)
-- **Application events** logged into an append-only `audit_event` table (who, what, when, target, ip, userAgent)
+Two complementary layers:
+
+- **Row-level history** — Hibernate Envers on the critical tables (`patients`, `lab_files`, `result_entries`, `invoices`, `users`). Captures *what* changed, when, and by whom on each row. Used for forensic queries and write reconstruction.
+- **Action history (secured-x signing chain)** — every authenticated HTTP request is signed with the user's Ed25519 key pair and stored in `signed_actions`, linked into a per-user tamper-evident hash chain. Satisfies CDC §II "Historique des actions effectuées sur le dossier (lié aux droits d'accès suivant les comptes)". Business operations that need explicit signing (`dossier.publish`, `dossier.sign-electronically` per CDC §IV) use the `@Signed("…")` AOP annotation from `secured-x-core`.
+
+The signing chain is append-only at the database level (PostgreSQL `RULE` blocks `UPDATE` and `DELETE` on `signed_actions`), giving the audit trail tamper-evidence on top of cryptographic integrity. The legacy `audit_event` table from earlier drafts is removed in favour of `signed_actions`.
+
+---
+
+### 9.5 Permissions Catalog (CDC-derived)
+
+The permission strings used in `@RequiresPermission(…)` (from `secured-x-rbac`) and `@PreAuthorize("hasAuthority(…)")` are seeded from the CDC. Each is grounded in a specific CDC clause:
+
+| Permission | CDC clause | Default role(s) |
+|---|---|---|
+| `patient.create`, `patient.update`, `patient.search`, `patient.merge` | §I Accueil et enregistrement | RECEPTIONIST, LAB_MANAGER |
+| `lab-file.create`, `lab-file.read` | §II Dossier Analyse, §IX Gestion des dossiers | RECEPTIONIST, TECHNICIAN, BIOLOGIST |
+| `sample.record-in-lab`, `sample.record-external`, `sample.record-home` | §II Prélèvements | RECEPTIONIST, TECHNICIAN |
+| `result.enter` | §IV Résultats | TECHNICIAN |
+| `result.validate-tech` | §IV "Bouton pour la validation technique", §VII | TECHNICIAN |
+| `result.validate-bio` | §X Validation biologique | BIOLOGIST |
+| `dossier.sign-electronically` | §IV "signer électroniquement le dossier" | BIOLOGIST |
+| `dossier.publish` | §IV "publier le résultat online", "envoyer par Mail" | BIOLOGIST |
+| `quote.create`, `quote.send`, `quote.lock` | §III Devis | RECEPTIONIST |
+| `invoice.create`, `invoice.read` | §II Facturation, Gestion comptable §1 | RECEPTIONIST (create), CASHIER, ACCOUNTANT |
+| `payment.collect` | §II Facturation, §VIII | RECEPTIONIST, CASHIER |
+| `expense.record` | Gestion comptable §2 | CASHIER, ACCOUNTANT |
+| `cashbox.use-assigned`, `cashbox.close-day` | §VIII, Gestion comptable §3, §4 | RECEPTIONIST (own only), CASHIER, LAB_MANAGER |
+| `home-collection-fee.record` | Gestion comptable §5 | CASHIER |
+| `catalog.manage` | §VII Configurations | LAB_MANAGER |
+| `prescriber.manage`, `insurance.manage`, `partner.manage` | "Boutons de fenêtre en général" | LAB_MANAGER |
+| `users.manage` | implied (admin labo) | LAB_MANAGER, ADMIN |
+| `stats.read` | Onglet Statistiques | ACCOUNTANT, BIOLOGIST, LAB_MANAGER |
+| `audit.read` | implied | ADMIN |
+
+Permissions outside this catalog are not seeded; adding one requires a CDC amendment.
 
 ---
 
@@ -687,14 +825,15 @@ public interface NotificationService {
     void send(NotificationRequest request);
 }
 public sealed interface NotificationRequest
-    permits EmailRequest, WhatsAppRequest, SmsRequest { }
+    permits EmailRequest, WhatsAppRequest { }
 ```
 Implementations behind the same interface plug in different providers.
 
 ### 12.2 Providers
 - **Email** — SMTP (Spring Mail) or SendGrid / Amazon SES
 - **WhatsApp** — Meta Cloud API (templated messages for transactional content)
-- **SMS** — local gateway (Orange/Moov/MTN) or Twilio
+
+(SMS is not in CDC scope; the sealed type stays open to a future `SmsRequest` permit if required.)
 
 ### 12.3 Reliability
 All sends go through an outbox table. A scheduled job retries failures with exponential backoff. The audit log records every successful or failed delivery against the lab file.
@@ -719,14 +858,13 @@ XLSX (Apache POI) and PDF (JasperReports) for accountants and the lab manager.
 
 ## 14. Integrations
 
-### 14.1 Lab Instruments (planned, phase 2)
-HL7 v2 / ASTM E1394 over TCP. A dedicated `instruments` module will host MLLP listeners and parse messages into `ResultEntry` objects. Until then, results are entered manually.
+Out-of-CDC integrations are deferred and are **not** committed deliverables of this project:
 
-### 14.2 Payment Gateways
-- **Flooz** (Moov Africa) and **Mixx by Yas** (Yas Togo) — integration via their merchant APIs once the lab has API credentials. Until then, payments are recorded manually with a transaction reference field.
+- Lab instrument feeds (HL7 v2 / ASTM E1394) — manual result entry remains the supported flow.
+- Mobile-money merchant APIs (Flooz / Mixx by Yas) — payment *modes* are recorded as enumerated data fields per CDC §II Facturation (`chèque`, `espèce`, `TPE`, `Flooz`, `Mixx by Yas`, …); no API call is issued.
+- Insurance carrier APIs — insurance pricing is configured locally per CDC "Boutons de fenêtre en général / Assurances" (code, taux de prise en charge, valeur indiciaire, montant total).
 
-### 14.3 Insurance APIs
-Most West African insurances do not yet expose APIs; pricing is configured locally. The architecture accepts a future `InsuranceClient` adapter without disturbing billing.
+Should any of these become required, they re-enter via a brainstorm → spec → plan cycle as a CDC-amendment proposal.
 
 ---
 
@@ -1181,12 +1319,11 @@ pipeline {
 - [ ] Default deny on all endpoints; explicit `permitAll` for `/auth/*` and Actuator health
 - [ ] Argon2id password hashing with per-environment cost
 - [ ] CSRF disabled (stateless JWT) but CORS strictly configured per origin
-- [ ] Rate limiting on `/auth/*` and `/patients/search`
 - [ ] OWASP Dependency-Check in CI; fail on CVSS ≥ 7
 - [ ] Container image scanned (Trivy)
 - [ ] No SQL injection: 100% parameterized queries, no string concatenation
-- [ ] Output PDF passwords delivered out-of-band (SMS/WhatsApp), never in the same email
-- [ ] Audit log immutable: append-only, weekly hash chain
+- [ ] PDF reports may be password-protected per CDC §IV "mot de passe sur le fichier"; out-of-band delivery of the password (e.g. WhatsApp) is a deployment-time choice, not a hard requirement
+- [ ] Action audit chain immutable: per-user Ed25519 signature + hash-linked sequence number (secured-x), enforced append-only at the DB level (PostgreSQL `RULE` blocks `UPDATE`/`DELETE` on `signed_actions`)
 - [ ] Quarterly access review (who has which role)
 - [ ] Annual penetration test
 - [ ] GDPR-style right to be forgotten only after retention period (10 years for medical records)
@@ -1202,9 +1339,16 @@ Every phase is delivered TDD-first: each module starts from an empty Liquibase c
 - Goal: prove the deploy pipeline before writing business code.
 
 ### Phase 1 — Core (8–10 weeks)
-- `iam`, `patient`, `catalog` (analyses simple/grouped, disciplines, matrices, techniques, recipients), `order` (lab files, samples), `result` (entry, technical + biological validation, reference intervals).
-- Auth (local + JWT), audit, basic PDF report.
-- Deployable to a real lab for pilot with manual billing.
+Five sub-projects, each shippable independently:
+
+- **1.1.a — secured-x additions** *(separate repo: `~/Documents/development/projects/personal/secured-x`)*. Add `secured-x-provider-local` (username + password, Argon2id) and `secured-x-rbac` (roles + permissions, `@RequiresPermission`). Released to a Maven repo; LIMS pins the new version.
+- **1.1.b — LIMS iam integration**. `User` aggregate, role/permission seed data per §9.5, Liquibase changesets for `users` / `local_credentials` / `user_key_pairs` / `signed_actions`, `LocalCredentialStore` + `UserKeyPairStore` + `AuditChainStore` impls (extending secured-x base classes), `AuthenticationHandler` impl, `AuditorAware` wired to secured-x security context, Hibernate Envers config, RFC 7807 `@ControllerAdvice` skeleton in `shared/web/`, admin user CRUD endpoints.
+- **1.2 — patient**. Patient aggregate, lab-code generation per §6.6, search/lookup, merge, contacts, insurance/partner FKs.
+- **1.3 — catalog**. Analyses (simple + grouped + bilan société), disciplines, matrices, techniques, récipients, antibiotiques, prescripteurs (with spécialités), préleveurs (with habilitations), reference intervals.
+- **1.4 — order**. Lab files (dossiers), samples (in-lab / external / home), daily-ID generation per §6.6, urgency, prescriber link.
+- **1.5 — result + PDF**. Result entry, sealed `ResultValue` types (Numeric / Integer / Text / Formula / FreeForm — matching CDC §"Type de résultat"), technical validation, biological validation, antibiogram interpretation per §6.4, basic PDF report (Thymeleaf + OpenHTMLtoPDF), patient portal credential issuance (CDC §I).
+
+Goal: deployable to a real lab for pilot with manual billing.
 
 ### Phase 2 — Billing & Cash (4–6 weeks)
 - `billing` (invoices, insurance, partners, society panels).
@@ -1217,11 +1361,7 @@ Every phase is delivered TDD-first: each module starts from an empty Liquibase c
 - `notification` (email + WhatsApp + SMS) with outbox.
 - Antibiogram automation polish.
 
-### Phase 4 — Advanced & Integrations (open-ended)
-- Lab instrument integration (HL7/ASTM).
-- Mobile money APIs.
-- Multi-lab tenant mode.
-- Microservice extraction if/when scale demands it.
+*Project scope ends at Phase 3 per CDC. Anything beyond (lab instrument feeds, mobile-money APIs, multi-lab tenant mode, microservice extraction) is unscoped follow-on work and is not a committed deliverable of this project.*
 
 ---
 
