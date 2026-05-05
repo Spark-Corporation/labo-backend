@@ -1,7 +1,7 @@
 @NullMarked
 @ApplicationModule(
         displayName = "Patient",
-        allowedDependencies = {"shared"})
+        allowedDependencies = {"shared::domain", "shared::id"})
 package org.sparkcorporation.lims.patient;
 
 import org.jspecify.annotations.NullMarked;

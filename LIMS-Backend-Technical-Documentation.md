@@ -303,32 +303,43 @@ Pattern matching on `ResultValue` keeps result handling exhaustive at compile ti
 
 ```sql
 CREATE TABLE patients (
-    id UUID PRIMARY KEY,
-    lab_code VARCHAR(20) NOT NULL UNIQUE,
+    id VARCHAR(26) PRIMARY KEY,                                       -- ULID per §5.2
+    lab_code VARCHAR(30) NOT NULL UNIQUE,                             -- format <prefix>-<yyMMdd>-<seq>, see §6.6
     last_name VARCHAR(120) NOT NULL,
     first_names VARCHAR(160),
     maiden_name VARCHAR(120),
-    civility VARCHAR(20) NOT NULL,
-    sex CHAR(1) NOT NULL,
+    civility VARCHAR(20) NOT NULL,                                    -- shared.domain.Civility
+    sex CHAR(1) NOT NULL,                                             -- shared.domain.Sex (M, F)
     birth_date DATE,
-    id_document_type VARCHAR(20),
+    id_document_type VARCHAR(20),                                     -- patient.domain.IdDocumentType
     id_document_number VARCHAR(40),
     profession VARCHAR(80),
     address VARCHAR(255),
+    clinical_notes TEXT,                                              -- CDC §I "Informations cliniques ou diagnostic"
     phone VARCHAR(30),
     email VARCHAR(120),
+    guardian_name VARCHAR(120),                                       -- CDC §I "Contact de l'accompagnant, du parent ou tuteur légal"
+    guardian_phone VARCHAR(30),
+    guardian_relationship VARCHAR(20),                                -- patient.domain.GuardianRelationship
     insured BOOLEAN NOT NULL DEFAULT FALSE,
-    insurance_id UUID REFERENCES insurances(id),
-    partner_id UUID REFERENCES partners(id),
-    portal_login VARCHAR(80),
-    portal_password_hash VARCHAR(255),
+    -- insurance_id, partner_id are added later by the catalog / billing changesets when those tables exist
+    portal_login VARCHAR(80) UNIQUE,                                  -- CDC §I "Identifiants de connexion pour consulter les résultats"
+    portal_password_hash VARCHAR(255),                                -- Argon2id PHC string
+    merged_into_id VARCHAR(26),                                       -- soft self-reference; FK enforced in app
+    deleted_at TIMESTAMPTZ,                                           -- soft delete; 10-year medical retention
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    created_by VARCHAR(26),                                           -- nullable until iam lands (sub-project 1.1.b)
+    updated_by VARCHAR(26),                                           -- nullable until iam lands
     version INT NOT NULL DEFAULT 0
 );
 
-CREATE INDEX idx_patients_last_name ON patients (lower(last_name));
+CREATE EXTENSION IF NOT EXISTS pg_trgm;
+CREATE INDEX idx_patients_last_name_trgm ON patients USING gin (lower(last_name) gin_trgm_ops);
 CREATE INDEX idx_patients_phone     ON patients (phone);
+CREATE INDEX idx_patients_id_document_number ON patients (id_document_number);
+CREATE INDEX idx_patients_merged_into_id ON patients (merged_into_id) WHERE merged_into_id IS NOT NULL;
+CREATE INDEX idx_patients_active ON patients (id) WHERE deleted_at IS NULL;
 ```
 
 ```sql

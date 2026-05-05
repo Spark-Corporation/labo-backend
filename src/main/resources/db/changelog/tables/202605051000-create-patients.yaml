@@ -1,0 +1,86 @@
+databaseChangeLog:
+  - changeSet:
+      id: 202605051000-create-patients
+      author: samuel
+      labels: phase-1-2
+      preConditions:
+        - onFail: HALT
+        - not:
+            - tableExists: { tableName: patients }
+      changes:
+        - createTable:
+            tableName: patients
+            columns:
+              - column:
+                  name: id
+                  type: varchar(26)
+                  constraints: { primaryKey: true, nullable: false }
+              - column:
+                  name: lab_code
+                  type: varchar(30)
+                  constraints: { nullable: false, unique: true }
+              - column: { name: last_name, type: varchar(120), constraints: { nullable: false } }
+              - column: { name: first_names, type: varchar(160) }
+              - column: { name: maiden_name, type: varchar(120) }
+              - column: { name: civility, type: varchar(20), constraints: { nullable: false } }
+              - column: { name: sex, type: char(1), constraints: { nullable: false } }
+              - column: { name: birth_date, type: date }
+              - column: { name: id_document_type, type: varchar(20) }
+              - column: { name: id_document_number, type: varchar(40) }
+              - column: { name: profession, type: varchar(80) }
+              - column: { name: address, type: varchar(255) }
+              - column: { name: clinical_notes, type: text }
+              - column: { name: phone, type: varchar(30) }
+              - column: { name: email, type: varchar(120) }
+              - column: { name: guardian_name, type: varchar(120) }
+              - column: { name: guardian_phone, type: varchar(30) }
+              - column: { name: guardian_relationship, type: varchar(20) }
+              - column:
+                  name: insured
+                  type: boolean
+                  defaultValueBoolean: false
+                  constraints: { nullable: false }
+              - column:
+                  name: portal_login
+                  type: varchar(80)
+                  constraints: { unique: true }
+              - column: { name: portal_password_hash, type: varchar(255) }
+              - column: { name: merged_into_id, type: varchar(26) }
+              - column: { name: deleted_at, type: timestamptz }
+              - column:
+                  name: created_at
+                  type: timestamptz
+                  defaultValueComputed: now()
+                  constraints: { nullable: false }
+              - column:
+                  name: updated_at
+                  type: timestamptz
+                  defaultValueComputed: now()
+                  constraints: { nullable: false }
+              - column: { name: created_by, type: varchar(26) }
+              - column: { name: updated_by, type: varchar(26) }
+              - column:
+                  name: version
+                  type: int
+                  defaultValueNumeric: 0
+                  constraints: { nullable: false }
+        - createIndex:
+            indexName: idx_patients_last_name
+            tableName: patients
+            columns:
+              - column: { name: last_name }
+        - createIndex:
+            indexName: idx_patients_phone
+            tableName: patients
+            columns:
+              - column: { name: phone }
+        - createIndex:
+            indexName: idx_patients_id_document_number
+            tableName: patients
+            columns:
+              - column: { name: id_document_number }
+        - createIndex:
+            indexName: idx_patients_merged_into_id
+            tableName: patients
+            columns:
+              - column: { name: merged_into_id }
