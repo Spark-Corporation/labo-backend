@@ -1,0 +1,9 @@
+# Sample liquibase.properties for manual `mvn liquibase:status` /
+# `mvn liquibase:updateSQL` runs against a local DB. Copy to
+# liquibase.properties (gitignored) and adjust.
+
+url=jdbc:postgresql://localhost:5432/lims
+username=lims
+password=lims
+defaultSchemaName=lims
+liquibaseSchemaName=lims_liquibase

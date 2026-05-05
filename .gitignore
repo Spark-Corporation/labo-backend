@@ -1,0 +1,13 @@
+target/
+.flattened-pom.xml
+dependency-reduced-pom.xml
+.idea/
+*.iml
+.vscode/
+.env
+.env.*
+*.log
+target/site/
+target/spring-modulith-docs/
+.mvn/wrapper/maven-wrapper.jar
+liquibase.properties

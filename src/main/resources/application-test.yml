@@ -1,0 +1,6 @@
+spring:
+  liquibase:
+    contexts: test
+logging:
+  level:
+    root: WARN

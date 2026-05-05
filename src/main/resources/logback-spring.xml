@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration>
+  <include resource="org/springframework/boot/logging/logback/defaults.xml"/>
+
+  <appender name="JSON_CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+    <encoder class="net.logstash.logback.encoder.LogstashEncoder">
+      <includeMdcKeyName>traceId</includeMdcKeyName>
+      <includeMdcKeyName>userId</includeMdcKeyName>
+      <includeMdcKeyName>labFileId</includeMdcKeyName>
+      <fieldNames>
+        <timestamp>ts</timestamp>
+        <message>msg</message>
+        <thread>thread</thread>
+        <level>level</level>
+        <logger>logger</logger>
+      </fieldNames>
+      <customFields>{"service":"lims-backend"}</customFields>
+      <provider class="net.logstash.logback.composite.loggingevent.MaskingMessageJsonProvider">
+        <paths>
+          <path>$..password</path>
+          <path>$..jwt</path>
+          <path>$..dob</path>
+        </paths>
+        <mask>***</mask>
+      </provider>
+    </encoder>
+  </appender>
+
+  <root level="INFO">
+    <appender-ref ref="JSON_CONSOLE"/>
+  </root>
+</configuration>
