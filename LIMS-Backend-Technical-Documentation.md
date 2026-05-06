@@ -428,7 +428,7 @@ CREATE TABLE reference_intervals (
 ### 6.4 Antibiogram
 ```sql
 CREATE TABLE antibiotics (
-    id UUID PRIMARY KEY,
+    id VARCHAR(26) PRIMARY KEY,
     code VARCHAR(10) NOT NULL UNIQUE,
     name VARCHAR(100) NOT NULL,
     family VARCHAR(50),
@@ -804,7 +804,7 @@ Global `@ControllerAdvice` converts:
 - Virtual threads enabled via `spring.threads.virtual.enabled=true` for the Tomcat executor
 
 ### 10.5 Internationalization
-All user-facing messages go through `MessageSource`. Default locale `fr-FR`; `en-US` available. Reference data (analyses, disciplines) is stored in the user's working language and not auto-translated.
+User-facing free-text (clinical notes, comments, descriptions) goes through `MessageSource` only when explicitly localized. Reference-data identity codes (e.g. `BIOCHIMIE`, `SANG_TOTAL`, `TUBE_EDTA`) are language-stable; their display names are localized client-side via the `code` as the i18n bundle key. The default-locale `name` column on each catalog table is used as a fallback when no i18n bundle entry matches.
 
 ---
 

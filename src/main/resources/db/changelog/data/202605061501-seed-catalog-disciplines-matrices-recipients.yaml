@@ -1,0 +1,206 @@
+# Seed catalog reference data: 5 disciplines + 10 matrices + 8 recipients (per CDC §6 + tech doc §6.2/§6.4).
+#
+# ULID assignments captured from UlidGenerator throwaway helper (deleted before commit).
+# DISCIPLINES (5):
+#   BIOCHIMIE             = 01KQZDE7PS7NXEYC2YVY4B3EFF
+#   HEMATOLOGIE           = 01KQZDE7PS3E59RKF23TGVNB2F
+#   IMMUNO_SEROLOGIE      = 01KQZDE7PSAK8B1PN6P2R38SYY
+#   MICROBIOLOGIE         = 01KQZDE7PSK2WTD19DXA9ZY7MB
+#   BIOLOGIE_MOLECULAIRE  = 01KQZDE7PSHR04CQ5MG554CEG8
+# MATRICES (10):
+#   SANG_TOTAL            = 01KQZDE7PSE521HCQTAGKQXQPD
+#   SERUM                 = 01KQZDE7PS105HC56BGA9X2ZE1
+#   PLASMA                = 01KQZDE7PSS87STW4RP8PTM0MD
+#   URINE_SPONTANEE       = 01KQZDE7PSP0FV08J7YE6QMH0Q
+#   URINE_24H             = 01KQZDE7PSCD6KVT259XDSF43Z
+#   SELLES                = 01KQZDE7PSXM4VZCSM4STMGJQR
+#   LCR                   = 01KQZDE7PS2J4S36YNSPEQWSBJ
+#   EXPECTORATION         = 01KQZDE7PS788NZ3C3YVZ5XG7Q
+#   FROTTIS               = 01KQZDE7PSE2ESR6PB3WX6BH84
+#   AUTRE_MATRICE         = 01KQZDE7PS96TE2R373EAPDSYT
+# RECIPIENTS (8):
+#   TUBE_EDTA             = 01KQZDE7PSX1AKCPD9FZ0AYQS7
+#   TUBE_HEPARINE         = 01KQZDE7PSB4S25V4VR1KE1VJA
+#   TUBE_SEC              = 01KQZDE7PS38C9R7RYMK90DN4H
+#   TUBE_CITRATE          = 01KQZDE7PSC6KY0EX0GQH423P2
+#   TUBE_FLUORURE         = 01KQZDE7PSKAHR3R774BBXK51B
+#   POT_URINE             = 01KQZDE7PSX6BYTM7WX3QSXRPQ
+#   FLACON_HEMOCULTURE    = 01KQZDE7PS090DVBK35DTD06JR
+#   AUTRE_RECIPIENT       = 01KQZDE7PT3NBXB1K08G912RK9
+
+databaseChangeLog:
+  - changeSet:
+      id: 202605061501-seed-catalog-disciplines-matrices-recipients
+      author: samuel
+      contextFilter: dev,test,prod
+      labels: phase-1-3-a
+      preConditions:
+        - onFail: MARK_RAN
+        - sqlCheck:
+            expectedResult: 0
+            sql: SELECT COUNT(*) FROM disciplines
+      changes:
+        # ---- Disciplines (5) ----
+        - insert:
+            tableName: disciplines
+            columns:
+              - column: { name: id, value: "01KQZDE7PS7NXEYC2YVY4B3EFF" }
+              - column: { name: code, value: "BIOCHIMIE" }
+              - column: { name: name, value: "Biochimie" }
+        - insert:
+            tableName: disciplines
+            columns:
+              - column: { name: id, value: "01KQZDE7PS3E59RKF23TGVNB2F" }
+              - column: { name: code, value: "HEMATOLOGIE" }
+              - column: { name: name, value: "Hématologie" }
+        - insert:
+            tableName: disciplines
+            columns:
+              - column: { name: id, value: "01KQZDE7PSAK8B1PN6P2R38SYY" }
+              - column: { name: code, value: "IMMUNO_SEROLOGIE" }
+              - column: { name: name, value: "Immuno-sérologie" }
+        - insert:
+            tableName: disciplines
+            columns:
+              - column: { name: id, value: "01KQZDE7PSK2WTD19DXA9ZY7MB" }
+              - column: { name: code, value: "MICROBIOLOGIE" }
+              - column: { name: name, value: "Microbiologie" }
+        - insert:
+            tableName: disciplines
+            columns:
+              - column: { name: id, value: "01KQZDE7PSHR04CQ5MG554CEG8" }
+              - column: { name: code, value: "BIOLOGIE_MOLECULAIRE" }
+              - column: { name: name, value: "Biologie moléculaire" }
+
+        # ---- Matrices (10) ----
+        - insert:
+            tableName: matrices
+            columns:
+              - column: { name: id, value: "01KQZDE7PSE521HCQTAGKQXQPD" }
+              - column: { name: code, value: "SANG_TOTAL" }
+              - column: { name: name, value: "Sang total" }
+        - insert:
+            tableName: matrices
+            columns:
+              - column: { name: id, value: "01KQZDE7PS105HC56BGA9X2ZE1" }
+              - column: { name: code, value: "SERUM" }
+              - column: { name: name, value: "Sérum" }
+        - insert:
+            tableName: matrices
+            columns:
+              - column: { name: id, value: "01KQZDE7PSS87STW4RP8PTM0MD" }
+              - column: { name: code, value: "PLASMA" }
+              - column: { name: name, value: "Plasma" }
+        - insert:
+            tableName: matrices
+            columns:
+              - column: { name: id, value: "01KQZDE7PSP0FV08J7YE6QMH0Q" }
+              - column: { name: code, value: "URINE_SPONTANEE" }
+              - column: { name: name, value: "Urine spontanée" }
+        - insert:
+            tableName: matrices
+            columns:
+              - column: { name: id, value: "01KQZDE7PSCD6KVT259XDSF43Z" }
+              - column: { name: code, value: "URINE_24H" }
+              - column: { name: name, value: "Urine 24h" }
+        - insert:
+            tableName: matrices
+            columns:
+              - column: { name: id, value: "01KQZDE7PSXM4VZCSM4STMGJQR" }
+              - column: { name: code, value: "SELLES" }
+              - column: { name: name, value: "Selles" }
+        - insert:
+            tableName: matrices
+            columns:
+              - column: { name: id, value: "01KQZDE7PS2J4S36YNSPEQWSBJ" }
+              - column: { name: code, value: "LCR" }
+              - column: { name: name, value: "LCR" }
+        - insert:
+            tableName: matrices
+            columns:
+              - column: { name: id, value: "01KQZDE7PS788NZ3C3YVZ5XG7Q" }
+              - column: { name: code, value: "EXPECTORATION" }
+              - column: { name: name, value: "Expectoration" }
+        - insert:
+            tableName: matrices
+            columns:
+              - column: { name: id, value: "01KQZDE7PSE2ESR6PB3WX6BH84" }
+              - column: { name: code, value: "FROTTIS" }
+              - column: { name: name, value: "Frottis" }
+        - insert:
+            tableName: matrices
+            columns:
+              - column: { name: id, value: "01KQZDE7PS96TE2R373EAPDSYT" }
+              - column: { name: code, value: "AUTRE_MATRICE" }
+              - column: { name: name, value: "Autre matrice" }
+
+        # ---- Recipients (8) ----
+        - insert:
+            tableName: recipients
+            columns:
+              - column: { name: id, value: "01KQZDE7PSX1AKCPD9FZ0AYQS7" }
+              - column: { name: code, value: "TUBE_EDTA" }
+              - column: { name: name, value: "Tube EDTA" }
+              - column: { name: color, value: "violet" }
+              - column: { name: volume_ml, valueNumeric: "5.00" }
+              - column: { name: default_matrix_id, value: "01KQZDE7PSE521HCQTAGKQXQPD" }
+        - insert:
+            tableName: recipients
+            columns:
+              - column: { name: id, value: "01KQZDE7PSB4S25V4VR1KE1VJA" }
+              - column: { name: code, value: "TUBE_HEPARINE" }
+              - column: { name: name, value: "Tube héparine" }
+              - column: { name: color, value: "vert" }
+              - column: { name: volume_ml, valueNumeric: "5.00" }
+              - column: { name: default_matrix_id, value: "01KQZDE7PSS87STW4RP8PTM0MD" }
+        - insert:
+            tableName: recipients
+            columns:
+              - column: { name: id, value: "01KQZDE7PS38C9R7RYMK90DN4H" }
+              - column: { name: code, value: "TUBE_SEC" }
+              - column: { name: name, value: "Tube sec" }
+              - column: { name: color, value: "rouge" }
+              - column: { name: volume_ml, valueNumeric: "5.00" }
+              - column: { name: default_matrix_id, value: "01KQZDE7PS105HC56BGA9X2ZE1" }
+        - insert:
+            tableName: recipients
+            columns:
+              - column: { name: id, value: "01KQZDE7PSC6KY0EX0GQH423P2" }
+              - column: { name: code, value: "TUBE_CITRATE" }
+              - column: { name: name, value: "Tube citrate" }
+              - column: { name: color, value: "bleu" }
+              - column: { name: volume_ml, valueNumeric: "4.50" }
+              - column: { name: default_matrix_id, value: "01KQZDE7PSS87STW4RP8PTM0MD" }
+        - insert:
+            tableName: recipients
+            columns:
+              - column: { name: id, value: "01KQZDE7PSKAHR3R774BBXK51B" }
+              - column: { name: code, value: "TUBE_FLUORURE" }
+              - column: { name: name, value: "Tube fluorure" }
+              - column: { name: color, value: "gris" }
+              - column: { name: volume_ml, valueNumeric: "4.00" }
+              - column: { name: default_matrix_id, value: "01KQZDE7PSS87STW4RP8PTM0MD" }
+        - insert:
+            tableName: recipients
+            columns:
+              - column: { name: id, value: "01KQZDE7PSX6BYTM7WX3QSXRPQ" }
+              - column: { name: code, value: "POT_URINE" }
+              - column: { name: name, value: "Pot à urine" }
+              - column: { name: color, value: "transparent" }
+              - column: { name: volume_ml, valueNumeric: "60.00" }
+              - column: { name: default_matrix_id, value: "01KQZDE7PSP0FV08J7YE6QMH0Q" }
+        - insert:
+            tableName: recipients
+            columns:
+              - column: { name: id, value: "01KQZDE7PS090DVBK35DTD06JR" }
+              - column: { name: code, value: "FLACON_HEMOCULTURE" }
+              - column: { name: name, value: "Flacon hémoculture" }
+              - column: { name: color, value: "bleu" }
+              - column: { name: volume_ml, valueNumeric: "40.00" }
+              - column: { name: default_matrix_id, value: "01KQZDE7PSE521HCQTAGKQXQPD" }
+        - insert:
+            tableName: recipients
+            columns:
+              - column: { name: id, value: "01KQZDE7PT3NBXB1K08G912RK9" }
+              - column: { name: code, value: "AUTRE_RECIPIENT" }
+              - column: { name: name, value: "Autre récipient" }
