@@ -35,9 +35,31 @@ management:
       percentiles-histogram:
         http.server.requests: true
 
+secured-x:
+  jwt:
+    private-key: ${SECURED_X_JWT_PRIVATE_KEY:classpath:keys/dev/private.pem}
+    public-key: ${SECURED_X_JWT_PUBLIC_KEY:classpath:keys/dev/public.pem}
+    issuer: lims
+    audience: lims
+    expiration: 86400000
+    refresh-expiration: 604800000
+  security:
+    public-paths:
+      - /auth/**
+      - /actuator/health
+      - /actuator/info
+      - /actuator/prometheus
+  rbac:
+    resolution-mode: RESOLVER
+
 lims:
   lab:
     code-prefix: LAB
+  iam:
+    bootstrap:
+      enabled: true
+      admin-email: ${LIMS_BOOTSTRAP_ADMIN_EMAIL:}
+      admin-password: ${LIMS_BOOTSTRAP_ADMIN_PASSWORD:}
 
 server:
   port: ${SERVER_PORT:8080}

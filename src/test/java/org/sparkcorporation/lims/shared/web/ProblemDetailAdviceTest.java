@@ -41,6 +41,11 @@ class ProblemDetailAdviceTest {
         public String bad() {
             throw new IllegalArgumentException("bad ulid");
         }
+
+        @GetMapping("/forbidden")
+        public String f() {
+            throw new org.springframework.security.access.AccessDeniedException("missing perm");
+        }
     }
 
     private final MockMvc mockMvc =
@@ -85,5 +90,15 @@ class ProblemDetailAdviceTest {
                 .andExpect(jsonPath("$.title").value("Internal Server Error"))
                 .andExpect(jsonPath("$.status").value(500))
                 .andExpect(jsonPath("$.detail").value("internal error"));
+    }
+
+    @Test
+    void AccessDeniedException_returns_403_problem_detail() throws Exception {
+        mockMvc.perform(get("/test-throws/forbidden"))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.title").value("Forbidden"))
+                .andExpect(jsonPath("$.status").value(403))
+                .andExpect(jsonPath("$.type").value("https://lims/errors/forbidden"))
+                .andExpect(jsonPath("$.detail").value("missing required permission"));
     }
 }

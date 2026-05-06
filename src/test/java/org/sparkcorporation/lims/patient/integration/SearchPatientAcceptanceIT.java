@@ -27,7 +27,12 @@ class SearchPatientAcceptanceIT extends IntegrationTestBase {
 
     @BeforeEach
     void setUp() {
-        http = RestClient.create("http://localhost:" + port);
+        String jwt = loginAs(port, "admin@test.local", "test-password");
+        http =
+                RestClient.builder()
+                        .baseUrl("http://localhost:" + port)
+                        .defaultHeader("Authorization", "Bearer " + jwt)
+                        .build();
     }
 
     @Test

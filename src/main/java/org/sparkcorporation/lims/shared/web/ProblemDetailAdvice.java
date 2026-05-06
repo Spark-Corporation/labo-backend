@@ -75,6 +75,19 @@ public class ProblemDetailAdvice {
         return pd;
     }
 
+    @ExceptionHandler(org.springframework.security.access.AccessDeniedException.class)
+    public ProblemDetail handleAccessDenied(
+            org.springframework.security.access.AccessDeniedException ex, HttpServletRequest req) {
+        var pd =
+                ProblemDetail.forStatusAndDetail(
+                        HttpStatus.FORBIDDEN, "missing required permission");
+        pd.setType(URI.create("https://lims/errors/forbidden"));
+        pd.setTitle("Forbidden");
+        pd.setInstance(URI.create(req.getRequestURI()));
+        pd.setProperty("traceId", currentTraceId());
+        return pd;
+    }
+
     @ExceptionHandler(OptimisticLockingFailureException.class)
     public ProblemDetail handleOptimisticLock(
             OptimisticLockingFailureException ex, HttpServletRequest req) {

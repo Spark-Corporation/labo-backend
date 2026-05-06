@@ -1,0 +1,110 @@
+databaseChangeLog:
+  - changeSet:
+      id: 202605061000-create-iam-tables
+      author: samuel
+      labels: phase-1-1-b
+      preConditions:
+        - onFail: HALT
+        - not:
+            - tableExists: { tableName: users }
+      changes:
+        - createTable:
+            tableName: users
+            columns:
+              - column: { name: id, type: varchar(26), constraints: { primaryKey: true, nullable: false } }
+              - column: { name: email, type: varchar(160), constraints: { nullable: false, unique: true } }
+              - column: { name: full_name, type: varchar(160), constraints: { nullable: false } }
+              - column: { name: password_hash, type: varchar(255), constraints: { nullable: false } }
+              - column:
+                  name: enabled
+                  type: boolean
+                  defaultValueBoolean: true
+                  constraints: { nullable: false }
+              - column: { name: last_login_at, type: timestamptz }
+              - column: { name: deleted_at, type: timestamptz }
+              - column:
+                  name: created_at
+                  type: timestamptz
+                  defaultValueComputed: now()
+                  constraints: { nullable: false }
+              - column:
+                  name: updated_at
+                  type: timestamptz
+                  defaultValueComputed: now()
+                  constraints: { nullable: false }
+              - column: { name: created_by, type: varchar(26) }
+              - column: { name: updated_by, type: varchar(26) }
+              - column:
+                  name: version
+                  type: int
+                  defaultValueNumeric: 0
+                  constraints: { nullable: false }
+        - createIndex:
+            indexName: idx_users_email
+            tableName: users
+            columns:
+              - column: { name: email }
+        - createTable:
+            tableName: roles
+            columns:
+              - column: { name: id, type: varchar(26), constraints: { primaryKey: true, nullable: false } }
+              - column: { name: name, type: varchar(30), constraints: { nullable: false, unique: true } }
+              - column: { name: description, type: varchar(255) }
+              - column:
+                  name: is_system
+                  type: boolean
+                  defaultValueBoolean: true
+                  constraints: { nullable: false }
+        - createTable:
+            tableName: permissions
+            columns:
+              - column: { name: id, type: varchar(26), constraints: { primaryKey: true, nullable: false } }
+              - column: { name: name, type: varchar(60), constraints: { nullable: false, unique: true } }
+              - column: { name: description, type: varchar(255) }
+              - column: { name: cdc_clause, type: varchar(20) }
+        - createTable:
+            tableName: user_roles
+            columns:
+              - column: { name: user_id, type: varchar(26), constraints: { nullable: false } }
+              - column: { name: role_id, type: varchar(26), constraints: { nullable: false } }
+        - addPrimaryKey:
+            tableName: user_roles
+            columnNames: "user_id, role_id"
+            constraintName: pk_user_roles
+        - addForeignKeyConstraint:
+            baseTableName: user_roles
+            baseColumnNames: user_id
+            referencedTableName: users
+            referencedColumnNames: id
+            constraintName: fk_user_roles_user
+            onDelete: CASCADE
+        - addForeignKeyConstraint:
+            baseTableName: user_roles
+            baseColumnNames: role_id
+            referencedTableName: roles
+            referencedColumnNames: id
+            constraintName: fk_user_roles_role
+            onDelete: CASCADE
+        - createTable:
+            tableName: role_permissions
+            columns:
+              - column: { name: role_id, type: varchar(26), constraints: { nullable: false } }
+              - column: { name: permission_id, type: varchar(26), constraints: { nullable: false } }
+        - addPrimaryKey:
+            tableName: role_permissions
+            columnNames: "role_id, permission_id"
+            constraintName: pk_role_permissions
+        - addForeignKeyConstraint:
+            baseTableName: role_permissions
+            baseColumnNames: role_id
+            referencedTableName: roles
+            referencedColumnNames: id
+            constraintName: fk_role_permissions_role
+            onDelete: CASCADE
+        - addForeignKeyConstraint:
+            baseTableName: role_permissions
+            baseColumnNames: permission_id
+            referencedTableName: permissions
+            referencedColumnNames: id
+            constraintName: fk_role_permissions_permission
+            onDelete: CASCADE

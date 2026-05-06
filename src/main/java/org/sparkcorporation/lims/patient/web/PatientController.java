@@ -6,6 +6,7 @@ import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 
+import dev.sparksam.securedx.rbac.RequiresPermission;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.http.HttpStatus;
@@ -32,6 +33,7 @@ public class PatientController {
     private final PatientService service;
 
     @PostMapping
+    @RequiresPermission("patient.create")
     public ResponseEntity<PatientResponse> create(
             @Valid @RequestBody CreatePatientRequest request,
             @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey) {
@@ -40,11 +42,13 @@ public class PatientController {
     }
 
     @GetMapping("/{id}")
+    @RequiresPermission("patient.search")
     public PatientResponse get(@PathVariable String id) {
         return service.get(new PatientId(id));
     }
 
     @PatchMapping("/{id}")
+    @RequiresPermission("patient.update")
     public PatientResponse update(
             @PathVariable String id, @Valid @RequestBody UpdatePatientRequest req) {
         return service.update(new PatientId(id), req);
@@ -52,17 +56,20 @@ public class PatientController {
 
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
+    @RequiresPermission("patient.update")
     public void delete(@PathVariable String id) {
         service.delete(new PatientId(id));
     }
 
     @PostMapping("/{id}/merge")
+    @RequiresPermission("patient.merge")
     public PatientResponse merge(
             @PathVariable String id, @Valid @RequestBody MergePatientRequest req) {
         return service.merge(new PatientId(id), new PatientId(req.targetId()));
     }
 
     @GetMapping
+    @RequiresPermission("patient.search")
     public PatientSearchResponse search(
             @RequestParam(required = false) String name,
             @RequestParam(required = false) String phone,

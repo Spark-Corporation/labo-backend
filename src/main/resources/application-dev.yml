@@ -1,3 +1,7 @@
 lims:
   lab:
     code-prefix: DEV
+  iam:
+    bootstrap:
+      admin-email: admin@local.dev
+      admin-password: admin-dev-only-do-not-prod
