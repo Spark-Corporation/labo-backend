@@ -13,9 +13,18 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import org.sparkcorporation.lims.catalog.domain.ChildMustBeSimpleException;
 import org.sparkcorporation.lims.catalog.domain.CodeAlreadyExistsException;
+import org.sparkcorporation.lims.catalog.domain.HasComponentsException;
 import org.sparkcorporation.lims.catalog.domain.IamUserNotFoundException;
+import org.sparkcorporation.lims.catalog.domain.InvalidReferenceIntervalException;
+import org.sparkcorporation.lims.catalog.domain.InvalidReplicateRequestException;
+import org.sparkcorporation.lims.catalog.domain.KindAlreadyMatchesException;
 import org.sparkcorporation.lims.catalog.domain.MissingHabilitationException;
+import org.sparkcorporation.lims.catalog.domain.MultipleDefaultTechniquesException;
+import org.sparkcorporation.lims.catalog.domain.NoIntervalsToReplicateException;
+import org.sparkcorporation.lims.catalog.domain.TechniqueNotLinkedException;
+import org.sparkcorporation.lims.shared.domain.PatientCategory;
 
 @ExtendWith(SpringExtension.class)
 class CatalogProblemDetailAdviceTest {
@@ -36,6 +45,47 @@ class CatalogProblemDetailAdviceTest {
         @GetMapping("/iam-user-not-found")
         public String iamUserNotFound() {
             throw new IamUserNotFoundException("01HZB0000000000000000ADMNZ");
+        }
+
+        @GetMapping("/child-must-be-simple")
+        public String childMustBeSimple() {
+            throw new ChildMustBeSimpleException("child must be SIMPLE, got GROUPED");
+        }
+
+        @GetMapping("/has-components")
+        public String hasComponents() {
+            throw new HasComponentsException("cannot convert to SIMPLE while components exist");
+        }
+
+        @GetMapping("/kind-already-matches")
+        public String kindAlreadyMatches() {
+            throw new KindAlreadyMatchesException("already SIMPLE");
+        }
+
+        @GetMapping("/invalid-reference-interval")
+        public String invalidReferenceInterval() {
+            throw new InvalidReferenceIntervalException("STANDARD mode requires unit1Min/unit1Max");
+        }
+
+        @GetMapping("/invalid-replicate-request")
+        public String invalidReplicateRequest() {
+            throw new InvalidReplicateRequestException("source category cannot be in targets");
+        }
+
+        @GetMapping("/no-intervals-to-replicate")
+        public String noIntervalsToReplicate() {
+            throw new NoIntervalsToReplicateException(PatientCategory.HOMME);
+        }
+
+        @GetMapping("/multiple-default-techniques")
+        public String multipleDefaultTechniques() {
+            throw new MultipleDefaultTechniquesException(
+                    "at most one technique can be marked default");
+        }
+
+        @GetMapping("/technique-not-linked")
+        public String techniqueNotLinked() {
+            throw new TechniqueNotLinkedException("technique not linked to analysis");
         }
     }
 
@@ -72,5 +122,75 @@ class CatalogProblemDetailAdviceTest {
                 .andExpect(jsonPath("$.status").value(422))
                 .andExpect(jsonPath("$.type").value("/errors/iam-user-not-found"))
                 .andExpect(jsonPath("$.field").value("userId"));
+    }
+
+    @Test
+    void ChildMustBeSimpleException_returns_422_with_field_childCode() throws Exception {
+        mockMvc.perform(get("/test-catalog-throws/child-must-be-simple"))
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.status").value(422))
+                .andExpect(jsonPath("$.type").value("/errors/child-must-be-simple"))
+                .andExpect(jsonPath("$.field").value("childCode"));
+    }
+
+    @Test
+    void HasComponentsException_returns_422_with_field_kind() throws Exception {
+        mockMvc.perform(get("/test-catalog-throws/has-components"))
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.status").value(422))
+                .andExpect(jsonPath("$.type").value("/errors/has-components"))
+                .andExpect(jsonPath("$.field").value("kind"));
+    }
+
+    @Test
+    void KindAlreadyMatchesException_returns_422_with_field_kind() throws Exception {
+        mockMvc.perform(get("/test-catalog-throws/kind-already-matches"))
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.status").value(422))
+                .andExpect(jsonPath("$.type").value("/errors/kind-already-matches"))
+                .andExpect(jsonPath("$.field").value("kind"));
+    }
+
+    @Test
+    void InvalidReferenceIntervalException_returns_422() throws Exception {
+        mockMvc.perform(get("/test-catalog-throws/invalid-reference-interval"))
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.status").value(422))
+                .andExpect(jsonPath("$.type").value("/errors/invalid-reference-interval"));
+    }
+
+    @Test
+    void InvalidReplicateRequestException_returns_422() throws Exception {
+        mockMvc.perform(get("/test-catalog-throws/invalid-replicate-request"))
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.status").value(422))
+                .andExpect(jsonPath("$.type").value("/errors/invalid-replicate-request"));
+    }
+
+    @Test
+    void NoIntervalsToReplicateException_returns_422_with_field_sourceCategory() throws Exception {
+        mockMvc.perform(get("/test-catalog-throws/no-intervals-to-replicate"))
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.status").value(422))
+                .andExpect(jsonPath("$.type").value("/errors/no-intervals-to-replicate"))
+                .andExpect(jsonPath("$.field").value("sourceCategory"));
+    }
+
+    @Test
+    void MultipleDefaultTechniquesException_returns_422_with_field_items() throws Exception {
+        mockMvc.perform(get("/test-catalog-throws/multiple-default-techniques"))
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.status").value(422))
+                .andExpect(jsonPath("$.type").value("/errors/multiple-default-techniques"))
+                .andExpect(jsonPath("$.field").value("items"));
+    }
+
+    @Test
+    void TechniqueNotLinkedException_returns_422_with_field_techniqueId() throws Exception {
+        mockMvc.perform(get("/test-catalog-throws/technique-not-linked"))
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.status").value(422))
+                .andExpect(jsonPath("$.type").value("/errors/technique-not-linked"))
+                .andExpect(jsonPath("$.field").value("techniqueId"));
     }
 }
