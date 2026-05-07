@@ -14,6 +14,8 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import org.sparkcorporation.lims.catalog.domain.CodeAlreadyExistsException;
+import org.sparkcorporation.lims.catalog.domain.IamUserNotFoundException;
+import org.sparkcorporation.lims.catalog.domain.MissingHabilitationException;
 
 @ExtendWith(SpringExtension.class)
 class CatalogProblemDetailAdviceTest {
@@ -24,6 +26,16 @@ class CatalogProblemDetailAdviceTest {
         @GetMapping("/dup-code")
         public String dup() {
             throw new CodeAlreadyExistsException("discipline", "BIO");
+        }
+
+        @GetMapping("/missing-habilitation")
+        public String missingHabilitation() {
+            throw new MissingHabilitationException();
+        }
+
+        @GetMapping("/iam-user-not-found")
+        public String iamUserNotFound() {
+            throw new IamUserNotFoundException("01HZB0000000000000000ADMNZ");
         }
     }
 
@@ -40,5 +52,25 @@ class CatalogProblemDetailAdviceTest {
                 .andExpect(jsonPath("$.status").value(409))
                 .andExpect(jsonPath("$.type").value("https://lims/errors/conflict"))
                 .andExpect(jsonPath("$.detail").value("discipline code already exists: BIO"));
+    }
+
+    @Test
+    void MissingHabilitationException_returns_422_with_field_property() throws Exception {
+        mockMvc.perform(get("/test-catalog-throws/missing-habilitation"))
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.title").value("Missing habilitation"))
+                .andExpect(jsonPath("$.status").value(422))
+                .andExpect(jsonPath("$.type").value("/errors/missing-habilitation"))
+                .andExpect(jsonPath("$.field").value("habilitations"));
+    }
+
+    @Test
+    void IamUserNotFoundException_returns_422_with_field_property() throws Exception {
+        mockMvc.perform(get("/test-catalog-throws/iam-user-not-found"))
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.title").value("Iam user not found"))
+                .andExpect(jsonPath("$.status").value(422))
+                .andExpect(jsonPath("$.type").value("/errors/iam-user-not-found"))
+                .andExpect(jsonPath("$.field").value("userId"));
     }
 }

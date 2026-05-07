@@ -9,6 +9,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 
 import org.sparkcorporation.lims.IntegrationTestBase;
 import org.sparkcorporation.lims.catalog.infra.AntibioticRepository;
+import org.sparkcorporation.lims.catalog.infra.CatalogCodeCounterRepository;
 import org.sparkcorporation.lims.catalog.infra.DisciplineRepository;
 import org.sparkcorporation.lims.catalog.infra.MatrixRepository;
 import org.sparkcorporation.lims.catalog.infra.RecipientRepository;
@@ -23,6 +24,7 @@ class CatalogSeedIntegrityTest extends IntegrationTestBase {
     @Autowired private TechniqueRepository techniques;
     @Autowired private RecipientRepository recipients;
     @Autowired private AntibioticRepository antibiotics;
+    @Autowired private CatalogCodeCounterRepository counters;
 
     @Test
     void all_seeded_codes_present_after_liquibase_apply() {
@@ -50,5 +52,14 @@ class CatalogSeedIntegrityTest extends IntegrationTestBase {
         var fetched = recipients.findActiveById(tube.rawId()).orElseThrow();
         assertThat(fetched.defaultMatrix()).isNotNull();
         assertThat(fetched.defaultMatrix().code()).isEqualTo("SANG_TOTAL");
+    }
+
+    @Test
+    void seeded_catalog_code_counter_rows_present_for_PRESCRIBER_and_PRELEVEUR() {
+        var prescriber = counters.findById("PRESCRIBER").orElseThrow();
+        assertThat(prescriber.nextSequence()).isGreaterThanOrEqualTo(1L);
+
+        var preleveur = counters.findById("PRELEVEUR").orElseThrow();
+        assertThat(preleveur.nextSequence()).isGreaterThanOrEqualTo(1L);
     }
 }

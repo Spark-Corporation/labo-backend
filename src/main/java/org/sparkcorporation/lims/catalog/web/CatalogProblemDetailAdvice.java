@@ -14,6 +14,8 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
 import org.sparkcorporation.lims.catalog.domain.CodeAlreadyExistsException;
+import org.sparkcorporation.lims.catalog.domain.IamUserNotFoundException;
+import org.sparkcorporation.lims.catalog.domain.MissingHabilitationException;
 
 /**
  * Catalog-specific RFC 7807 ProblemDetail mapper. Lives outside {@code shared.web} so that {@code
@@ -33,6 +35,33 @@ public class CatalogProblemDetailAdvice {
         pd.setTitle("Code already exists");
         pd.setInstance(URI.create(req.getRequestURI()));
         pd.setProperty("traceId", Optional.ofNullable(MDC.get("traceId")).orElse("unknown"));
+        return pd;
+    }
+
+    @ExceptionHandler(MissingHabilitationException.class)
+    public ProblemDetail handleMissingHabilitation(MissingHabilitationException ex) {
+        var pd = ProblemDetail.forStatusAndDetail(HttpStatus.UNPROCESSABLE_ENTITY, ex.getMessage());
+        pd.setType(URI.create("/errors/missing-habilitation"));
+        pd.setTitle("Missing habilitation");
+        pd.setProperty("field", "habilitations");
+        return pd;
+    }
+
+    @ExceptionHandler(IamUserNotFoundException.class)
+    public ProblemDetail handleIamUserNotFound(IamUserNotFoundException ex) {
+        var pd = ProblemDetail.forStatusAndDetail(HttpStatus.UNPROCESSABLE_ENTITY, ex.getMessage());
+        pd.setType(URI.create("/errors/iam-user-not-found"));
+        pd.setTitle("Iam user not found");
+        pd.setProperty("field", "userId");
+        return pd;
+    }
+
+    @ExceptionHandler(ImmutableCodeException.class)
+    public ProblemDetail handleImmutableCode(ImmutableCodeException ex) {
+        var pd = ProblemDetail.forStatusAndDetail(HttpStatus.UNPROCESSABLE_ENTITY, ex.getMessage());
+        pd.setType(URI.create("/errors/immutable-code"));
+        pd.setTitle("Immutable field");
+        pd.setProperty("field", "code");
         return pd;
     }
 }
