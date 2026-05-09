@@ -4,13 +4,16 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.Map;
 
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.http.MediaType;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.web.client.RestClient;
 
 import org.sparkcorporation.lims.IntegrationTestBase;
@@ -20,6 +23,21 @@ import org.sparkcorporation.lims.IntegrationTestBase;
 class PrescriberCrudIT extends IntegrationTestBase {
 
     @LocalServerPort private int port;
+
+    @Autowired private JdbcTemplate jdbc;
+
+    @BeforeEach
+    void resetCatalogPractitionerState() {
+        // The singleton Testcontainer is shared across IT classes, so prior ITs
+        // (e.g. CatalogCodeCounterIT) leave the prescriber counter advanced and the
+        // specialties table populated. Reset both so absolute-code assertions
+        // (PRS-000001) and specialty-code uniqueness (CARDIOLOGY) hold here.
+        jdbc.update("DELETE FROM preleveur_habilitations");
+        jdbc.update("DELETE FROM preleveurs");
+        jdbc.update("DELETE FROM prescribers");
+        jdbc.update("DELETE FROM specialties");
+        jdbc.update("UPDATE catalog_code_counters SET next_sequence = 1");
+    }
 
     @Test
     void create_prescriber_with_specialty_then_get_returns_full_summary_with_specialty_snapshot() {
