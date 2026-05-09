@@ -37,7 +37,7 @@
     <jacoco.version>0.8.13</jacoco.version>
     <jacoco.coverage.line.minimum>0.80</jacoco.coverage.line.minimum>
     <jacoco.coverage.branch.minimum>0.75</jacoco.coverage.branch.minimum>
-    <pit.version>1.16.3</pit.version>
+    <pit.version>1.23.1</pit.version>
     <spotless.version>2.46.1</spotless.version>
     <google-java-format.version>1.27.0</google-java-format.version>
     <checkstyle.plugin.version>3.6.0</checkstyle.plugin.version>
@@ -223,6 +223,13 @@
           <groupId>org.pitest</groupId>
           <artifactId>pitest-maven</artifactId>
           <version>${pit.version}</version>
+          <dependencies>
+            <dependency>
+              <groupId>org.pitest</groupId>
+              <artifactId>pitest-junit5-plugin</artifactId>
+              <version>1.2.2</version>
+            </dependency>
+          </dependencies>
           <configuration>
             <targetClasses>
               <param>org.sparkcorporation.lims.*</param>
