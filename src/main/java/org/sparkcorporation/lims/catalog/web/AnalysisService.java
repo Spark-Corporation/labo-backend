@@ -311,7 +311,8 @@ public class AnalysisService {
                 a.kind(),
                 a.indiciaryValueB(),
                 a.labelCount(),
-                new AnalysisSummary.DisciplineSnapshot(disc.id(), disc.code(), disc.name()),
+                new AnalysisSummary.DisciplineSnapshot(
+                        disc.id(), disc.code(), disc.name(), disc.disciplinePrefix()),
                 a.matrix() == null
                         ? null
                         : new AnalysisSummary.MatrixSnapshot(

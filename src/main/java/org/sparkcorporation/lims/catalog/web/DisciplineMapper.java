@@ -14,6 +14,7 @@ public class DisciplineMapper {
                 d.code(),
                 d.name(),
                 d.description(),
+                d.disciplinePrefix(),
                 d.deletedAt(),
                 d.createdAt(),
                 d.updatedAt(),

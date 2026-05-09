@@ -47,6 +47,7 @@ import org.sparkcorporation.lims.catalog.infra.DisciplineRepository;
 import org.sparkcorporation.lims.catalog.infra.MatrixRepository;
 import org.sparkcorporation.lims.catalog.infra.RecipientRepository;
 import org.sparkcorporation.lims.catalog.infra.TechniqueRepository;
+import org.sparkcorporation.lims.shared.domain.DisciplinePrefix;
 
 class AnalysisServiceTest {
 
@@ -75,7 +76,7 @@ class AnalysisServiceTest {
                     clock);
 
     private static Discipline stubDiscipline() {
-        return Discipline.create("BIO", "Biochimie", null);
+        return Discipline.create("BIO", "Biochimie", null, DisciplinePrefix.BIOCHIMIE);
     }
 
     private static NewAnalysis simpleNewCmd(String code) {

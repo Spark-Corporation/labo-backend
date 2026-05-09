@@ -136,8 +136,9 @@ public class Recipient {
         if (description != null) this.description = description;
         if (color != null) this.color = color;
         if (volumeMl != null) {
-            if (volumeMl.signum() < 0)
+            if (volumeMl.signum() < 0) {
                 throw new IllegalArgumentException("volumeMl must be non-negative");
+            }
             this.volumeMl = volumeMl;
         }
         if (defaultMatrix != null) this.defaultMatrix = defaultMatrix;

@@ -1,0 +1,196 @@
+databaseChangeLog:
+  - changeSet:
+      id: 202605071500-1-create-lab-files
+      author: samuel
+      changes:
+        - createTable:
+            tableName: lab_files
+            columns:
+              - column: { name: id,                  type: VARCHAR(26),  constraints: { primaryKey: true,  nullable: false } }
+              - column: { name: registration_number, type: VARCHAR(16),  constraints: { nullable: false } }
+              - column: { name: patient_id,          type: VARCHAR(26),  constraints: { nullable: false } }
+              - column: { name: prescriber_id,       type: VARCHAR(26) }
+              - column: { name: preleveur_id,        type: VARCHAR(26) }
+              - column: { name: urgent,              type: BOOLEAN,      constraints: { nullable: false }, defaultValueBoolean: false }
+              - column: { name: status,              type: VARCHAR(32),  constraints: { nullable: false }, defaultValue: OPEN }
+              - column: { name: created_by_user_id,  type: VARCHAR(26) }
+              - column: { name: created_at,          type: TIMESTAMP WITH TIME ZONE, constraints: { nullable: false } }
+              - column: { name: updated_at,          type: TIMESTAMP WITH TIME ZONE, constraints: { nullable: false } }
+              - column: { name: deleted_at,          type: TIMESTAMP WITH TIME ZONE }
+              - column: { name: version,             type: BIGINT,       constraints: { nullable: false }, defaultValueNumeric: 0 }
+        - addUniqueConstraint:
+            tableName: lab_files
+            columnNames: registration_number
+            constraintName: uq_lab_files_registration_number
+        - addForeignKeyConstraint:
+            baseTableName: lab_files
+            baseColumnNames: patient_id
+            referencedTableName: patients
+            referencedColumnNames: id
+            constraintName: fk_lab_files_patient
+        - addForeignKeyConstraint:
+            baseTableName: lab_files
+            baseColumnNames: prescriber_id
+            referencedTableName: prescribers
+            referencedColumnNames: id
+            onDelete: SET NULL
+            constraintName: fk_lab_files_prescriber
+        - addForeignKeyConstraint:
+            baseTableName: lab_files
+            baseColumnNames: preleveur_id
+            referencedTableName: preleveurs
+            referencedColumnNames: id
+            onDelete: SET NULL
+            constraintName: fk_lab_files_preleveur
+        - addForeignKeyConstraint:
+            baseTableName: lab_files
+            baseColumnNames: created_by_user_id
+            referencedTableName: users
+            referencedColumnNames: id
+            onDelete: SET NULL
+            constraintName: fk_lab_files_user
+        - createIndex:
+            tableName: lab_files
+            indexName: ix_lab_files_patient
+            columns: [{ column: { name: patient_id } }]
+        - createIndex:
+            tableName: lab_files
+            indexName: ix_lab_files_status
+            columns: [{ column: { name: status } }]
+        - createIndex:
+            tableName: lab_files
+            indexName: ix_lab_files_urgent
+            columns: [{ column: { name: urgent } }]
+        - createIndex:
+            tableName: lab_files
+            indexName: ix_lab_files_created
+            columns: [{ column: { name: created_at } }]
+
+  - changeSet:
+      id: 202605071500-2-create-samples
+      author: samuel
+      changes:
+        - createTable:
+            tableName: samples
+            columns:
+              - column: { name: id,                   type: VARCHAR(26),  constraints: { primaryKey: true,  nullable: false } }
+              - column: { name: sample_type,          type: VARCHAR(32),  constraints: { nullable: false } }
+              - column: { name: lab_file_id,          type: VARCHAR(26),  constraints: { nullable: false } }
+              - column: { name: daily_id,             type: VARCHAR(16),  constraints: { nullable: false } }
+              - column: { name: analysis_id,          type: VARCHAR(26),  constraints: { nullable: false } }
+              - column: { name: recipient_id,         type: VARCHAR(26),  constraints: { nullable: false } }
+              - column: { name: collected_at,         type: TIMESTAMP WITH TIME ZONE }
+              - column: { name: collected_by_user_id, type: VARCHAR(26) }
+              - column: { name: address_line,         type: VARCHAR(255) }
+              - column: { name: distance_km,          type: INTEGER }
+              - column: { name: window_start,         type: TIMESTAMP WITH TIME ZONE }
+              - column: { name: window_end,           type: TIMESTAMP WITH TIME ZONE }
+              - column: { name: home_preleveur_id,    type: VARCHAR(26) }
+              - column: { name: origin,               type: VARCHAR(160) }
+              - column: { name: received_by_user_id,  type: VARCHAR(26) }
+              - column: { name: received_at,          type: TIMESTAMP WITH TIME ZONE }
+              - column: { name: version,              type: BIGINT,       constraints: { nullable: false }, defaultValueNumeric: 0 }
+        - addUniqueConstraint:
+            tableName: samples
+            columnNames: daily_id
+            constraintName: uq_samples_daily_id
+        - addForeignKeyConstraint:
+            baseTableName: samples
+            baseColumnNames: lab_file_id
+            referencedTableName: lab_files
+            referencedColumnNames: id
+            onDelete: CASCADE
+            constraintName: fk_samples_lab_file
+        - addForeignKeyConstraint:
+            baseTableName: samples
+            baseColumnNames: analysis_id
+            referencedTableName: analyses
+            referencedColumnNames: id
+            constraintName: fk_samples_analysis
+        - addForeignKeyConstraint:
+            baseTableName: samples
+            baseColumnNames: recipient_id
+            referencedTableName: recipients
+            referencedColumnNames: id
+            constraintName: fk_samples_recipient
+        - addForeignKeyConstraint:
+            baseTableName: samples
+            baseColumnNames: home_preleveur_id
+            referencedTableName: preleveurs
+            referencedColumnNames: id
+            onDelete: SET NULL
+            constraintName: fk_samples_home_preleveur
+        - createIndex:
+            tableName: samples
+            indexName: ix_samples_lab_file
+            columns: [{ column: { name: lab_file_id } }]
+        - createIndex:
+            tableName: samples
+            indexName: ix_samples_collected_at
+            columns: [{ column: { name: collected_at } }]
+        - createIndex:
+            tableName: samples
+            indexName: ix_samples_type
+            columns: [{ column: { name: sample_type } }]
+
+  - changeSet:
+      id: 202605071500-3-create-analysis-requests
+      author: samuel
+      changes:
+        - createTable:
+            tableName: analysis_requests
+            columns:
+              - column: { name: id,            type: VARCHAR(26),  constraints: { primaryKey: true,  nullable: false } }
+              - column: { name: lab_file_id,   type: VARCHAR(26),  constraints: { nullable: false } }
+              - column: { name: analysis_id,   type: VARCHAR(26),  constraints: { nullable: false } }
+              - column: { name: analysis_code, type: VARCHAR(32),  constraints: { nullable: false } }
+              - column: { name: requested_at,  type: TIMESTAMP WITH TIME ZONE, constraints: { nullable: false } }
+              - column: { name: version,       type: BIGINT,       constraints: { nullable: false }, defaultValueNumeric: 0 }
+        - addUniqueConstraint:
+            tableName: analysis_requests
+            columnNames: lab_file_id, analysis_id
+            constraintName: uq_analysis_requests_file_analysis
+        - addForeignKeyConstraint:
+            baseTableName: analysis_requests
+            baseColumnNames: lab_file_id
+            referencedTableName: lab_files
+            referencedColumnNames: id
+            onDelete: CASCADE
+            constraintName: fk_analysis_requests_lab_file
+        - addForeignKeyConstraint:
+            baseTableName: analysis_requests
+            baseColumnNames: analysis_id
+            referencedTableName: analyses
+            referencedColumnNames: id
+            constraintName: fk_analysis_requests_analysis
+        - createIndex:
+            tableName: analysis_requests
+            indexName: ix_analysis_requests_lab_file
+            columns: [{ column: { name: lab_file_id } }]
+
+  - changeSet:
+      id: 202605071500-4-create-lab-file-registration-counters
+      author: samuel
+      changes:
+        - createTable:
+            tableName: lab_file_registration_counters
+            columns:
+              - column: { name: day,      type: DATE,    constraints: { primaryKey: true, nullable: false } }
+              - column: { name: sequence, type: INTEGER, constraints: { nullable: false } }
+              - column: { name: version,  type: BIGINT,  constraints: { nullable: false }, defaultValueNumeric: 0 }
+
+  - changeSet:
+      id: 202605071500-5-create-sample-daily-id-counters
+      author: samuel
+      changes:
+        - createTable:
+            tableName: sample_daily_id_counters
+            columns:
+              - column: { name: day,               type: DATE,    constraints: { nullable: false } }
+              - column: { name: discipline_prefix, type: CHAR(1), constraints: { nullable: false } }
+              - column: { name: sequence,          type: INTEGER, constraints: { nullable: false } }
+              - column: { name: version,           type: BIGINT,  constraints: { nullable: false }, defaultValueNumeric: 0 }
+        - addPrimaryKey:
+            tableName: sample_daily_id_counters
+            columnNames: day, discipline_prefix
+            constraintName: pk_sample_daily_id_counters

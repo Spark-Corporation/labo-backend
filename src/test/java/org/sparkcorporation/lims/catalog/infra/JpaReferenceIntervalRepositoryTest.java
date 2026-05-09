@@ -23,6 +23,7 @@ import org.sparkcorporation.lims.catalog.domain.Discipline;
 import org.sparkcorporation.lims.catalog.domain.NewAnalysis;
 import org.sparkcorporation.lims.catalog.domain.NewReferenceInterval;
 import org.sparkcorporation.lims.catalog.domain.ReferenceInterval;
+import org.sparkcorporation.lims.shared.domain.DisciplinePrefix;
 import org.sparkcorporation.lims.shared.domain.PatientCategory;
 
 @Tag("integration")
@@ -36,7 +37,13 @@ class JpaReferenceIntervalRepositoryTest extends IntegrationTestBase {
     @Autowired private DisciplineRepository disciplines;
 
     private AnalysisId persistAnalysis(String suffix) {
-        var d = disciplines.save(Discipline.create("RI_DISC_" + suffix, "D" + suffix, null));
+        var d =
+                disciplines.save(
+                        Discipline.create(
+                                "RI_DISC_" + suffix,
+                                "D" + suffix,
+                                null,
+                                DisciplinePrefix.BIOCHIMIE));
         var cmd =
                 new NewAnalysis(
                         "RI_ANA_" + suffix,

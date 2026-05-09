@@ -83,7 +83,11 @@ public class DefaultAnalysisApi implements AnalysisApi {
                     "Analysis " + a.rawId() + " has no discipline (FK violation)");
         }
         var disciplineSnapshot =
-                new DisciplineSnapshot(discipline.id(), discipline.code(), discipline.name());
+                new DisciplineSnapshot(
+                        discipline.id(),
+                        discipline.code(),
+                        discipline.name(),
+                        discipline.disciplinePrefix());
 
         var matrix = a.matrix();
         MatrixSnapshot matrixSnapshot =

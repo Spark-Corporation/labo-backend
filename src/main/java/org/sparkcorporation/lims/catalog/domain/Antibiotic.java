@@ -144,8 +144,9 @@ public class Antibiotic {
         if (description != null) this.description = description;
         if (family != null) this.family = family;
         if (referenceDiameter != null) {
-            if (referenceDiameter.signum() < 0)
+            if (referenceDiameter.signum() < 0) {
                 throw new IllegalArgumentException("referenceDiameter must be non-negative");
+            }
             this.referenceDiameter = referenceDiameter;
         }
         BigDecimal newLower =

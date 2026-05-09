@@ -51,6 +51,7 @@ public class DefaultDisciplineApi implements DisciplineApi {
     }
 
     private static DisciplineSummary toSummary(Discipline d) {
-        return new DisciplineSummary(d.id(), d.code(), d.name(), d.description(), d.isActive());
+        return new DisciplineSummary(
+                d.id(), d.code(), d.name(), d.description(), d.isActive(), d.disciplinePrefix());
     }
 }

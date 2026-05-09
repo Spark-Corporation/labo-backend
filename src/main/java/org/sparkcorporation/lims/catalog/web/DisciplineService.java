@@ -36,7 +36,9 @@ public class DisciplineService {
         if (repo.existsByCode(req.code())) {
             throw new CodeAlreadyExistsException("discipline", req.code());
         }
-        var d = Discipline.create(req.code(), req.name(), req.description());
+        var d =
+                Discipline.create(
+                        req.code(), req.name(), req.description(), req.disciplinePrefix());
         repo.save(d);
         events.publishEvent(new DisciplineCreated(d.id(), d.code(), clock.instant()));
         return mapper.toResponse(d);

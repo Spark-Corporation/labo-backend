@@ -73,6 +73,15 @@ public class CatalogProblemDetailAdvice {
         return pd;
     }
 
+    @ExceptionHandler(ImmutableDisciplinePrefixException.class)
+    public ProblemDetail handleImmutableDisciplinePrefix(ImmutableDisciplinePrefixException ex) {
+        var pd = ProblemDetail.forStatusAndDetail(HttpStatus.UNPROCESSABLE_ENTITY, ex.getMessage());
+        pd.setType(URI.create("/errors/immutable-discipline-prefix"));
+        pd.setTitle("Immutable field");
+        pd.setProperty("field", "disciplinePrefix");
+        return pd;
+    }
+
     @ExceptionHandler(ImmutableKindException.class)
     public ProblemDetail handleImmutableKind(ImmutableKindException ex) {
         var pd = ProblemDetail.forStatusAndDetail(HttpStatus.UNPROCESSABLE_ENTITY, ex.getMessage());

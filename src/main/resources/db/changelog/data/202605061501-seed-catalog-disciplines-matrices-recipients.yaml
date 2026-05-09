@@ -47,30 +47,35 @@ databaseChangeLog:
               - column: { name: id, value: "01KQZDE7PS7NXEYC2YVY4B3EFF" }
               - column: { name: code, value: "BIOCHIMIE" }
               - column: { name: name, value: "Biochimie" }
+              - column: { name: discipline_prefix, value: "BIOCHIMIE" }
         - insert:
             tableName: disciplines
             columns:
               - column: { name: id, value: "01KQZDE7PS3E59RKF23TGVNB2F" }
               - column: { name: code, value: "HEMATOLOGIE" }
               - column: { name: name, value: "Hématologie" }
+              - column: { name: discipline_prefix, value: "HEMATOLOGIE" }
         - insert:
             tableName: disciplines
             columns:
               - column: { name: id, value: "01KQZDE7PSAK8B1PN6P2R38SYY" }
               - column: { name: code, value: "IMMUNO_SEROLOGIE" }
               - column: { name: name, value: "Immuno-sérologie" }
+              - column: { name: discipline_prefix, value: "IMMUNO_SEROLOGIE" }
         - insert:
             tableName: disciplines
             columns:
               - column: { name: id, value: "01KQZDE7PSK2WTD19DXA9ZY7MB" }
               - column: { name: code, value: "MICROBIOLOGIE" }
               - column: { name: name, value: "Microbiologie" }
+              - column: { name: discipline_prefix, value: "MICROBIOLOGIE" }
         - insert:
             tableName: disciplines
             columns:
               - column: { name: id, value: "01KQZDE7PSHR04CQ5MG554CEG8" }
               - column: { name: code, value: "BIOLOGIE_MOLECULAIRE" }
               - column: { name: name, value: "Biologie moléculaire" }
+              - column: { name: discipline_prefix, value: "BIOLOGIE_MOLECULAIRE" }
 
         # ---- Matrices (10) ----
         - insert:

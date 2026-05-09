@@ -20,6 +20,7 @@ import org.sparkcorporation.lims.catalog.domain.Discipline;
 import org.sparkcorporation.lims.catalog.domain.Matrix;
 import org.sparkcorporation.lims.catalog.domain.NewAnalysis;
 import org.sparkcorporation.lims.catalog.domain.Recipient;
+import org.sparkcorporation.lims.shared.domain.DisciplinePrefix;
 
 @Tag("integration")
 @DataJpaTest
@@ -54,7 +55,8 @@ class JpaAnalysisRepositoryTest extends IntegrationTestBase {
     }
 
     private Discipline freshDiscipline(String code) {
-        return disciplines.save(Discipline.create(code, code + "_name", null));
+        return disciplines.save(
+                Discipline.create(code, code + "_name", null, DisciplinePrefix.BIOCHIMIE));
     }
 
     @Test

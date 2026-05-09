@@ -98,7 +98,7 @@ databaseChangeLog:
               - column: { name: name, type: varchar(120), constraints: { nullable: false } }
               - column: { name: description, type: text }
               - column: { name: color, type: varchar(30) }
-              - column: { name: volume_ml, type: numeric(6,2) }
+              - column: { name: volume_ml, type: "numeric(6,2)" }
               - column: { name: default_matrix_id, type: varchar(26) }
               - column: { name: deleted_at, type: timestamptz }
               - column:
@@ -140,9 +140,9 @@ databaseChangeLog:
               - column: { name: name, type: varchar(120), constraints: { nullable: false } }
               - column: { name: description, type: text }
               - column: { name: family, type: varchar(80) }
-              - column: { name: reference_diameter, type: numeric(5,2), constraints: { nullable: false } }
-              - column: { name: intermediate_lower, type: numeric(5,2) }
-              - column: { name: intermediate_upper, type: numeric(5,2) }
+              - column: { name: reference_diameter, type: "numeric(5,2)", constraints: { nullable: false } }
+              - column: { name: intermediate_lower, type: "numeric(5,2)" }
+              - column: { name: intermediate_upper, type: "numeric(5,2)" }
               - column: { name: deleted_at, type: timestamptz }
               - column:
                   name: created_at

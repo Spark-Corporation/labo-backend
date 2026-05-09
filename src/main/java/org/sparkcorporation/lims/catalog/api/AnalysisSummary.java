@@ -5,6 +5,8 @@ import java.util.List;
 
 import org.jspecify.annotations.Nullable;
 
+import org.sparkcorporation.lims.shared.domain.DisciplinePrefix;
+
 /**
  * Cross-module read snapshot of the {@code Analysis} aggregate.
  *
@@ -31,7 +33,8 @@ public record AnalysisSummary(
         List<TechniqueLink> techniques) {
 
     /** Flat snapshot of the linked discipline at read time — never null (FK NOT NULL). */
-    public record DisciplineSnapshot(DisciplineId id, String code, String name) {}
+    public record DisciplineSnapshot(
+            DisciplineId id, String code, String name, DisciplinePrefix prefix) {}
 
     /** Flat snapshot of the linked matrix at read time. */
     public record MatrixSnapshot(MatrixId id, String code, String name) {}

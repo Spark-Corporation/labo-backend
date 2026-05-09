@@ -12,6 +12,7 @@ import org.junit.jupiter.api.Test;
 import org.sparkcorporation.lims.catalog.api.DisciplineId;
 import org.sparkcorporation.lims.catalog.domain.Discipline;
 import org.sparkcorporation.lims.catalog.domain.DisciplineNotFoundException;
+import org.sparkcorporation.lims.shared.domain.DisciplinePrefix;
 
 class DefaultDisciplineApiTest {
 
@@ -20,7 +21,7 @@ class DefaultDisciplineApiTest {
 
     @Test
     void findById_returns_summary_when_present() {
-        var d = Discipline.create("BIO", "Biochimie", null);
+        var d = Discipline.create("BIO", "Biochimie", null, DisciplinePrefix.BIOCHIMIE);
         when(repo.findById(d.rawId())).thenReturn(Optional.of(d));
         var s = api.findById(d.id());
         assertThat(s).isPresent();

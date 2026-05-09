@@ -15,14 +15,12 @@
         <logger>logger</logger>
       </fieldNames>
       <customFields>{"service":"lims-backend"}</customFields>
-      <provider class="net.logstash.logback.composite.loggingevent.MaskingMessageJsonProvider">
-        <paths>
-          <path>$..password</path>
-          <path>$..jwt</path>
-          <path>$..dob</path>
-        </paths>
-        <mask>***</mask>
-      </provider>
+      <jsonGeneratorDecorator class="net.logstash.logback.mask.MaskingJsonGeneratorDecorator">
+        <path>$..password</path>
+        <path>$..jwt</path>
+        <path>$..dob</path>
+        <defaultMask>***</defaultMask>
+      </jsonGeneratorDecorator>
     </encoder>
   </appender>
 

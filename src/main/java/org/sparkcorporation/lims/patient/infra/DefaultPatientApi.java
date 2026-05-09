@@ -38,6 +38,12 @@ public class DefaultPatientApi implements PatientApi {
                 .orElse(id);
     }
 
+    @Override
+    public boolean existsById(PatientId id) {
+        // Patient uses @SQLRestriction("deleted_at IS NULL") — findById auto-filters soft-deleted.
+        return repo.findById(id.value()).isPresent();
+    }
+
     private static PatientSummary toSummary(Patient p) {
         return new PatientSummary(
                 p.id(),

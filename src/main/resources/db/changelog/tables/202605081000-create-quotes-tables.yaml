@@ -1,0 +1,119 @@
+databaseChangeLog:
+  - changeSet:
+      id: 202605081000-1-create-quotes
+      author: samuel
+      changes:
+        - createTable:
+            tableName: quotes
+            columns:
+              - column: { name: id,                  type: VARCHAR(26),     constraints: { primaryKey: true,  nullable: false } }
+              - column: { name: quote_number,        type: VARCHAR(16),     constraints: { nullable: false } }
+              - column: { name: patient_id,          type: VARCHAR(26),     constraints: { nullable: false } }
+              - column: { name: prescriber_id,       type: VARCHAR(26) }
+              - column: { name: status,              type: VARCHAR(32),     constraints: { nullable: false }, defaultValue: DRAFT }
+              - column: { name: locked_at,           type: TIMESTAMP WITH TIME ZONE }
+              - column: { name: lab_file_id,         type: VARCHAR(26) }
+              - column: { name: converted_at,        type: TIMESTAMP WITH TIME ZONE }
+              - column: { name: expires_at,          type: TIMESTAMP WITH TIME ZONE }
+              - column: { name: total_amount,        type: "NUMERIC(15,2)",   constraints: { nullable: false }, defaultValueNumeric: 0 }
+              - column: { name: created_by_user_id,  type: VARCHAR(26) }
+              - column: { name: created_at,          type: TIMESTAMP WITH TIME ZONE, constraints: { nullable: false } }
+              - column: { name: updated_at,          type: TIMESTAMP WITH TIME ZONE, constraints: { nullable: false } }
+              - column: { name: deleted_at,          type: TIMESTAMP WITH TIME ZONE }
+              - column: { name: version,             type: BIGINT,          constraints: { nullable: false }, defaultValueNumeric: 0 }
+        - addUniqueConstraint:
+            tableName: quotes
+            columnNames: quote_number
+            constraintName: uq_quotes_quote_number
+        - addForeignKeyConstraint:
+            baseTableName: quotes
+            baseColumnNames: patient_id
+            referencedTableName: patients
+            referencedColumnNames: id
+            constraintName: fk_quotes_patient
+        - addForeignKeyConstraint:
+            baseTableName: quotes
+            baseColumnNames: prescriber_id
+            referencedTableName: prescribers
+            referencedColumnNames: id
+            onDelete: SET NULL
+            constraintName: fk_quotes_prescriber
+        - addForeignKeyConstraint:
+            baseTableName: quotes
+            baseColumnNames: lab_file_id
+            referencedTableName: lab_files
+            referencedColumnNames: id
+            onDelete: SET NULL
+            constraintName: fk_quotes_lab_file
+        - addForeignKeyConstraint:
+            baseTableName: quotes
+            baseColumnNames: created_by_user_id
+            referencedTableName: users
+            referencedColumnNames: id
+            onDelete: SET NULL
+            constraintName: fk_quotes_user
+        - createIndex:
+            tableName: quotes
+            indexName: ix_quotes_patient
+            columns: [{ column: { name: patient_id } }]
+        - createIndex:
+            tableName: quotes
+            indexName: ix_quotes_status
+            columns: [{ column: { name: status } }]
+        - createIndex:
+            tableName: quotes
+            indexName: ix_quotes_lab_file
+            columns: [{ column: { name: lab_file_id } }]
+        - createIndex:
+            tableName: quotes
+            indexName: ix_quotes_created
+            columns: [{ column: { name: created_at } }]
+
+  - changeSet:
+      id: 202605081000-2-create-quote-lines
+      author: samuel
+      changes:
+        - createTable:
+            tableName: quote_lines
+            columns:
+              - column: { name: id,                          type: VARCHAR(26),    constraints: { primaryKey: true, nullable: false } }
+              - column: { name: quote_id,                    type: VARCHAR(26),    constraints: { nullable: false } }
+              - column: { name: analysis_id,                 type: VARCHAR(26),    constraints: { nullable: false } }
+              - column: { name: analysis_code,               type: VARCHAR(32),    constraints: { nullable: false } }
+              - column: { name: indiciary_value_b_snapshot,  type: "NUMERIC(15,4)",  constraints: { nullable: false } }
+              - column: { name: b_rate_snapshot,             type: "NUMERIC(15,4)",  constraints: { nullable: false }, defaultValueNumeric: 0 }
+              - column: { name: label_count_snapshot,        type: INTEGER,        constraints: { nullable: false } }
+              - column: { name: line_total,                  type: "NUMERIC(15,2)",  constraints: { nullable: false }, defaultValueNumeric: 0 }
+              - column: { name: version,                     type: BIGINT,         constraints: { nullable: false }, defaultValueNumeric: 0 }
+        - addUniqueConstraint:
+            tableName: quote_lines
+            columnNames: quote_id, analysis_id
+            constraintName: uq_quote_lines_quote_analysis
+        - addForeignKeyConstraint:
+            baseTableName: quote_lines
+            baseColumnNames: quote_id
+            referencedTableName: quotes
+            referencedColumnNames: id
+            onDelete: CASCADE
+            constraintName: fk_quote_lines_quote
+        - addForeignKeyConstraint:
+            baseTableName: quote_lines
+            baseColumnNames: analysis_id
+            referencedTableName: analyses
+            referencedColumnNames: id
+            constraintName: fk_quote_lines_analysis
+        - createIndex:
+            tableName: quote_lines
+            indexName: ix_quote_lines_quote
+            columns: [{ column: { name: quote_id } }]
+
+  - changeSet:
+      id: 202605081000-3-create-quote-number-counters
+      author: samuel
+      changes:
+        - createTable:
+            tableName: quote_number_counters
+            columns:
+              - column: { name: day,      type: DATE,    constraints: { primaryKey: true, nullable: false } }
+              - column: { name: sequence, type: INTEGER, constraints: { nullable: false } }
+              - column: { name: version,  type: BIGINT,  constraints: { nullable: false }, defaultValueNumeric: 0 }

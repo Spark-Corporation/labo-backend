@@ -20,4 +20,10 @@ public interface PatientApi {
      * itself.
      */
     PatientId followMergeChain(PatientId id);
+
+    /**
+     * Active-only existence check (filters soft-deleted via {@code @SQLRestriction}). Returns
+     * {@code false} when the id is unknown or the patient row has been soft-deleted.
+     */
+    boolean existsById(PatientId id);
 }

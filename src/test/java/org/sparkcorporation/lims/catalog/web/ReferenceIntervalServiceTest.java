@@ -36,6 +36,7 @@ import org.sparkcorporation.lims.catalog.domain.NoIntervalsToReplicateException;
 import org.sparkcorporation.lims.catalog.domain.ReferenceInterval;
 import org.sparkcorporation.lims.catalog.infra.AnalysisRepository;
 import org.sparkcorporation.lims.catalog.infra.ReferenceIntervalRepository;
+import org.sparkcorporation.lims.shared.domain.DisciplinePrefix;
 import org.sparkcorporation.lims.shared.domain.PatientCategory;
 
 class ReferenceIntervalServiceTest {
@@ -50,7 +51,7 @@ class ReferenceIntervalServiceTest {
             new ReferenceIntervalService(repo, analysisRepo, mapper, events, clock);
 
     private static Analysis simpleAnalysis(String code) {
-        var disc = Discipline.create("BIO", "Biochimie", null);
+        var disc = Discipline.create("BIO", "Biochimie", null, DisciplinePrefix.BIOCHIMIE);
         var cmd =
                 new NewAnalysis(
                         code,
@@ -71,7 +72,7 @@ class ReferenceIntervalServiceTest {
     }
 
     private static Analysis groupedAnalysis(String code) {
-        var disc = Discipline.create("BIO", "Biochimie", null);
+        var disc = Discipline.create("BIO", "Biochimie", null, DisciplinePrefix.BIOCHIMIE);
         var cmd =
                 new NewAnalysis(
                         code,

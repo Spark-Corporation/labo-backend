@@ -22,6 +22,7 @@ import org.sparkcorporation.lims.catalog.domain.CodeAlreadyExistsException;
 import org.sparkcorporation.lims.catalog.domain.Discipline;
 import org.sparkcorporation.lims.catalog.domain.DisciplineNotFoundException;
 import org.sparkcorporation.lims.catalog.infra.DisciplineRepository;
+import org.sparkcorporation.lims.shared.domain.DisciplinePrefix;
 
 class DisciplineServiceTest {
 
@@ -35,14 +36,18 @@ class DisciplineServiceTest {
     void create_publishes_DisciplineCreated_event() {
         when(repo.existsByCode("NEW")).thenReturn(false);
         when(repo.save(any(Discipline.class))).thenAnswer(inv -> inv.getArgument(0));
-        service.create(new CreateDisciplineRequest("NEW", "New", null));
+        service.create(new CreateDisciplineRequest("NEW", "New", null, DisciplinePrefix.BIOCHIMIE));
         verify(events).publishEvent(any(DisciplineCreated.class));
     }
 
     @Test
     void create_throws_when_code_exists() {
         when(repo.existsByCode("DUP")).thenReturn(true);
-        assertThatThrownBy(() -> service.create(new CreateDisciplineRequest("DUP", "Dup", null)))
+        assertThatThrownBy(
+                        () ->
+                                service.create(
+                                        new CreateDisciplineRequest(
+                                                "DUP", "Dup", null, DisciplinePrefix.BIOCHIMIE)))
                 .isInstanceOf(CodeAlreadyExistsException.class);
     }
 
@@ -66,7 +71,7 @@ class DisciplineServiceTest {
 
     @Test
     void delete_active_calls_repo_delete_and_publishes_event() {
-        var d = Discipline.create("DEL", "Del", null);
+        var d = Discipline.create("DEL", "Del", null, DisciplinePrefix.BIOCHIMIE);
         when(repo.findById(d.rawId())).thenReturn(Optional.of(d));
         service.delete(d.id());
         verify(repo).delete(d);
@@ -76,7 +81,7 @@ class DisciplineServiceTest {
     /** Spec §7.5 idempotency rule — load-bearing test. */
     @Test
     void delete_already_deleted_is_no_op() throws Exception {
-        var d = Discipline.create("DEL", "Del", null);
+        var d = Discipline.create("DEL", "Del", null, DisciplinePrefix.BIOCHIMIE);
         var deletedAtField = Discipline.class.getDeclaredField("deletedAt");
         deletedAtField.setAccessible(true);
         deletedAtField.set(d, Instant.now());

@@ -31,6 +31,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.sparkcorporation.lims.catalog.api.DisciplineId;
 import org.sparkcorporation.lims.catalog.domain.CodeAlreadyExistsException;
 import org.sparkcorporation.lims.catalog.domain.DisciplineNotFoundException;
+import org.sparkcorporation.lims.shared.domain.DisciplinePrefix;
 import org.sparkcorporation.lims.shared.web.ProblemDetailAdvice;
 
 @WebMvcTest(DisciplineAdminController.class)
@@ -49,6 +50,7 @@ class DisciplineAdminControllerTest {
                 "BIO",
                 "Biochimie",
                 null,
+                DisciplinePrefix.BIOCHIMIE,
                 null,
                 Instant.parse("2026-05-06T10:00:00Z"),
                 Instant.parse("2026-05-06T10:00:00Z"),
@@ -57,7 +59,7 @@ class DisciplineAdminControllerTest {
 
     @Test
     void POST_creates_discipline_201_with_location() throws Exception {
-        var req = new CreateDisciplineRequest("BIO", "Biochimie", null);
+        var req = new CreateDisciplineRequest("BIO", "Biochimie", null, DisciplinePrefix.BIOCHIMIE);
         var sampleResp = sample("01HZB0000000000000000ADMNZ");
         when(service.create(any(CreateDisciplineRequest.class))).thenReturn(sampleResp);
 
@@ -70,7 +72,8 @@ class DisciplineAdminControllerTest {
                         header().string(
                                         "Location",
                                         "/api/v1/catalog/disciplines/01HZB0000000000000000ADMNZ"))
-                .andExpect(jsonPath("$.code").value("BIO"));
+                .andExpect(jsonPath("$.code").value("BIO"))
+                .andExpect(jsonPath("$.prefix").value("BIOCHIMIE"));
     }
 
     @Test
@@ -86,7 +89,7 @@ class DisciplineAdminControllerTest {
     @Test
     void POST_returns_409_on_duplicate_code() throws Exception {
         when(service.create(any())).thenThrow(new CodeAlreadyExistsException("discipline", "BIO"));
-        var req = new CreateDisciplineRequest("BIO", "Biochimie", null);
+        var req = new CreateDisciplineRequest("BIO", "Biochimie", null, DisciplinePrefix.BIOCHIMIE);
         mvc.perform(
                         post("/api/v1/catalog/disciplines")
                                 .contentType(MediaType.APPLICATION_JSON)
@@ -131,6 +134,18 @@ class DisciplineAdminControllerTest {
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content("{\"name\":\"New Name\"}"))
                 .andExpect(status().isOk());
+    }
+
+    /** Spec §3.0 amendment #2: Discipline PATCH with disciplinePrefix → 422 (immutable field). */
+    @Test
+    void PATCH_with_immutable_discipline_prefix_returns_422() throws Exception {
+        mvc.perform(
+                        patch("/api/v1/catalog/disciplines/01HZB0000000000000000ADMNZ")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content("{\"disciplinePrefix\":\"HEMATOLOGIE\"}"))
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.title").value("Immutable field"))
+                .andExpect(jsonPath("$.field").value("disciplinePrefix"));
     }
 
     @Test

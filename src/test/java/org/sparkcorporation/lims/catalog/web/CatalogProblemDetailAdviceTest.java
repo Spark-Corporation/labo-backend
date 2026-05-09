@@ -87,6 +87,11 @@ class CatalogProblemDetailAdviceTest {
         public String techniqueNotLinked() {
             throw new TechniqueNotLinkedException("technique not linked to analysis");
         }
+
+        @GetMapping("/immutable-discipline-prefix")
+        public String immutableDisciplinePrefix() {
+            throw new ImmutableDisciplinePrefixException("disciplinePrefix is immutable");
+        }
     }
 
     private final MockMvc mockMvc =
@@ -192,5 +197,16 @@ class CatalogProblemDetailAdviceTest {
                 .andExpect(jsonPath("$.status").value(422))
                 .andExpect(jsonPath("$.type").value("/errors/technique-not-linked"))
                 .andExpect(jsonPath("$.field").value("techniqueId"));
+    }
+
+    @Test
+    void ImmutableDisciplinePrefixException_returns_422_with_field_disciplinePrefix()
+            throws Exception {
+        mockMvc.perform(get("/test-catalog-throws/immutable-discipline-prefix"))
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.title").value("Immutable field"))
+                .andExpect(jsonPath("$.status").value(422))
+                .andExpect(jsonPath("$.type").value("/errors/immutable-discipline-prefix"))
+                .andExpect(jsonPath("$.field").value("disciplinePrefix"));
     }
 }

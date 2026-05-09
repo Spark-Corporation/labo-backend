@@ -6,6 +6,8 @@ import java.util.regex.Pattern;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EntityListeners;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import jakarta.persistence.Version;
@@ -19,6 +21,7 @@ import org.springframework.data.annotation.LastModifiedDate;
 import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 
 import org.sparkcorporation.lims.catalog.api.DisciplineId;
+import org.sparkcorporation.lims.shared.domain.DisciplinePrefix;
 import org.sparkcorporation.lims.shared.id.Ulid;
 
 /**
@@ -52,6 +55,10 @@ public class Discipline {
     @Nullable
     private String description;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "discipline_prefix", length = 32, nullable = false)
+    private DisciplinePrefix disciplinePrefix;
+
     @Column(name = "deleted_at")
     @Nullable
     private Instant deletedAt;
@@ -78,18 +85,26 @@ public class Discipline {
 
     protected Discipline() {}
 
-    public static Discipline create(String code, String name, @Nullable String description) {
+    public static Discipline create(
+            String code,
+            String name,
+            @Nullable String description,
+            DisciplinePrefix disciplinePrefix) {
         if (code == null || !CODE_FORMAT.matcher(code).matches()) {
             throw new IllegalArgumentException("invalid code: " + code);
         }
         if (name == null || name.isBlank()) {
             throw new IllegalArgumentException("name must not be blank");
         }
+        if (disciplinePrefix == null) {
+            throw new IllegalArgumentException("disciplinePrefix must not be null");
+        }
         var d = new Discipline();
         d.id = Ulid.generate();
         d.code = code;
         d.name = name.trim();
         d.description = description;
+        d.disciplinePrefix = disciplinePrefix;
         return d;
     }
 
@@ -119,6 +134,10 @@ public class Discipline {
 
     public @Nullable String description() {
         return description;
+    }
+
+    public DisciplinePrefix disciplinePrefix() {
+        return disciplinePrefix;
     }
 
     public @Nullable Instant deletedAt() {

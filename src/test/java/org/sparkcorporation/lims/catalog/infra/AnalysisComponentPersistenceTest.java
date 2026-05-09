@@ -18,6 +18,7 @@ import org.sparkcorporation.lims.catalog.api.ResultType;
 import org.sparkcorporation.lims.catalog.domain.Analysis;
 import org.sparkcorporation.lims.catalog.domain.Discipline;
 import org.sparkcorporation.lims.catalog.domain.NewAnalysis;
+import org.sparkcorporation.lims.shared.domain.DisciplinePrefix;
 
 /**
  * Slice test for {@link Analysis} ↔ {@link
@@ -75,7 +76,9 @@ class AnalysisComponentPersistenceTest extends IntegrationTestBase {
 
     @Test
     void parent_with_components_round_trip_preserves_order_by_position() {
-        var d = disciplines.save(Discipline.create("COMP_DISC_RT", "D", null));
+        var d =
+                disciplines.save(
+                        Discipline.create("COMP_DISC_RT", "D", null, DisciplinePrefix.BIOCHIMIE));
         var parent = analyses.save(grouped("COMP_PARENT", d));
         var c0 = analyses.save(simple("COMP_CHILD_0", d));
         var c1 = analyses.save(simple("COMP_CHILD_1", d));

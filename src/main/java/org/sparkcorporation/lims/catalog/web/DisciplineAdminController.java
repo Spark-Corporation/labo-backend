@@ -1,6 +1,7 @@
 package org.sparkcorporation.lims.catalog.web;
 
 import java.net.URI;
+import java.util.Map;
 
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
@@ -8,6 +9,7 @@ import jakarta.validation.constraints.Min;
 
 import dev.sparksam.securedx.rbac.RequiresPermission;
 import lombok.RequiredArgsConstructor;
+import org.jspecify.annotations.Nullable;
 import org.springframework.data.domain.Page;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -61,10 +63,25 @@ public class DisciplineAdminController {
         return service.get(new DisciplineId(id));
     }
 
+    /**
+     * PATCH binds the body as a {@link Map} to enable immutable-field guards (mirrors {@link
+     * SpecialtyAdminController}): a {@code disciplinePrefix} field on the body returns 422 because
+     * the prefix is captured at create time and immutable thereafter (cf. spec §3.0 amendment #2).
+     * Whitelisted keys ({@code name}, {@code description}) are then mapped onto {@link
+     * UpdateDisciplineRequest}.
+     */
     @PatchMapping("/{id}")
     @RequiresPermission("catalog.manage")
     public DisciplineResponse update(
-            @PathVariable String id, @Valid @RequestBody UpdateDisciplineRequest req) {
+            @PathVariable String id, @RequestBody Map<String, Object> body) {
+        if (body.containsKey("disciplinePrefix")) {
+            throw new ImmutableDisciplinePrefixException(
+                    "disciplinePrefix is immutable; remove the 'disciplinePrefix' field from the"
+                            + " PATCH body");
+        }
+        var req =
+                new UpdateDisciplineRequest(
+                        asString(body.get("name")), asString(body.get("description")));
         return service.update(new DisciplineId(id), req);
     }
 
@@ -73,5 +90,16 @@ public class DisciplineAdminController {
     @RequiresPermission("catalog.manage")
     public void delete(@PathVariable String id) {
         service.delete(new DisciplineId(id));
+    }
+
+    private static @Nullable String asString(@Nullable Object value) {
+        if (value == null) {
+            return null;
+        }
+        if (value instanceof String s) {
+            return s;
+        }
+        throw new IllegalArgumentException(
+                "expected string value, got " + value.getClass().getSimpleName());
     }
 }

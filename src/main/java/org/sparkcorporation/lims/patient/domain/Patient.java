@@ -3,6 +3,8 @@ package org.sparkcorporation.lims.patient.domain;
 import java.time.Instant;
 import java.time.LocalDate;
 
+import jakarta.persistence.AttributeOverride;
+import jakarta.persistence.AttributeOverrides;
 import jakarta.persistence.Column;
 import jakarta.persistence.Embedded;
 import jakarta.persistence.Entity;
@@ -63,7 +65,15 @@ public class Patient {
     @Nullable
     private LocalDate birthDate;
 
-    @Embedded @Nullable private IdDocument idDocument;
+    @Embedded
+    @AttributeOverrides({
+        @AttributeOverride(name = "type", column = @Column(name = "id_document_type", length = 20)),
+        @AttributeOverride(
+                name = "number",
+                column = @Column(name = "id_document_number", length = 40))
+    })
+    @Nullable
+    private IdDocument idDocument;
 
     @Column(length = 80)
     @Nullable
@@ -78,7 +88,17 @@ public class Patient {
     private String clinicalNotes;
 
     @Embedded private ContactInfo contact;
-    @Embedded @Nullable private Guardian guardian;
+
+    @Embedded
+    @AttributeOverrides({
+        @AttributeOverride(name = "name", column = @Column(name = "guardian_name", length = 120)),
+        @AttributeOverride(name = "phone", column = @Column(name = "guardian_phone", length = 30)),
+        @AttributeOverride(
+                name = "relationship",
+                column = @Column(name = "guardian_relationship", length = 20))
+    })
+    @Nullable
+    private Guardian guardian;
 
     @Column(nullable = false)
     private boolean insured;
