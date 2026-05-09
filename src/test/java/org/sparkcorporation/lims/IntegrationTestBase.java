@@ -6,22 +6,55 @@ import java.util.Map;
 import org.junit.jupiter.api.Tag;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
 import org.springframework.http.MediaType;
+import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.DynamicPropertyRegistry;
+import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.web.client.RestClient;
 import org.testcontainers.containers.PostgreSQLContainer;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
 
+/**
+ * Base for integration tests. Uses the Testcontainers <b>singleton pattern</b>: the postgres
+ * container is started once in a static initializer and lives for the entire JVM run, then is
+ * reaped by the Testcontainers Ryuk sidecar at JVM exit.
+ *
+ * <p>We deliberately do <em>not</em> use {@code @Testcontainers} + {@code @Container} together with
+ * a {@code static} field. Although that pattern looks JVM-scoped, JUnit Jupiter's
+ * TestcontainersExtension treats it as per-class: each subclass triggers a fresh {@code start()} /
+ * {@code stop()} cycle, the container is recreated on a new port between IT classes, and any
+ * cached Spring context from an earlier IT class points at a stale port — manifesting as
+ * {@code HikariPool-N — Connection refused} for half the suite.
+ *
+ * <p>Spring Boot's {@code @ServiceConnection} on the static field still wires JDBC URL / user /
+ * password into every {@code @SpringBootTest} context.
+ */
 @Tag("integration")
-@Testcontainers
+@ActiveProfiles("test")
 public abstract class IntegrationTestBase {
 
-    @Container @ServiceConnection
+    @ServiceConnection
     protected static final PostgreSQLContainer<?> POSTGRES =
             new PostgreSQLContainer<>("postgres:17-alpine")
                     .withDatabaseName("lims")
                     .withUsername("lims")
                     .withPassword("lims")
                     .withInitScript("init-schemas.sql");
+
+    static {
+        POSTGRES.start();
+    }
+
+    /**
+     * Belt-and-suspenders: even though {@code @ServiceConnection} on the static field already
+     * registers the URL with Spring's {@link DynamicPropertyRegistry}, some IT classes that don't
+     * use {@code @ServiceConnection} (e.g. raw {@code @DataJpaTest} slices in the {@code infra}
+     * package) still need a hint. This source covers them too without affecting the others.
+     */
+    @DynamicPropertySource
+    static void datasourceProperties(DynamicPropertyRegistry registry) {
+        registry.add("spring.datasource.url", POSTGRES::getJdbcUrl);
+        registry.add("spring.datasource.username", POSTGRES::getUsername);
+        registry.add("spring.datasource.password", POSTGRES::getPassword);
+    }
 
     /**
      * Logs in via secured-x's {@code /auth/login} endpoint with provider {@code local} and returns

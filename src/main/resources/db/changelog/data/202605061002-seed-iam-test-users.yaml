@@ -32,7 +32,7 @@ databaseChangeLog:
               - column: { name: id, value: "01KQZ0WPVQA364NMRAJMKRQC84" }
               - column: { name: email, value: "admin@test.local" }
               - column: { name: full_name, value: "Test Admin" }
-              - column: { name: password_hash, value: "{argon2id}$argon2id$v=19$m=16384,t=2,p=1$1jetdzmeYRQoZd845oQNjQ$YKIVhInzmu9iDu5rhBqA/5dIW+rWL0gFsB/yxVCRqSk" }
+              - column: { name: password_hash, value: "{argon2id}$argon2id$v=19$m=16384,t=2,p=1$REPVUhN5l1HLuFGrtBnG9Q$XjEa/biOPYna88kWa2USMBxgTNGZXKWQ12Jn5TcNCig" }
               - column: { name: enabled, valueBoolean: true }
         - insert:
             tableName: users
@@ -40,7 +40,7 @@ databaseChangeLog:
               - column: { name: id, value: "01KQZ0WPVQ876E63V9QFFMXQZF" }
               - column: { name: email, value: "lab-manager@test.local" }
               - column: { name: full_name, value: "Test Lab Manager" }
-              - column: { name: password_hash, value: "{argon2id}$argon2id$v=19$m=16384,t=2,p=1$1jetdzmeYRQoZd845oQNjQ$YKIVhInzmu9iDu5rhBqA/5dIW+rWL0gFsB/yxVCRqSk" }
+              - column: { name: password_hash, value: "{argon2id}$argon2id$v=19$m=16384,t=2,p=1$REPVUhN5l1HLuFGrtBnG9Q$XjEa/biOPYna88kWa2USMBxgTNGZXKWQ12Jn5TcNCig" }
               - column: { name: enabled, valueBoolean: true }
         - insert:
             tableName: users
@@ -48,7 +48,7 @@ databaseChangeLog:
               - column: { name: id, value: "01KQZ0WPVQAT4D23A4YZ433YJ4" }
               - column: { name: email, value: "biologist@test.local" }
               - column: { name: full_name, value: "Test Biologist" }
-              - column: { name: password_hash, value: "{argon2id}$argon2id$v=19$m=16384,t=2,p=1$1jetdzmeYRQoZd845oQNjQ$YKIVhInzmu9iDu5rhBqA/5dIW+rWL0gFsB/yxVCRqSk" }
+              - column: { name: password_hash, value: "{argon2id}$argon2id$v=19$m=16384,t=2,p=1$REPVUhN5l1HLuFGrtBnG9Q$XjEa/biOPYna88kWa2USMBxgTNGZXKWQ12Jn5TcNCig" }
               - column: { name: enabled, valueBoolean: true }
         - insert:
             tableName: users
@@ -56,7 +56,7 @@ databaseChangeLog:
               - column: { name: id, value: "01KQZ0WPVQ6QRT1E1M6PMG327N" }
               - column: { name: email, value: "technician@test.local" }
               - column: { name: full_name, value: "Test Technician" }
-              - column: { name: password_hash, value: "{argon2id}$argon2id$v=19$m=16384,t=2,p=1$1jetdzmeYRQoZd845oQNjQ$YKIVhInzmu9iDu5rhBqA/5dIW+rWL0gFsB/yxVCRqSk" }
+              - column: { name: password_hash, value: "{argon2id}$argon2id$v=19$m=16384,t=2,p=1$REPVUhN5l1HLuFGrtBnG9Q$XjEa/biOPYna88kWa2USMBxgTNGZXKWQ12Jn5TcNCig" }
               - column: { name: enabled, valueBoolean: true }
         - insert:
             tableName: users
@@ -64,7 +64,7 @@ databaseChangeLog:
               - column: { name: id, value: "01KQZ0WPVQVB1NQ66KSPC7QXWN" }
               - column: { name: email, value: "receptionist@test.local" }
               - column: { name: full_name, value: "Test Receptionist" }
-              - column: { name: password_hash, value: "{argon2id}$argon2id$v=19$m=16384,t=2,p=1$1jetdzmeYRQoZd845oQNjQ$YKIVhInzmu9iDu5rhBqA/5dIW+rWL0gFsB/yxVCRqSk" }
+              - column: { name: password_hash, value: "{argon2id}$argon2id$v=19$m=16384,t=2,p=1$REPVUhN5l1HLuFGrtBnG9Q$XjEa/biOPYna88kWa2USMBxgTNGZXKWQ12Jn5TcNCig" }
               - column: { name: enabled, valueBoolean: true }
         - insert:
             tableName: users
@@ -72,7 +72,7 @@ databaseChangeLog:
               - column: { name: id, value: "01KQZ0WPVQ9EKB5AZXKWS0AYYJ" }
               - column: { name: email, value: "cashier@test.local" }
               - column: { name: full_name, value: "Test Cashier" }
-              - column: { name: password_hash, value: "{argon2id}$argon2id$v=19$m=16384,t=2,p=1$1jetdzmeYRQoZd845oQNjQ$YKIVhInzmu9iDu5rhBqA/5dIW+rWL0gFsB/yxVCRqSk" }
+              - column: { name: password_hash, value: "{argon2id}$argon2id$v=19$m=16384,t=2,p=1$REPVUhN5l1HLuFGrtBnG9Q$XjEa/biOPYna88kWa2USMBxgTNGZXKWQ12Jn5TcNCig" }
               - column: { name: enabled, valueBoolean: true }
         - insert:
             tableName: users
@@ -80,7 +80,7 @@ databaseChangeLog:
               - column: { name: id, value: "01KQZ0WPVQWZ7WD3AD2QHGVPKB" }
               - column: { name: email, value: "accountant@test.local" }
               - column: { name: full_name, value: "Test Accountant" }
-              - column: { name: password_hash, value: "{argon2id}$argon2id$v=19$m=16384,t=2,p=1$1jetdzmeYRQoZd845oQNjQ$YKIVhInzmu9iDu5rhBqA/5dIW+rWL0gFsB/yxVCRqSk" }
+              - column: { name: password_hash, value: "{argon2id}$argon2id$v=19$m=16384,t=2,p=1$REPVUhN5l1HLuFGrtBnG9Q$XjEa/biOPYna88kWa2USMBxgTNGZXKWQ12Jn5TcNCig" }
               - column: { name: enabled, valueBoolean: true }
 
         # ---- User-role mappings (one role per user) ----
