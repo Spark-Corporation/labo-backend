@@ -169,7 +169,7 @@ class AnalysisCrudIT extends IntegrationTestBase {
                 http.post()
                         .uri("/api/v1/catalog/analyses/{id}:convert-to-simple", parentId)
                         .exchange((req, res) -> res.getStatusCode());
-        assertThat(status).isEqualTo(HttpStatus.UNPROCESSABLE_ENTITY);
+        assertThat(status).isEqualTo(HttpStatus.UNPROCESSABLE_CONTENT);
     }
 
     @Test

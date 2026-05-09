@@ -49,8 +49,8 @@ class LabFileCrudIT extends IntegrationTestBase {
         http = restClientFor(port, "ADMIN");
         patientId = seedPatient();
         var disciplineId = seedDiscipline();
-        analysisGluCode = "GLU-" + Ulid.generate().substring(0, 6);
-        analysisCreaCode = "CREA-" + Ulid.generate().substring(0, 6);
+        analysisGluCode = "GLU_" + Ulid.generate().substring(10, 16);
+        analysisCreaCode = "CREA_" + Ulid.generate().substring(10, 16);
         seedAnalysis(analysisGluCode, disciplineId);
         seedAnalysis(analysisCreaCode, disciplineId);
     }
@@ -112,7 +112,7 @@ class LabFileCrudIT extends IntegrationTestBase {
                 "INSERT INTO disciplines (id, code, name, discipline_prefix, version) VALUES (?,"
                         + " ?, 'Biochimie', 'BIOCHIMIE', 0)",
                 id,
-                "BIOCHEM-" + id.substring(0, 6));
+                "BIOCHEM-" + id.substring(10, 16));
         return id;
     }
 

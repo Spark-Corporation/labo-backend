@@ -5,11 +5,14 @@ import static org.assertj.core.api.Assertions.assertThat;
 import java.util.Map;
 import java.util.Set;
 
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.http.MediaType;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.web.client.RestClient;
 
 import org.sparkcorporation.lims.IntegrationTestBase;
@@ -24,6 +27,20 @@ import org.sparkcorporation.lims.catalog.api.Habilitation;
 class CatalogCodeCounterIT extends IntegrationTestBase {
 
     @LocalServerPort private int port;
+
+    @Autowired private JdbcTemplate jdbc;
+
+    @BeforeEach
+    void resetCounters() {
+        // Reset prescriber/preleveur rows + counters so the absolute-code assertions
+        // (PRS-000001..PRS-000003 / PHL-000001) hold regardless of prior tests in the
+        // shared-JVM container. Order matters — counters depend on no FK constraint, but
+        // catalog_code_counters is keyed by entity-type only.
+        jdbc.update("DELETE FROM preleveur_habilitations");
+        jdbc.update("DELETE FROM preleveurs");
+        jdbc.update("DELETE FROM prescribers");
+        jdbc.update("UPDATE catalog_code_counters SET next_sequence = 1");
+    }
 
     private RestClient authedHttp() {
         String jwt = loginAs(port, "admin@test.local", "test-password");

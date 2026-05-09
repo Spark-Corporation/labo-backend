@@ -20,9 +20,9 @@ import org.testcontainers.containers.PostgreSQLContainer;
  * <p>We deliberately do <em>not</em> use {@code @Testcontainers} + {@code @Container} together with
  * a {@code static} field. Although that pattern looks JVM-scoped, JUnit Jupiter's
  * TestcontainersExtension treats it as per-class: each subclass triggers a fresh {@code start()} /
- * {@code stop()} cycle, the container is recreated on a new port between IT classes, and any
- * cached Spring context from an earlier IT class points at a stale port — manifesting as
- * {@code HikariPool-N — Connection refused} for half the suite.
+ * {@code stop()} cycle, the container is recreated on a new port between IT classes, and any cached
+ * Spring context from an earlier IT class points at a stale port — manifesting as {@code
+ * HikariPool-N — Connection refused} for half the suite.
  *
  * <p>Spring Boot's {@code @ServiceConnection} on the static field still wires JDBC URL / user /
  * password into every {@code @SpringBootTest} context.

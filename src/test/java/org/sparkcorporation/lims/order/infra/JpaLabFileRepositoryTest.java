@@ -93,7 +93,7 @@ class JpaLabFileRepositoryTest extends IntegrationTestBase {
                         "INSERT INTO disciplines (id, code, name, discipline_prefix, version)"
                                 + " VALUES (?, ?, 'Biochimie', '1', 0)")
                 .setParameter(1, id)
-                .setParameter(2, "BIOCHEM-" + id.substring(0, 6))
+                .setParameter(2, "BIOCHEM-" + id.substring(10, 16))
                 .executeUpdate();
         return id;
     }
@@ -104,7 +104,7 @@ class JpaLabFileRepositoryTest extends IntegrationTestBase {
                         "INSERT INTO recipients (id, code, name, active, version) VALUES (?, ?,"
                                 + " 'Tube EDTA', true, 0)")
                 .setParameter(1, id)
-                .setParameter(2, "TUBE-" + id.substring(0, 6))
+                .setParameter(2, "TUBE-" + id.substring(10, 16))
                 .executeUpdate();
         return id;
     }
@@ -116,7 +116,7 @@ class JpaLabFileRepositoryTest extends IntegrationTestBase {
                                 + " label_count, discipline_id, result_type, version) VALUES (?, ?,"
                                 + " 'Glucose', 'SIMPLE', 10.00, 1, ?, 'REAL', 0)")
                 .setParameter(1, id)
-                .setParameter(2, "GLUC-" + id.substring(0, 6))
+                .setParameter(2, "GLUC-" + id.substring(10, 16))
                 .setParameter(3, disciplineId)
                 .executeUpdate();
         return id;
@@ -128,7 +128,7 @@ class JpaLabFileRepositoryTest extends IntegrationTestBase {
                         "INSERT INTO preleveurs (id, code, name, version) VALUES (?, ?, 'Préleveur"
                                 + " Test', 0)")
                 .setParameter(1, id)
-                .setParameter(2, "PRL-" + id.substring(0, 6))
+                .setParameter(2, "PRL-" + id.substring(10, 16))
                 .executeUpdate();
         return id;
     }

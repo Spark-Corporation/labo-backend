@@ -228,6 +228,13 @@ databaseChangeLog:
         - insert:
             tableName: permissions
             columns:
+              - column: { name: id, value: "01KR7CK1RZRQ76TR1874WZNXSR" }
+              - column: { name: name, value: "quote.read" }
+              - column: { name: description, value: "Read quotes (list/detail/search)" }
+              - column: { name: cdc_clause, value: "III" }
+        - insert:
+            tableName: permissions
+            columns:
               - column: { name: id, value: "01KQZ0WPVPPC0YMFE70R3EFFX8" }
               - column: { name: name, value: "invoice.create" }
               - column: { name: description, value: "Create an invoice" }
@@ -325,7 +332,12 @@ databaseChangeLog:
               - column: { name: cdc_clause, value: "ADM" }
 
         # ---- Role-permission mappings (per tech doc §9.5) ----
-        # ADMIN → all 31
+        # ADMIN → all 32
+        - insert:
+            tableName: role_permissions
+            columns:
+              - column: { name: role_id, value: "01KQZ0WPVNGGWQ1HKC18A0ABSX" }
+              - column: { name: permission_id, value: "01KR7CK1RZRQ76TR1874WZNXSR" }
         - insert:
             tableName: role_permissions
             columns:

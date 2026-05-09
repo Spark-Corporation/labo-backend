@@ -47,9 +47,9 @@ class RbacEnforcementIT extends IntegrationTestBase {
 
         HttpStatusCode status =
                 http.post()
-                        .uri("/api/v1/patients/01HZX0000000000000000ABCD/merge")
+                        .uri("/api/v1/patients/01HZX0000000000000000ABCDE/merge")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .body(Map.of("targetId", "01HZX0000000000000000ZZZZ"))
+                        .body(Map.of("targetId", "01HZX0000000000000000ZZZZZ"))
                         .exchange((req, res) -> res.getStatusCode());
         assertThat(status).isEqualTo(HttpStatus.FORBIDDEN);
     }

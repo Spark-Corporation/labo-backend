@@ -52,7 +52,7 @@ class QuoteConvertIT extends IntegrationTestBase {
         http = restClientFor(port, "ADMIN");
         patientId = seedPatient();
         var disciplineId = seedDiscipline();
-        analysisGluCode = "GLU-" + Ulid.generate().substring(0, 6);
+        analysisGluCode = "GLU_" + Ulid.generate().substring(10, 16);
         seedAnalysis(analysisGluCode, disciplineId);
     }
 
@@ -82,7 +82,7 @@ class QuoteConvertIT extends IntegrationTestBase {
                                         .retrieve()
                                         .toBodilessEntity());
 
-        assertThat(ex.getStatusCode()).isEqualTo(HttpStatus.UNPROCESSABLE_ENTITY);
+        assertThat(ex.getStatusCode()).isEqualTo(HttpStatus.UNPROCESSABLE_CONTENT);
         assertThat(ex.getResponseBodyAsString()).contains("must be LOCKED");
     }
 
@@ -123,7 +123,7 @@ class QuoteConvertIT extends IntegrationTestBase {
                                         .retrieve()
                                         .toBodilessEntity());
 
-        assertThat(ex.getStatusCode()).isEqualTo(HttpStatus.UNPROCESSABLE_ENTITY);
+        assertThat(ex.getStatusCode()).isEqualTo(HttpStatus.UNPROCESSABLE_CONTENT);
         assertThat(ex.getResponseBodyAsString())
                 .contains("\"convertedLabFileId\":\"" + labFileId + "\"");
     }
@@ -152,7 +152,7 @@ class QuoteConvertIT extends IntegrationTestBase {
                 "INSERT INTO disciplines (id, code, name, discipline_prefix, version) VALUES (?,"
                         + " ?, 'Biochimie', 'BIOCHIMIE', 0)",
                 id,
-                "BIOCHEM-" + id.substring(0, 6));
+                "BIOCHEM-" + id.substring(10, 16));
         return id;
     }
 

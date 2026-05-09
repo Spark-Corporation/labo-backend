@@ -86,9 +86,14 @@ public class PatientService {
             String labCode,
             int page,
             int size) {
+        String trimmedName = emptyToNull(name);
+        String nameLikeLower =
+                trimmedName == null
+                        ? null
+                        : "%" + trimmedName.toLowerCase(java.util.Locale.ROOT) + "%";
         Page<Patient> result =
                 repo.search(
-                        emptyToNull(name),
+                        nameLikeLower,
                         emptyToNull(phone),
                         emptyToNull(idDocumentNumber),
                         emptyToNull(labCode),

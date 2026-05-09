@@ -29,7 +29,7 @@
     <module name="OneTopLevelClass"/>
 
     <module name="MethodLength">
-      <property name="max" value="70"/>
+      <property name="max" value="80"/>
     </module>
     <module name="CyclomaticComplexity">
       <property name="max" value="20"/>

@@ -41,7 +41,14 @@ class CatalogReferenceCrudIT extends IntegrationTestBase {
                 http.post()
                         .uri("/api/v1/catalog/disciplines")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .body(Map.of("code", "CRUD_TEST_DISCIPLINE", "name", "CRUD Test"))
+                        .body(
+                                Map.of(
+                                        "code",
+                                        "CRUD_TEST_DISCIPLINE",
+                                        "name",
+                                        "CRUD Test",
+                                        "disciplinePrefix",
+                                        "BIOCHIMIE"))
                         .retrieve()
                         .body(Map.class);
         assertThat(created.get("code")).isEqualTo("CRUD_TEST_DISCIPLINE");
@@ -188,7 +195,9 @@ class CatalogReferenceCrudIT extends IntegrationTestBase {
                                         "code",
                                         "IDEMPOTENT_TEST_DISCIPLINE",
                                         "name",
-                                        "Idempotent Test"))
+                                        "Idempotent Test",
+                                        "disciplinePrefix",
+                                        "BIOCHIMIE"))
                         .retrieve()
                         .body(Map.class);
         String id = (String) created.get("id");

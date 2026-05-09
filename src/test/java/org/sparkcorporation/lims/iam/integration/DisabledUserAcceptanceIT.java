@@ -55,8 +55,10 @@ class DisabledUserAcceptanceIT extends IntegrationTestBase {
 
         assertThat(status).isEqualTo(HttpStatus.UNAUTHORIZED);
 
-        // Restore for other tests.
-        cashier.enable();
-        userRepo.saveAndFlush(cashier);
+        // Restore for other tests. The login attempt may have updated last-failed-login on the
+        // entity, so re-fetch to get the current @Version before the next save.
+        User refreshed = userRepo.findByEmailIgnoreCase("cashier@test.local").orElseThrow();
+        refreshed.enable();
+        userRepo.saveAndFlush(refreshed);
     }
 }

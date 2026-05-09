@@ -86,7 +86,10 @@ public class PatientMapper {
                 p.idDocument() == null
                         ? null
                         : new PatientResponse.IdDoc(p.idDocument().type(), p.idDocument().number());
-        var contact = new PatientResponse.Contact(p.contact().phone(), p.contact().email());
+        var contact =
+                p.contact() == null
+                        ? null
+                        : new PatientResponse.Contact(p.contact().phone(), p.contact().email());
         var guardian =
                 p.guardian() == null
                         ? null

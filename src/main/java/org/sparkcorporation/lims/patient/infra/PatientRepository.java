@@ -24,16 +24,24 @@ public interface PatientRepository extends JpaRepository<Patient, String> {
 
     Optional<Patient> findByPortalLogin(String portalLogin);
 
+    /**
+     * Caller is expected to wrap {@code nameLike} with leading/trailing {@code %} and lowercase it
+     * before invoking — this keeps the LOWER() call out of the parameterized side of the LIKE
+     * expression. Hibernate 6+/Postgres bind a null String through {@code setObject(idx, null)}
+     * which the driver infers as bytea, so {@code LOWER(?)} parses as {@code LOWER(bytea)} (no such
+     * function) at plan-time even when the {@code IS NULL} short-circuit guards execution.
+     * Lowercasing in Java side-steps the parser ambiguity entirely.
+     */
     @Query(
             """
             SELECT p FROM Patient p
             WHERE (:labCode IS NULL OR p.labCode = :labCode)
               AND (:phone IS NULL OR p.contact.phone = :phone)
               AND (:idDocumentNumber IS NULL OR p.idDocument.number = :idDocumentNumber)
-              AND (:nameLike IS NULL OR LOWER(p.name.lastName) LIKE LOWER(CONCAT('%', :nameLike, '%')))
+              AND (:nameLikeLower IS NULL OR LOWER(p.name.lastName) LIKE :nameLikeLower)
             """)
     Page<Patient> search(
-            @Param("nameLike") @org.springframework.lang.Nullable String nameLike,
+            @Param("nameLikeLower") @org.springframework.lang.Nullable String nameLikeLower,
             @Param("phone") @org.springframework.lang.Nullable String phone,
             @Param("idDocumentNumber") @org.springframework.lang.Nullable String idDocumentNumber,
             @Param("labCode") @org.springframework.lang.Nullable String labCode,

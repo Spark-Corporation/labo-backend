@@ -31,7 +31,9 @@ class LimsLocalCredentialStoreTest {
         assertThat(result).isPresent();
         assertThat(result.get().username()).isEqualTo("alice@lab.tg");
         assertThat(result.get().subject()).isEqualTo(u.id().value());
-        assertThat(result.get().argon2Hash()).isEqualTo("{argon2id}fakehash");
+        // The {argon2id} prefix is stripped at the boundary so secured-x's local provider
+        // sees a raw PHC string.
+        assertThat(result.get().argon2Hash()).isEqualTo("fakehash");
         assertThat(result.get().disabled()).isFalse();
     }
 

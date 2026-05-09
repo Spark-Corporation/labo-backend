@@ -101,17 +101,23 @@ public class DefaultAnalysisApi implements AnalysisApi {
                         ? null
                         : new RecipientSnapshot(recipient.id(), recipient.code(), recipient.name());
 
+        var units = a.units();
         var unitsSummary =
-                new UnitsSummary(
-                        a.units().unit1(),
-                        a.units().unit1Decimals(),
-                        a.units().unit2(),
-                        a.units().unit2Decimals(),
-                        a.units().conversionFactor());
+                units == null
+                        ? new UnitsSummary(null, null, null, null, null)
+                        : new UnitsSummary(
+                                units.unit1(),
+                                units.unit1Decimals(),
+                                units.unit2(),
+                                units.unit2Decimals(),
+                                units.conversionFactor());
 
+        var delay = a.delay();
         var delaySummary =
-                new AnalyticalDelaySummary(
-                        a.delay().days(), a.delay().hours(), a.delay().anteriorityCount());
+                delay == null
+                        ? new AnalyticalDelaySummary(null, null, null)
+                        : new AnalyticalDelaySummary(
+                                delay.days(), delay.hours(), delay.anteriorityCount());
 
         var components =
                 repo.findChildrenForParent(a.rawId()).stream()

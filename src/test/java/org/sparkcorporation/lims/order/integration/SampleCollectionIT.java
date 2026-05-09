@@ -58,7 +58,7 @@ class SampleCollectionIT extends IntegrationTestBase {
         patientId = seedPatient();
         // Biochimie → DisciplinePrefix.BIOCHIMIE (numeric prefix 1).
         var disciplineId = seedDiscipline("BIOCHIMIE");
-        analysisCode = "GLU-" + Ulid.generate().substring(0, 6);
+        analysisCode = "GLU_" + Ulid.generate().substring(10, 16);
         analysisId = seedAnalysis(analysisCode, disciplineId);
         recipientId = seedRecipient();
         // Note: no préleveur seed — the {@code home_sample_requires_preleveur_id} test
@@ -120,9 +120,9 @@ class SampleCollectionIT extends IntegrationTestBase {
                     .body(bodyMap)
                     .retrieve()
                     .body(ProblemDetail.class);
-            throw new AssertionError("expected 422 UNPROCESSABLE_ENTITY");
+            throw new AssertionError("expected 422 UNPROCESSABLE_CONTENT");
         } catch (HttpClientErrorException ex) {
-            assertThat(ex.getStatusCode()).isEqualTo(HttpStatus.UNPROCESSABLE_ENTITY);
+            assertThat(ex.getStatusCode()).isEqualTo(HttpStatus.UNPROCESSABLE_CONTENT);
             assertThat(ex.getResponseBodyAsString()).contains("preleveurId");
         }
     }
@@ -194,7 +194,7 @@ class SampleCollectionIT extends IntegrationTestBase {
                 "INSERT INTO disciplines (id, code, name, discipline_prefix, version) VALUES (?,"
                         + " ?, 'Biochimie', ?, 0)",
                 id,
-                "BIOCHEM-" + id.substring(0, 6),
+                "BIOCHEM-" + id.substring(10, 16),
                 prefix);
         return id;
     }
@@ -216,7 +216,7 @@ class SampleCollectionIT extends IntegrationTestBase {
         jdbc.update(
                 "INSERT INTO recipients (id, code, name, version) VALUES (?, ?, 'Tube EDTA', 0)",
                 id,
-                "TUBE-" + id.substring(0, 6));
+                "TUBE-" + id.substring(10, 16));
         return id;
     }
 }

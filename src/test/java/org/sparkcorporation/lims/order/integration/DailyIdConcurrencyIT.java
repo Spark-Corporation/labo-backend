@@ -75,7 +75,7 @@ class DailyIdConcurrencyIT extends IntegrationTestBase {
         recipientId = seedRecipient();
         for (int prefix = 1; prefix <= DISCIPLINES; prefix++) {
             var disciplineId = seedDiscipline(enumNameFor(prefix));
-            var code = enumNameFor(prefix) + "-" + Ulid.generate().substring(0, 6);
+            var code = enumNameFor(prefix) + "_" + Ulid.generate().substring(10, 16);
             var analysisId = seedAnalysis(code, disciplineId);
             fixtureByPrefix.put(prefix, new AnalysisFixture(analysisId, code));
         }
@@ -201,7 +201,7 @@ class DailyIdConcurrencyIT extends IntegrationTestBase {
                 "INSERT INTO disciplines (id, code, name, discipline_prefix, version) VALUES (?,"
                         + " ?, ?, ?, 0)",
                 id,
-                enumName + "-" + id.substring(0, 6),
+                enumName + "-" + id.substring(10, 16),
                 enumName,
                 enumName);
         return id;
@@ -225,7 +225,7 @@ class DailyIdConcurrencyIT extends IntegrationTestBase {
         jdbc.update(
                 "INSERT INTO recipients (id, code, name, version) VALUES (?, ?, 'Tube EDTA', 0)",
                 id,
-                "TUBE-" + id.substring(0, 6));
+                "TUBE-" + id.substring(10, 16));
         return id;
     }
 

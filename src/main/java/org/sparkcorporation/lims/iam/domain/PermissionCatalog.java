@@ -3,7 +3,7 @@ package org.sparkcorporation.lims.iam.domain;
 import java.util.Set;
 
 /**
- * Tech doc §9.5 permission catalog. Static set of 31 strings. Used as the source of truth for
+ * Tech doc §9.5 permission catalog. Static set of 32 strings. Used as the source of truth for
  * {@code @RequiresPermission(...)} keys; an integrity test at startup verifies this set matches the
  * DB-seeded {@code permissions.name} column set.
  */
@@ -28,6 +28,7 @@ public final class PermissionCatalog {
                     "quote.create",
                     "quote.send",
                     "quote.lock",
+                    "quote.read",
                     "invoice.create",
                     "invoice.read",
                     "payment.collect",
