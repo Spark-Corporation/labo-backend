@@ -10,6 +10,7 @@ import java.util.List;
 
 import lombok.RequiredArgsConstructor;
 import org.jspecify.annotations.Nullable;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
@@ -22,6 +23,7 @@ import org.sparkcorporation.lims.catalog.api.PreleveurApi;
 import org.sparkcorporation.lims.catalog.api.PreleveurId;
 import org.sparkcorporation.lims.catalog.api.PrescriberApi;
 import org.sparkcorporation.lims.catalog.api.PrescriberId;
+import org.sparkcorporation.lims.order.api.AnalysisRequestAdded;
 import org.sparkcorporation.lims.order.api.LabFileApi;
 import org.sparkcorporation.lims.order.api.LabFileId;
 import org.sparkcorporation.lims.order.api.LabFileStatus;
@@ -58,6 +60,7 @@ public class LabFileService {
     private final PreleveurApi preleveurApi;
     private final AnalysisApi analysisApi;
     private final DefaultLabFileRegistrationGenerator regGen;
+    private final ApplicationEventPublisher events;
     private final Clock clock;
 
     @Transactional
@@ -109,6 +112,20 @@ public class LabFileService {
         }
         // 7. persist + return rich response (re-resolves cross-module snapshots via LabFileApi)
         fileRepo.save(file);
+        // 8. publish AnalysisRequestAdded for each newly-attached analysis. The
+        //    result module's AnalysisRequestEventHandler subscribes via @TransactionalEventListener
+        //    (AFTER_COMMIT) and materializes the matching Result aggregate. Publishing here ensures
+        //    Spring's event registry sees the events while the surrounding @Transactional is open;
+        //    delivery is deferred until commit so a rollback drops them.
+        var occurredAt = clock.instant();
+        for (var ar : file.getAnalyses()) {
+            events.publishEvent(
+                    new AnalysisRequestAdded(
+                            file.labFileId(),
+                            ar.analysisRequestId(),
+                            ar.getAnalysisCode(),
+                            occurredAt));
+        }
         return LabFileMapper.toResponse(labFileApi.requireById(file.labFileId()));
     }
 

@@ -28,7 +28,9 @@ import org.sparkcorporation.lims.shared.domain.DisciplinePrefix;
 class DefaultAnalysisApiDisciplinePrefixTest {
 
     private final AnalysisRepository repo = mock(AnalysisRepository.class);
-    private final DefaultAnalysisApi api = new DefaultAnalysisApi(repo);
+    private final ReferenceIntervalRepository referenceIntervalRepo =
+            mock(ReferenceIntervalRepository.class);
+    private final DefaultAnalysisApi api = new DefaultAnalysisApi(repo, referenceIntervalRepo);
 
     @Test
     void find_by_code_returns_summary_with_discipline_snapshot_prefix() {

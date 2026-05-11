@@ -21,6 +21,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.ApplicationEventPublisher;
 
 import org.sparkcorporation.lims.catalog.api.AnalysisApi;
 import org.sparkcorporation.lims.catalog.api.AnalysisCode;
@@ -31,6 +32,7 @@ import org.sparkcorporation.lims.catalog.api.DisciplineId;
 import org.sparkcorporation.lims.catalog.api.PreleveurApi;
 import org.sparkcorporation.lims.catalog.api.PrescriberApi;
 import org.sparkcorporation.lims.catalog.api.ResultType;
+import org.sparkcorporation.lims.order.api.AnalysisRequestAdded;
 import org.sparkcorporation.lims.order.api.LabFileApi;
 import org.sparkcorporation.lims.order.api.LabFileId;
 import org.sparkcorporation.lims.order.api.LabFileRegistrationNumber;
@@ -61,6 +63,7 @@ class LabFileServiceTest {
     @Mock private PreleveurApi preleveurApi;
     @Mock private AnalysisApi analysisApi;
     @Mock private DefaultLabFileRegistrationGenerator regGen;
+    @Mock private ApplicationEventPublisher events;
 
     private LabFileService service;
 
@@ -75,6 +78,7 @@ class LabFileServiceTest {
                         preleveurApi,
                         analysisApi,
                         regGen,
+                        events,
                         FIXED_CLOCK);
     }
 
@@ -168,6 +172,7 @@ class LabFileServiceTest {
         assertThat(resp.registrationNumber()).isEqualTo("LF-260507-0001");
         verify(regGen, times(1)).next(LocalDate.of(2026, 5, 7));
         verify(fileRepo, times(1)).save(any());
+        verify(events, times(1)).publishEvent(any(AnalysisRequestAdded.class));
     }
 
     @Test

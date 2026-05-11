@@ -52,6 +52,7 @@ public class DefaultPatientApi implements PatientApi {
                 p.name().firstNames(),
                 p.civility(),
                 p.sex(),
+                p.birthDate(),
                 p.isMerged(),
                 p.isDeleted());
     }

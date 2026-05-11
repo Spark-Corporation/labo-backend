@@ -22,4 +22,18 @@ public interface AnalysisApi {
 
     /** Used by 1.4 {@code order} workflows to populate analysis pickers per discipline. */
     List<AnalysisSummary> findActiveByDiscipline(DisciplineId disciplineId);
+
+    /**
+     * Returns all <strong>active</strong> {@link ReferenceIntervalSummary} rows for an analysis
+     * (filters {@code deleted_at IS NULL}). Soft-deleted RIs are excluded — matching the existing
+     * {@code ReferenceIntervalRepository.findActiveByAnalysisId} semantics and the catalog admin
+     * UI.
+     *
+     * <p>Out-of-range scoring on result lines uses only RIs that are still active at scoring time;
+     * the matched {@code ReferenceIntervalId} is then frozen on the line per result spec §5.4 (no
+     * retroactive recomputation).
+     *
+     * @since 1.5.a
+     */
+    List<ReferenceIntervalSummary> findActiveReferenceIntervalsByAnalysis(AnalysisId analysisId);
 }

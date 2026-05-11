@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import java.math.BigDecimal;
 import java.time.Clock;
+import java.util.List;
 
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -13,14 +14,20 @@ import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabas
 import org.springframework.test.annotation.DirtiesContext;
 
 import org.sparkcorporation.lims.IntegrationTestBase;
+import org.sparkcorporation.lims.catalog.api.AnalysisApi;
 import org.sparkcorporation.lims.catalog.api.AnalysisKind;
+import org.sparkcorporation.lims.catalog.api.ReferenceIntervalSummary;
+import org.sparkcorporation.lims.catalog.api.ReferenceMode;
 import org.sparkcorporation.lims.catalog.api.ResultType;
 import org.sparkcorporation.lims.catalog.domain.Analysis;
 import org.sparkcorporation.lims.catalog.domain.Discipline;
 import org.sparkcorporation.lims.catalog.domain.Matrix;
 import org.sparkcorporation.lims.catalog.domain.NewAnalysis;
+import org.sparkcorporation.lims.catalog.domain.NewReferenceInterval;
 import org.sparkcorporation.lims.catalog.domain.Recipient;
+import org.sparkcorporation.lims.catalog.domain.ReferenceInterval;
 import org.sparkcorporation.lims.shared.domain.DisciplinePrefix;
+import org.sparkcorporation.lims.shared.domain.PatientCategory;
 
 @Tag("integration")
 @DataJpaTest
@@ -32,6 +39,7 @@ class JpaAnalysisRepositoryTest extends IntegrationTestBase {
     @Autowired private DisciplineRepository disciplines;
     @Autowired private MatrixRepository matrices;
     @Autowired private RecipientRepository recipients;
+    @Autowired private ReferenceIntervalRepository referenceIntervalRepo;
 
     private static Analysis sample(
             String code, String name, AnalysisKind kind, Discipline d, Matrix m, Recipient r) {
@@ -211,5 +219,80 @@ class JpaAnalysisRepositoryTest extends IntegrationTestBase {
                 .extracting(Analysis::code)
                 .contains("ANA_BD_SOFT_B")
                 .doesNotContain("ANA_BD_SOFT_A");
+    }
+
+    @Test
+    void findActiveReferenceIntervals_returns_all_active_for_analysis() {
+        // Arrange — persist an analysis + 2 active RIs + 1 soft-deleted RI.
+        var d = freshDiscipline("ANA_DISC_RI_API");
+        var a = repo.save(sample("ANA_RI_API", "Glucose", AnalysisKind.SIMPLE, d, null, null));
+        repo.flush();
+
+        var active1 =
+                referenceIntervalRepo.save(
+                        ReferenceInterval.create(
+                                new NewReferenceInterval(
+                                        PatientCategory.HOMME,
+                                        null,
+                                        null,
+                                        null,
+                                        null,
+                                        ReferenceMode.STANDARD,
+                                        new BigDecimal("0.7"),
+                                        new BigDecimal("1.1"),
+                                        null,
+                                        null,
+                                        null),
+                                a.id(),
+                                Clock.systemUTC()));
+        referenceIntervalRepo.save(
+                ReferenceInterval.create(
+                        new NewReferenceInterval(
+                                PatientCategory.FEMME,
+                                null,
+                                null,
+                                null,
+                                null,
+                                ReferenceMode.STANDARD,
+                                new BigDecimal("0.6"),
+                                new BigDecimal("1.0"),
+                                null,
+                                null,
+                                null),
+                        a.id(),
+                        Clock.systemUTC()));
+        var archived =
+                referenceIntervalRepo.save(
+                        ReferenceInterval.create(
+                                new NewReferenceInterval(
+                                        PatientCategory.ENFANT,
+                                        null,
+                                        null,
+                                        null,
+                                        null,
+                                        ReferenceMode.STANDARD,
+                                        new BigDecimal("0.5"),
+                                        new BigDecimal("0.9"),
+                                        null,
+                                        null,
+                                        null),
+                                a.id(),
+                                Clock.systemUTC()));
+        referenceIntervalRepo.flush();
+        referenceIntervalRepo.deleteById(archived.rawId());
+        referenceIntervalRepo.flush();
+
+        // Act — through the public API surface (the new method under test).
+        AnalysisApi analysisApi = new DefaultAnalysisApi(repo, referenceIntervalRepo);
+        List<ReferenceIntervalSummary> intervals =
+                analysisApi.findActiveReferenceIntervalsByAnalysis(a.id());
+
+        // Assert
+        assertThat(intervals).hasSize(2);
+        assertThat(intervals).allSatisfy(ri -> assertThat(ri.analysisId()).isEqualTo(a.id()));
+        assertThat(intervals)
+                .extracting(ReferenceIntervalSummary::id)
+                .contains(active1.id())
+                .doesNotContain(archived.id());
     }
 }

@@ -1,6 +1,7 @@
 package org.sparkcorporation.lims.catalog.infra;
 
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 
 import lombok.RequiredArgsConstructor;
@@ -19,9 +20,11 @@ import org.sparkcorporation.lims.catalog.api.AnalysisSummary.RecipientSnapshot;
 import org.sparkcorporation.lims.catalog.api.AnalysisSummary.TechniqueLink;
 import org.sparkcorporation.lims.catalog.api.AnalysisSummary.UnitsSummary;
 import org.sparkcorporation.lims.catalog.api.DisciplineId;
+import org.sparkcorporation.lims.catalog.api.ReferenceIntervalSummary;
 import org.sparkcorporation.lims.catalog.api.TechniqueId;
 import org.sparkcorporation.lims.catalog.domain.Analysis;
 import org.sparkcorporation.lims.catalog.domain.AnalysisNotFoundException;
+import org.sparkcorporation.lims.catalog.domain.ReferenceInterval;
 
 /**
  * Default {@link AnalysisApi} implementation. Read-only — write paths live in {@code
@@ -40,6 +43,7 @@ import org.sparkcorporation.lims.catalog.domain.AnalysisNotFoundException;
 public class DefaultAnalysisApi implements AnalysisApi {
 
     private final AnalysisRepository repo;
+    private final ReferenceIntervalRepository referenceIntervalRepo;
 
     @Override
     public Optional<AnalysisSummary> findById(AnalysisId id) {
@@ -73,6 +77,32 @@ public class DefaultAnalysisApi implements AnalysisApi {
         return repo.findActiveByDiscipline(disciplineId.value()).stream()
                 .map(this::toSummary)
                 .toList();
+    }
+
+    @Override
+    public List<ReferenceIntervalSummary> findActiveReferenceIntervalsByAnalysis(
+            AnalysisId analysisId) {
+        Objects.requireNonNull(analysisId, "analysisId");
+        return referenceIntervalRepo.findActiveByAnalysisId(analysisId.value()).stream()
+                .map(DefaultAnalysisApi::toReferenceIntervalSummary)
+                .toList();
+    }
+
+    private static ReferenceIntervalSummary toReferenceIntervalSummary(ReferenceInterval ri) {
+        return new ReferenceIntervalSummary(
+                ri.id(),
+                ri.analysisId(),
+                ri.category(),
+                ri.sex(),
+                ri.ageMin(),
+                ri.ageMax(),
+                ri.ageUnit(),
+                ri.mode(),
+                ri.unit1Min(),
+                ri.unit1Max(),
+                ri.unit2Min(),
+                ri.unit2Max(),
+                ri.commentText());
     }
 
     private AnalysisSummary toSummary(Analysis a) {

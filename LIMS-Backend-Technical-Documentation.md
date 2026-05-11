@@ -683,6 +683,16 @@ Every controller is annotated; the schema is generated at `/v3/api-docs` and ren
 
 **File attachments.** Scanned PDFs are uploaded to object storage (S3-compatible: MinIO or AWS S3); only the URI is kept in the database.
 
+**State machine (sub-project 1.5.a).** Four states linearly: `DRAFT → ENTERED → TECHNICAL_VALIDATED → BIOLOGICAL_VALIDATED`. `DRAFT ↔ ENTERED` flips automatically based on line-completeness; the two `*_VALIDATED` transitions require an explicit `:validate-technical` / `:validate-biological` call and are guarded by `result.validate-tech` / `result.validate-bio` permissions.
+
+**Eager creation.** The `result` module subscribes to `order::AnalysisRequestAdded` (AFTER_COMMIT, REQUIRES_NEW) and pre-creates the `Result` aggregate in `DRAFT`. The mirror `AnalysisRequestRemoved` listener soft-deletes the aggregate when still in `DRAFT`; non-DRAFT aggregates are preserved as audit trail.
+
+**Reading-2 dossier comments.** Per CDC §IX, free-form lab-file commentary lives in a separate `dossier_comments(lab_file_id PK, comment_text)` aggregate (1:1 with `LabFile`) — kept outside the `Result` aggregate so it doesn't reset the state machine.
+
+**Events emitted (4).** `ResultCreated`, `ResultEntered` (DRAFT→ENTERED only), `TechnicalValidationDone`, `BiologicalValidationDone`. The last is the trigger for billing 1.6 invoice finalization, delivery 1.8 publish, and stats 1.9 projection.
+
+**Cross-module amendments landed in 1.5.a.** `catalog::api.AnalysisApi.findActiveReferenceIntervalsByAnalysis(AnalysisId)` (used by `ReferenceIntervalMatcher` on save); `patient::api.PatientSummary.birthDate` (used to compute `patient_age_in_days_snapshot` at result creation time).
+
 ### 8.5 `billing` Module
 **Invoice number** format follows the spec: `<labCode>-<yyMMdd>-<seq>` (e.g. `LTA24-1710-005`). Generated per lab via a per-day counter table.
 

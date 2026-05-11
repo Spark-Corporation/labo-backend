@@ -68,6 +68,7 @@ class DefaultQuoteApiTest {
                 "Jane",
                 Civility.MADAME,
                 Sex.F,
+                null,
                 false,
                 false);
     }
