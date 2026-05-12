@@ -15,6 +15,10 @@ import org.sparkcorporation.lims.shared.domain.Sex;
  * derive {@code Age} (against {@code LabFile.createdAt}) and then {@code PatientCategory.of(sex,
  * age)} for reference-interval matching. Nullable per CDC §I (registration is required, but the
  * date itself is not always known).
+ *
+ * <p>{@code insured} added in 1.5.b per result read-side spec §4.1 — needed by the result module's
+ * §V search to filter on patient-type (INSURED | NOT_INSURED). Primitive boolean — the domain field
+ * is non-null per CDC §I "assuré ou non".
  */
 public record PatientSummary(
         PatientId id,
@@ -24,5 +28,6 @@ public record PatientSummary(
         Civility civility,
         Sex sex,
         @Nullable LocalDate birthDate,
+        boolean insured,
         boolean merged,
         boolean deleted) {}

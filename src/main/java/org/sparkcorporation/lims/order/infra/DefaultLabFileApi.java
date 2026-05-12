@@ -1,7 +1,12 @@
 package org.sparkcorporation.lims.order.infra;
 
+import static java.util.stream.Collectors.toUnmodifiableMap;
+
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -108,12 +113,19 @@ public class DefaultLabFileApi implements LabFileApi {
         return fileRepo.findActiveByPatientId(patientId).stream().map(this::toSummary).toList();
     }
 
+    @Override
+    public Map<LabFileId, LabFileSummary> findAllByIds(Set<LabFileId> ids) {
+        if (ids.isEmpty()) {
+            return Map.of();
+        }
+        var rawIds = ids.stream().map(LabFileId::value).collect(Collectors.toSet());
+        return fileRepo.findAllActiveByIds(rawIds).stream()
+                .collect(toUnmodifiableMap(lf -> lf.labFileId(), this::toSummary));
+    }
+
     private LabFileSummary toSummary(LabFile lf) {
-        // Round 1: the lab-file row is already in hand.
-        // Round 2: samples by lab_file_id.
         var samples =
                 sampleRepo.findByLabFileId(lf.getId()).stream().map(this::toSampleSummary).toList();
-        // Round 3: analysis_requests by lab_file_id.
         var analyses =
                 requestRepo.findByLabFileId(lf.getId()).stream()
                         .map(

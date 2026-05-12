@@ -3,6 +3,7 @@ package org.sparkcorporation.lims.order.infra;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 import org.jspecify.annotations.Nullable;
 import org.springframework.data.domain.Page;
@@ -53,6 +54,13 @@ public interface LabFileRepository extends JpaRepository<LabFile, String> {
              ORDER BY lf.createdAt DESC
             """)
     List<LabFile> findActiveByPatientId(@Param("patientId") String patientId);
+
+    @Query(
+            """
+            SELECT lf FROM LabFile lf
+             WHERE lf.id IN :ids AND lf.deletedAt IS NULL
+            """)
+    List<LabFile> findAllActiveByIds(@Param("ids") Set<String> ids);
 
     @Query(
             """

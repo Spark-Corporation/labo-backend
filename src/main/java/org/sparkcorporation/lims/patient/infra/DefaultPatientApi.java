@@ -1,6 +1,11 @@
 package org.sparkcorporation.lims.patient.infra;
 
+import static java.util.stream.Collectors.toUnmodifiableMap;
+
+import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -44,6 +49,16 @@ public class DefaultPatientApi implements PatientApi {
         return repo.findById(id.value()).isPresent();
     }
 
+    @Override
+    public Map<PatientId, PatientSummary> findAllByIds(Set<PatientId> ids) {
+        if (ids.isEmpty()) {
+            return Map.of();
+        }
+        var rawIds = ids.stream().map(PatientId::value).collect(Collectors.toSet());
+        return repo.findAllActiveByIds(rawIds).stream()
+                .collect(toUnmodifiableMap(p -> p.id(), DefaultPatientApi::toSummary));
+    }
+
     private static PatientSummary toSummary(Patient p) {
         return new PatientSummary(
                 p.id(),
@@ -53,6 +68,7 @@ public class DefaultPatientApi implements PatientApi {
                 p.civility(),
                 p.sex(),
                 p.birthDate(),
+                p.insured(),
                 p.isMerged(),
                 p.isDeleted());
     }

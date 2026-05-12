@@ -4,7 +4,10 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import java.util.Set;
+
 import jakarta.persistence.EntityNotFoundException;
+import jakarta.validation.ConstraintViolationException;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -14,10 +17,16 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 @ExtendWith(SpringExtension.class)
 class ProblemDetailAdviceTest {
+
+    enum SampleStatus {
+        PENDING,
+        PROCESSED
+    }
 
     @RestController
     @RequestMapping("/test-throws")
@@ -45,6 +54,16 @@ class ProblemDetailAdviceTest {
         @GetMapping("/forbidden")
         public String f() {
             throw new org.springframework.security.access.AccessDeniedException("missing perm");
+        }
+
+        @GetMapping("/type-mismatch")
+        public String typeMismatch(@RequestParam SampleStatus value) {
+            return value.name();
+        }
+
+        @GetMapping("/constraint-violation")
+        public String constraintViolation() {
+            throw new ConstraintViolationException("name must not be blank", Set.of());
         }
     }
 
@@ -100,5 +119,27 @@ class ProblemDetailAdviceTest {
                 .andExpect(jsonPath("$.status").value(403))
                 .andExpect(jsonPath("$.type").value("https://lims/errors/forbidden"))
                 .andExpect(jsonPath("$.detail").value("missing required permission"));
+    }
+
+    @Test
+    void MethodArgumentTypeMismatchException_returns_400_problem_detail() throws Exception {
+        mockMvc.perform(get("/test-throws/type-mismatch").param("value", "not-a-valid-enum"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.title").value("Bad request"))
+                .andExpect(jsonPath("$.status").value(400))
+                .andExpect(jsonPath("$.type").value("https://lims/errors/bad-request"))
+                .andExpect(jsonPath("$.detail").value("invalid value for parameter 'value'"))
+                .andExpect(jsonPath("$.traceId").exists());
+    }
+
+    @Test
+    void ConstraintViolationException_returns_400_problem_detail() throws Exception {
+        mockMvc.perform(get("/test-throws/constraint-violation"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.title").value("Bad request"))
+                .andExpect(jsonPath("$.status").value(400))
+                .andExpect(jsonPath("$.type").value("https://lims/errors/bad-request"))
+                .andExpect(jsonPath("$.detail").value("name must not be blank"))
+                .andExpect(jsonPath("$.traceId").exists());
     }
 }

@@ -6,6 +6,7 @@ import java.util.Optional;
 
 import jakarta.persistence.EntityNotFoundException;
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.validation.ConstraintViolationException;
 
 import lombok.extern.slf4j.Slf4j;
 import org.slf4j.MDC;
@@ -13,8 +14,10 @@ import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 
 /**
  * Cross-cutting RFC 7807 ProblemDetail mapper for LIMS controllers.
@@ -41,6 +44,45 @@ public class ProblemDetailAdvice {
 
     @ExceptionHandler(IllegalArgumentException.class)
     public ProblemDetail handleBadRequest(IllegalArgumentException ex, HttpServletRequest req) {
+        var pd = ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, ex.getMessage());
+        pd.setType(URI.create("https://lims/errors/bad-request"));
+        pd.setTitle("Bad request");
+        pd.setInstance(URI.create(req.getRequestURI()));
+        pd.setProperty("traceId", currentTraceId());
+        return pd;
+    }
+
+    @ExceptionHandler(MissingServletRequestParameterException.class)
+    public ProblemDetail handleMissingParam(
+            MissingServletRequestParameterException ex, HttpServletRequest req) {
+        var pd =
+                ProblemDetail.forStatusAndDetail(
+                        HttpStatus.BAD_REQUEST,
+                        "required parameter '" + ex.getParameterName() + "' is missing");
+        pd.setType(URI.create("https://lims/errors/bad-request"));
+        pd.setTitle("Bad request");
+        pd.setInstance(URI.create(req.getRequestURI()));
+        pd.setProperty("traceId", currentTraceId());
+        return pd;
+    }
+
+    @ExceptionHandler(MethodArgumentTypeMismatchException.class)
+    public ProblemDetail handleTypeMismatch(
+            MethodArgumentTypeMismatchException ex, HttpServletRequest req) {
+        var pd =
+                ProblemDetail.forStatusAndDetail(
+                        HttpStatus.BAD_REQUEST,
+                        "invalid value for parameter '" + ex.getName() + "'");
+        pd.setType(URI.create("https://lims/errors/bad-request"));
+        pd.setTitle("Bad request");
+        pd.setInstance(URI.create(req.getRequestURI()));
+        pd.setProperty("traceId", currentTraceId());
+        return pd;
+    }
+
+    @ExceptionHandler(ConstraintViolationException.class)
+    public ProblemDetail handleConstraintViolation(
+            ConstraintViolationException ex, HttpServletRequest req) {
         var pd = ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, ex.getMessage());
         pd.setType(URI.create("https://lims/errors/bad-request"));
         pd.setTitle("Bad request");

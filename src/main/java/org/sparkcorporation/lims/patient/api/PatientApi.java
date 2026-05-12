@@ -1,6 +1,8 @@
 package org.sparkcorporation.lims.patient.api;
 
+import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 
 /**
  * Public, read-only patient interface for cross-module consumption. Other modules import {@code
@@ -9,6 +11,16 @@ import java.util.Optional;
 public interface PatientApi {
 
     Optional<PatientSummary> findById(PatientId id);
+
+    /**
+     * Batched lookup. Returns a map keyed by the input ids; missing ids are silently absent from
+     * the map. Empty input → empty map. Soft-deleted patients are excluded.
+     *
+     * <p>Added in 1.5.b for batched page-hydration in {@code
+     * result/web/{ResultSearchService,DossierListService}} — avoids N+1 calls to {@link
+     * #requireById(PatientId)} during paginated read endpoints.
+     */
+    Map<PatientId, PatientSummary> findAllByIds(Set<PatientId> ids);
 
     /**
      * @throws org.sparkcorporation.lims.patient.domain.PatientNotFoundException if no match

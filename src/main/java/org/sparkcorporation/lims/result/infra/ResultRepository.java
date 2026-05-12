@@ -3,11 +3,14 @@ package org.sparkcorporation.lims.result.infra;
 import java.util.List;
 import java.util.Optional;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import org.sparkcorporation.lims.result.api.ResultState;
 import org.sparkcorporation.lims.result.domain.Result;
 
 /**
@@ -54,4 +57,26 @@ public interface ResultRepository extends JpaRepository<Result, String> {
              ORDER BY r.analysisCodeSnapshot
             """)
     List<Result> findActiveByLabFileId(@Param("labFileId") String labFileId);
+
+    @EntityGraph(attributePaths = {"lines", "antibiogramReadings"})
+    @Query(
+            """
+            SELECT r FROM Result r
+             WHERE r.deletedAt IS NULL
+               AND r.state = :state
+             ORDER BY r.technicalValidatedAt ASC
+            """)
+    Page<Result> findActiveByStateOrderByTechnicalValidatedAt(
+            @Param("state") ResultState state, Pageable pageable);
+
+    @EntityGraph(attributePaths = {"lines", "antibiogramReadings"})
+    @Query(
+            """
+            SELECT r FROM Result r
+             WHERE r.deletedAt IS NULL
+               AND r.state = :state
+             ORDER BY r.biologicalValidatedAt ASC
+            """)
+    Page<Result> findActiveByStateOrderByBiologicalValidatedAt(
+            @Param("state") ResultState state, Pageable pageable);
 }

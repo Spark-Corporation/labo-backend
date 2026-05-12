@@ -693,6 +693,18 @@ Every controller is annotated; the schema is generated at `/v3/api-docs` and ren
 
 **Cross-module amendments landed in 1.5.a.** `catalog::api.AnalysisApi.findActiveReferenceIntervalsByAnalysis(AnalysisId)` (used by `ReferenceIntervalMatcher` on save); `patient::api.PatientSummary.birthDate` (used to compute `patient_age_in_days_snapshot` at result creation time).
 
+**Read-side surface (sub-project 1.5.b).** Six GET endpoints expose CDC §IV
+anterior-results, §V multi-criteria line-level search, §X 3 queue lists (2
+result-grained for the biologist inbox: to-validate + to-print, 1 dossier-
+grained: urgent), §X computed dossier markers (vert / rouge / stylo via
+on-read SQL CASE), and §IX state-filtered dossier list at `/api/v1/dossiers`.
+No new tables, no Liquibase changeset — all queries read 1.5.a tables. The §X
+"Dossiers en retard" queue is deferred to a future 1.4.c sub-project that
+adds an `expected_delivery_date` deadline to `LabFile` along with the
+SLA-policy plumbing. Two batched cross-module accessors landed:
+`patient::api.PatientApi.findAllByIds` and `order::api.LabFileApi.findAllByIds`,
+plus a `PatientSummary.insured` field for §V's patient-type filter.
+
 ### 8.5 `billing` Module
 **Invoice number** format follows the spec: `<labCode>-<yyMMdd>-<seq>` (e.g. `LTA24-1710-005`). Generated per lab via a per-day counter table.
 

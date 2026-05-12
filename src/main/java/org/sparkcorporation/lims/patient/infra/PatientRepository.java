@@ -1,7 +1,10 @@
 package org.sparkcorporation.lims.patient.infra;
 
+import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
+import org.jspecify.annotations.Nullable;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -35,15 +38,22 @@ public interface PatientRepository extends JpaRepository<Patient, String> {
     @Query(
             """
             SELECT p FROM Patient p
+             WHERE p.id IN :ids AND p.deletedAt IS NULL
+            """)
+    List<Patient> findAllActiveByIds(@Param("ids") Set<String> ids);
+
+    @Query(
+            """
+            SELECT p FROM Patient p
             WHERE (:labCode IS NULL OR p.labCode = :labCode)
               AND (:phone IS NULL OR p.contact.phone = :phone)
               AND (:idDocumentNumber IS NULL OR p.idDocument.number = :idDocumentNumber)
               AND (:nameLikeLower IS NULL OR LOWER(p.name.lastName) LIKE :nameLikeLower)
             """)
     Page<Patient> search(
-            @Param("nameLikeLower") @org.springframework.lang.Nullable String nameLikeLower,
-            @Param("phone") @org.springframework.lang.Nullable String phone,
-            @Param("idDocumentNumber") @org.springframework.lang.Nullable String idDocumentNumber,
-            @Param("labCode") @org.springframework.lang.Nullable String labCode,
+            @Param("nameLikeLower") @Nullable String nameLikeLower,
+            @Param("phone") @Nullable String phone,
+            @Param("idDocumentNumber") @Nullable String idDocumentNumber,
+            @Param("labCode") @Nullable String labCode,
             Pageable pageable);
 }
