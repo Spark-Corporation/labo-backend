@@ -29,7 +29,7 @@ public final class DossierMapper {
                 patient == null ? null : patient.labCode(),
                 patient == null ? null : patient.lastName(),
                 patient == null ? null : patient.firstNames(),
-                patient != null && patient.insured(),
+                patient != null && patient.insurance() != null,
                 DossierMarker.valueOf(projection.getMarker()));
     }
 }

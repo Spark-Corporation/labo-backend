@@ -1,0 +1,38 @@
+# Seed the accounting.read permission introduced in 1.6.a chunk 8.
+# Granted to ADMIN (matches the all-33 grant pattern) and LAB_MANAGER (spec §9.5 — CDC §VIII
+# accounting recap / by-payment-mode / outstanding read endpoints).
+#
+# ULID assignments (captured from UlidGenerator throwaway helper, deleted before commit):
+#   accounting.read              = 01KRA1NC4DXE6F7G8H9JKMNRST
+databaseChangeLog:
+  - changeSet:
+      id: 202605120850-seed-accounting-permission
+      author: samuel
+      contextFilter: dev,test,prod
+      labels: phase-1-6-a
+      preConditions:
+        - onFail: MARK_RAN
+        - sqlCheck:
+            expectedResult: 0
+            sql: SELECT COUNT(*) FROM permissions WHERE name = 'accounting.read'
+      changes:
+        - insert:
+            tableName: permissions
+            columns:
+              - column: { name: id, value: "01KRA1NC4DXE6F7G8H9JKMNRST" }
+              - column: { name: name, value: "accounting.read" }
+              - column: { name: description, value: "Read accounting recap, by-payment-mode, and outstanding views" }
+              - column: { name: cdc_clause, value: "VIII" }
+        # ADMIN → accounting.read
+        - insert:
+            tableName: role_permissions
+            columns:
+              - column: { name: role_id, value: "01KQZ0WPVNGGWQ1HKC18A0ABSX" }
+              - column: { name: permission_id, value: "01KRA1NC4DXE6F7G8H9JKMNRST" }
+        # LAB_MANAGER → accounting.read
+        - insert:
+            tableName: role_permissions
+            columns:
+              - column: { name: role_id, value: "01KQZ0WPVP2EM2DF5E5RKVE7GP" }
+              - column: { name: permission_id, value: "01KRA1NC4DXE6F7G8H9JKMNRST" }
+      # rollback: AUTHORED BY USER

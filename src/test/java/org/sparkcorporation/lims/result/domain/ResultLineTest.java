@@ -114,4 +114,160 @@ class ResultLineTest {
         m.setAccessible(true);
         assertThatThrownBy(() -> m.invoke(line)).hasCauseInstanceOf(IllegalStateException.class);
     }
+
+    @Test
+    void setValue_INTEGER_persists_to_valueInteger_column() {
+        Result r = newResultWithSingleLine(ResultType.INTEGER);
+        var line = r.getLines().iterator().next();
+
+        r.setLineValue(line.resultLineId(), new NewLineValue(new IntegerResult(42L), null), null);
+
+        assertThat(line.getValueInteger()).isEqualTo(42L);
+        assertThat(line.getValueReal()).isNull();
+        assertThat(line.getValueText()).isNull();
+        assertThat(line.hasValue()).isTrue();
+    }
+
+    @Test
+    void setValue_REAL_persists_to_valueReal_column() {
+        Result r = newResultWithSingleLine(ResultType.REAL);
+        var line = r.getLines().iterator().next();
+
+        r.setLineValue(
+                line.resultLineId(),
+                new NewLineValue(new NumericResult(new BigDecimal("4.20")), null),
+                null);
+
+        assertThat(line.getValueInteger()).isNull();
+        assertThat(line.getValueReal()).isEqualByComparingTo("4.20");
+        assertThat(line.getValueText()).isNull();
+    }
+
+    @Test
+    void setValue_TEXT_persists_to_valueText_column() {
+        Result r = newResultWithSingleLine(ResultType.TEXT);
+        var line = r.getLines().iterator().next();
+
+        r.setLineValue(
+                line.resultLineId(), new NewLineValue(new TextResult("Positif"), null), null);
+
+        assertThat(line.getValueInteger()).isNull();
+        assertThat(line.getValueReal()).isNull();
+        assertThat(line.getValueText()).isEqualTo("Positif");
+    }
+
+    @Test
+    void setValue_FREE_persists_to_valueText_column() {
+        Result r = newResultWithSingleLine(ResultType.FREE);
+        var line = r.getLines().iterator().next();
+
+        r.setLineValue(
+                line.resultLineId(),
+                new NewLineValue(new FreeFormResult("indéterminé"), null),
+                null);
+
+        assertThat(line.getValueText()).isEqualTo("indéterminé");
+    }
+
+    @Test
+    void setValue_with_null_value_clears_all_value_columns() {
+        Result r = newResultWithSingleLine(ResultType.REAL);
+        var line = r.getLines().iterator().next();
+        r.setLineValue(
+                line.resultLineId(),
+                new NewLineValue(new NumericResult(new BigDecimal("4.50")), null),
+                null);
+        assertThat(line.hasValue()).isTrue();
+
+        // explicit null value via the cmd → should clear
+        r.setLineValue(line.resultLineId(), new NewLineValue(null, null), null);
+
+        assertThat(line.hasValue()).isFalse();
+        assertThat(line.isOutOfRange()).isFalse();
+        assertThat(line.getReferenceIntervalId()).isNull();
+    }
+
+    @Test
+    void setValue_with_empty_comment_normalizes_to_null() {
+        Result r = newResultWithSingleLine(ResultType.REAL);
+        var line = r.getLines().iterator().next();
+
+        r.setLineValue(
+                line.resultLineId(),
+                new NewLineValue(new NumericResult(new BigDecimal("4.20")), ""),
+                null);
+
+        assertThat(line.getCommentText()).isNull();
+    }
+
+    @Test
+    void setValue_with_non_empty_comment_persists_it() {
+        Result r = newResultWithSingleLine(ResultType.REAL);
+        var line = r.getLines().iterator().next();
+
+        r.setLineValue(
+                line.resultLineId(),
+                new NewLineValue(new NumericResult(new BigDecimal("4.20")), "à vérifier"),
+                null);
+
+        assertThat(line.getCommentText()).isEqualTo("à vérifier");
+    }
+
+    @Test
+    void kindMismatch_TEXT_line_with_INTEGER_value_throws() {
+        Result r = newResultWithSingleLine(ResultType.TEXT);
+        var line = r.getLines().iterator().next();
+
+        assertThatThrownBy(
+                        () ->
+                                r.setLineValue(
+                                        line.resultLineId(),
+                                        new NewLineValue(new IntegerResult(1L), null),
+                                        null))
+                .isInstanceOf(ResultLineKindMismatchException.class)
+                .hasMessageContaining("TEXT");
+    }
+
+    @Test
+    void kindMismatch_REAL_line_with_TEXT_value_throws() {
+        Result r = newResultWithSingleLine(ResultType.REAL);
+        var line = r.getLines().iterator().next();
+
+        assertThatThrownBy(
+                        () ->
+                                r.setLineValue(
+                                        line.resultLineId(),
+                                        new NewLineValue(new TextResult("nope"), null),
+                                        null))
+                .isInstanceOf(ResultLineKindMismatchException.class);
+    }
+
+    @Test
+    void kindMismatch_FORMULA_line_with_REAL_value_throws() {
+        Result r = newResultWithSingleLine(ResultType.FORMULA);
+        var line = r.getLines().iterator().next();
+
+        assertThatThrownBy(
+                        () ->
+                                r.setLineValue(
+                                        line.resultLineId(),
+                                        new NewLineValue(
+                                                new NumericResult(new BigDecimal("1")), null),
+                                        null))
+                .isInstanceOf(ResultLineKindMismatchException.class);
+    }
+
+    @Test
+    void kindMismatch_FREE_line_with_INTEGER_value_throws() {
+        Result r = newResultWithSingleLine(ResultType.FREE);
+        var line = r.getLines().iterator().next();
+
+        assertThatThrownBy(
+                        () ->
+                                r.setLineValue(
+                                        line.resultLineId(),
+                                        new NewLineValue(new IntegerResult(1L), null),
+                                        null))
+                .isInstanceOf(ResultLineKindMismatchException.class);
+    }
 }

@@ -51,6 +51,7 @@ import org.sparkcorporation.lims.patient.api.PatientApi;
 import org.sparkcorporation.lims.patient.api.PatientId;
 import org.sparkcorporation.lims.shared.domain.DisciplinePrefix;
 import org.sparkcorporation.lims.shared.domain.Sex;
+import org.sparkcorporation.lims.shared.money.PricingProperties;
 
 @ExtendWith(MockitoExtension.class)
 class QuoteServiceTest {
@@ -324,6 +325,111 @@ class QuoteServiceTest {
                                         new QuoteId(VALID_ULID),
                                         new org.sparkcorporation.lims.order.domain.UpdateQuote(
                                                 null, null)))
+                .isInstanceOf(QuoteNotFoundException.class);
+    }
+
+    @Test
+    void create_throws_on_unknown_prescriber_reference() {
+        var prescriberUlid = org.sparkcorporation.lims.shared.id.Ulid.generate();
+        when(patientApi.existsById(any(PatientId.class))).thenReturn(true);
+        when(prescriberApi.existsById(any())).thenReturn(false);
+
+        var req = new CreateQuoteRequest(VALID_ULID, prescriberUlid, List.of("GLU"), null);
+
+        assertThatThrownBy(() -> service.create(req, "user-1"))
+                .isInstanceOf(
+                        org.sparkcorporation.lims.order.domain
+                                .OrderInvalidPrescriberReferenceException.class);
+        verify(quoteNumberGen, never()).next(any());
+    }
+
+    @Test
+    void delete_when_present_calls_repository_delete() {
+        var quote =
+                Quote.draft(
+                        new org.sparkcorporation.lims.order.domain.NewQuote(
+                                VALID_ULID, null, null, List.of()),
+                        new QuoteNumber("DEV-260508-0099"),
+                        null,
+                        FIXED_CLOCK);
+        when(quoteRepo.findActiveById(quote.getId())).thenReturn(Optional.of(quote));
+
+        service.delete(quote.quoteId());
+
+        verify(quoteRepo, times(1)).delete(quote);
+    }
+
+    @Test
+    void addLines_throws_when_quote_missing() {
+        when(quoteRepo.findActiveById(VALID_ULID)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> service.addLines(new QuoteId(VALID_ULID), List.of("GLU")))
+                .isInstanceOf(QuoteNotFoundException.class);
+    }
+
+    @Test
+    void addLines_throws_on_duplicate_code_in_request() {
+        var quote =
+                Quote.draft(
+                        new org.sparkcorporation.lims.order.domain.NewQuote(
+                                VALID_ULID, null, null, List.of()),
+                        new QuoteNumber("DEV-260508-0010"),
+                        null,
+                        FIXED_CLOCK);
+        when(quoteRepo.findActiveById(quote.getId())).thenReturn(Optional.of(quote));
+        when(analysisApi.findByCode(new AnalysisCode("GLU")))
+                .thenReturn(Optional.of(analysisSummary("GLU")));
+
+        assertThatThrownBy(() -> service.addLines(quote.quoteId(), List.of("GLU", "GLU")))
+                .isInstanceOf(DuplicateAnalysisRequestException.class);
+    }
+
+    @Test
+    void addLines_throws_on_unknown_analysis_code() {
+        var quote =
+                Quote.draft(
+                        new org.sparkcorporation.lims.order.domain.NewQuote(
+                                VALID_ULID, null, null, List.of()),
+                        new QuoteNumber("DEV-260508-0011"),
+                        null,
+                        FIXED_CLOCK);
+        when(quoteRepo.findActiveById(quote.getId())).thenReturn(Optional.of(quote));
+        when(analysisApi.findByCode(any(AnalysisCode.class))).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> service.addLines(quote.quoteId(), List.of("MISSING")))
+                .isInstanceOf(OrderInvalidAnalysisReferenceException.class);
+    }
+
+    @Test
+    void removeLine_throws_when_quote_missing() {
+        when(quoteRepo.findActiveById(VALID_ULID)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(
+                        () ->
+                                service.removeLine(
+                                        new QuoteId(VALID_ULID),
+                                        org.sparkcorporation.lims.order.api.QuoteLineId.next()))
+                .isInstanceOf(QuoteNotFoundException.class);
+    }
+
+    @Test
+    void lock_throws_when_quote_missing() {
+        when(quoteRepo.findActiveById(VALID_ULID)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> service.lock(new QuoteId(VALID_ULID)))
+                .isInstanceOf(QuoteNotFoundException.class);
+    }
+
+    @Test
+    void convert_throws_when_quote_missing() {
+        when(quoteRepo.findActiveById(VALID_ULID)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(
+                        () ->
+                                service.convert(
+                                        new QuoteId(VALID_ULID),
+                                        new ConvertQuoteRequest(false),
+                                        "user-1"))
                 .isInstanceOf(QuoteNotFoundException.class);
     }
 }

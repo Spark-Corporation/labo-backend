@@ -25,6 +25,8 @@ import org.sparkcorporation.lims.order.domain.InvalidCollectionWindowException;
 import org.sparkcorporation.lims.order.domain.InvalidDistanceException;
 import org.sparkcorporation.lims.order.domain.InvalidReceivedAtException;
 import org.sparkcorporation.lims.order.domain.LabFileNotEditableException;
+import org.sparkcorporation.lims.order.domain.OrderInvalidInsuranceReferenceException;
+import org.sparkcorporation.lims.order.domain.OrderInvalidPartnerReferenceException;
 import org.sparkcorporation.lims.order.domain.OrderInvalidReferenceException;
 import org.sparkcorporation.lims.order.domain.QuoteAlreadyConvertedException;
 import org.sparkcorporation.lims.order.domain.QuoteNotEditableException;
@@ -148,7 +150,7 @@ public class OrderProblemDetailAdvice {
                 ex.getMessage(), "/errors/immutable-status", "Immutable field", req, "status");
     }
 
-    // --- 1 unified handler for the sealed OrderInvalidReferenceException (4 subtypes) -----------
+    // --- 1 unified handler for the sealed OrderInvalidReferenceException (6 subtypes) -----------
 
     @ExceptionHandler(OrderInvalidReferenceException.class)
     public ProblemDetail invalidReference(
@@ -159,6 +161,37 @@ public class OrderProblemDetailAdvice {
         pd.setInstance(URI.create(req.getRequestURI()));
         pd.setProperty("referenceKind", ex.referenceKind());
         pd.setProperty("invalidValue", ex.invalidValue());
+        pd.setProperty("traceId", traceId());
+        return pd;
+    }
+
+    // --- 2 1.6.a specific reference handlers (override the unified handler with explicit
+    //     /errors/order-invalid-{insurance,partner} type URIs) ------------------------------------
+
+    @ExceptionHandler(OrderInvalidInsuranceReferenceException.class)
+    public ProblemDetail invalidInsuranceReference(
+            OrderInvalidInsuranceReferenceException ex, HttpServletRequest req) {
+        var pd = ProblemDetail.forStatusAndDetail(HttpStatus.UNPROCESSABLE_ENTITY, ex.getMessage());
+        pd.setType(URI.create("/errors/order-invalid-insurance"));
+        pd.setTitle("Invalid insurance reference");
+        pd.setInstance(URI.create(req.getRequestURI()));
+        pd.setProperty("referenceKind", ex.referenceKind());
+        pd.setProperty("invalidValue", ex.invalidValue());
+        pd.setProperty("field", "insuranceId");
+        pd.setProperty("traceId", traceId());
+        return pd;
+    }
+
+    @ExceptionHandler(OrderInvalidPartnerReferenceException.class)
+    public ProblemDetail invalidPartnerReference(
+            OrderInvalidPartnerReferenceException ex, HttpServletRequest req) {
+        var pd = ProblemDetail.forStatusAndDetail(HttpStatus.UNPROCESSABLE_ENTITY, ex.getMessage());
+        pd.setType(URI.create("/errors/order-invalid-partner"));
+        pd.setTitle("Invalid partner reference");
+        pd.setInstance(URI.create(req.getRequestURI()));
+        pd.setProperty("referenceKind", ex.referenceKind());
+        pd.setProperty("invalidValue", ex.invalidValue());
+        pd.setProperty("field", "partnerId");
         pd.setProperty("traceId", traceId());
         return pd;
     }

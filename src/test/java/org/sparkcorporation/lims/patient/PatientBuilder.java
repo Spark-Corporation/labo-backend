@@ -19,7 +19,8 @@ public final class PatientBuilder {
     private Civility civility = Civility.MADAME;
     private Sex sex = Sex.F;
     private LocalDate birthDate = LocalDate.of(1985, 7, 12);
-    private boolean insured = false;
+    private String insuranceId;
+    private String partnerId;
     private String labCode = "LAB-260505-001";
     private PatientId mergedInto;
 
@@ -48,8 +49,13 @@ public final class PatientBuilder {
         return this;
     }
 
-    public PatientBuilder withInsured(boolean i) {
-        this.insured = i;
+    public PatientBuilder withInsuranceId(String id) {
+        this.insuranceId = id;
+        return this;
+    }
+
+    public PatientBuilder withPartnerId(String id) {
+        this.partnerId = id;
         return this;
     }
 
@@ -77,7 +83,8 @@ public final class PatientBuilder {
                                 null,
                                 new ContactInfo(null, null),
                                 null,
-                                insured,
+                                insuranceId,
+                                partnerId,
                                 null,
                                 null),
                         new LabCode(labCode));
@@ -99,7 +106,8 @@ public final class PatientBuilder {
                 null,
                 new CreatePatientRequest.ContactRequest(null, null),
                 null,
-                insured,
+                insuranceId,
+                partnerId,
                 null,
                 null);
     }

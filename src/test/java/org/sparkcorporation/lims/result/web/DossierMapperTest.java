@@ -6,6 +6,7 @@ import java.time.Instant;
 
 import org.junit.jupiter.api.Test;
 
+import org.sparkcorporation.lims.catalog.api.InsuranceId;
 import org.sparkcorporation.lims.order.api.LabFileId;
 import org.sparkcorporation.lims.order.api.LabFileRegistrationNumber;
 import org.sparkcorporation.lims.order.api.LabFileSummary;
@@ -14,6 +15,7 @@ import org.sparkcorporation.lims.patient.api.PatientSummary;
 import org.sparkcorporation.lims.result.infra.DossierRowProjection;
 import org.sparkcorporation.lims.shared.domain.Civility;
 import org.sparkcorporation.lims.shared.domain.Sex;
+import org.sparkcorporation.lims.shared.id.Ulid;
 
 class DossierMapperTest {
 
@@ -87,11 +89,20 @@ class DossierMapperTest {
                 org.sparkcorporation.lims.order.api.LabFileStatus.OPEN,
                 java.util.List.of(),
                 java.util.List.of(),
+                null,
+                null,
+                new LabFileSummary.BillingBlock(
+                        java.math.BigDecimal.ZERO, java.math.BigDecimal.ZERO, null, null),
                 Instant.now(),
                 null);
     }
 
     private PatientSummary stubPatient(boolean insured) {
+        var insurance =
+                insured
+                        ? new PatientSummary.InsuranceSnapshot(
+                                new InsuranceId(Ulid.generate()), "INS", "Sample Insurance")
+                        : null;
         return new PatientSummary(
                 new PatientId("01HZY000000000000000000000"),
                 "LAB-001",
@@ -100,7 +111,8 @@ class DossierMapperTest {
                 Civility.MADAME,
                 Sex.F,
                 null,
-                insured,
+                insurance,
+                null,
                 false,
                 false);
     }

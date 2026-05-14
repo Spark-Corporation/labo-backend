@@ -1,5 +1,6 @@
 package org.sparkcorporation.lims.order.web;
 
+import java.math.BigDecimal;
 import java.net.URI;
 import java.time.Instant;
 import java.util.Map;
@@ -25,6 +26,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
+import org.sparkcorporation.lims.order.api.DiscountKind;
 import org.sparkcorporation.lims.order.api.LabFileId;
 import org.sparkcorporation.lims.order.api.LabFileStatus;
 import org.sparkcorporation.lims.order.domain.ImmutablePatientException;
@@ -97,7 +99,13 @@ public class LabFileAdminController {
                 new UpdateLabFile(
                         asBoolean(body.get("urgent")),
                         asString(body.get("prescriberId")),
-                        asString(body.get("preleveurId")));
+                        asString(body.get("preleveurId")),
+                        asString(body.get("insuranceId")),
+                        asString(body.get("partnerId")),
+                        asBigDecimal(body.get("homeCollectionFee")),
+                        asBigDecimal(body.get("additionalFees")),
+                        asDiscountKind(body.get("discountKind")),
+                        asBigDecimal(body.get("discountValue")));
         return service.update(new LabFileId(id), cmd);
     }
 
@@ -128,6 +136,37 @@ public class LabFileAdminController {
         }
         throw new IllegalArgumentException(
                 "expected boolean value, got " + value.getClass().getSimpleName());
+    }
+
+    private static @Nullable BigDecimal asBigDecimal(@Nullable Object value) {
+        if (value == null) {
+            return null;
+        }
+        if (value instanceof BigDecimal bd) {
+            return bd;
+        }
+        if (value instanceof Number n) {
+            return new BigDecimal(n.toString());
+        }
+        if (value instanceof String s) {
+            return new BigDecimal(s);
+        }
+        throw new IllegalArgumentException(
+                "expected numeric value, got " + value.getClass().getSimpleName());
+    }
+
+    private static @Nullable DiscountKind asDiscountKind(@Nullable Object value) {
+        if (value == null) {
+            return null;
+        }
+        if (value instanceof DiscountKind dk) {
+            return dk;
+        }
+        if (value instanceof String s) {
+            return DiscountKind.valueOf(s);
+        }
+        throw new IllegalArgumentException(
+                "expected DiscountKind value, got " + value.getClass().getSimpleName());
     }
 
     /**

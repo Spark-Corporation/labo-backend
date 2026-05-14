@@ -1,5 +1,6 @@
 package org.sparkcorporation.lims.order.domain;
 
+import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -25,6 +26,7 @@ import org.hibernate.annotations.SQLDelete;
 import org.jspecify.annotations.Nullable;
 
 import org.sparkcorporation.lims.order.api.AnalysisRequestId;
+import org.sparkcorporation.lims.order.api.DiscountKind;
 import org.sparkcorporation.lims.order.api.LabFileId;
 import org.sparkcorporation.lims.order.api.LabFileRegistrationNumber;
 import org.sparkcorporation.lims.order.api.LabFileStatus;
@@ -77,6 +79,25 @@ public class LabFile {
     @Column(name = "created_by_user_id")
     private @Nullable String createdByUserId;
 
+    @Column(name = "insurance_id", length = 26)
+    private @Nullable String insuranceId;
+
+    @Column(name = "partner_id", length = 26)
+    private @Nullable String partnerId;
+
+    @Column(name = "home_collection_fee", nullable = false, precision = 18, scale = 2)
+    private BigDecimal homeCollectionFee = BigDecimal.ZERO;
+
+    @Column(name = "additional_fees", nullable = false, precision = 18, scale = 2)
+    private BigDecimal additionalFees = BigDecimal.ZERO;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "discount_kind", length = 10)
+    private @Nullable DiscountKind discountKind;
+
+    @Column(name = "discount_value", precision = 18, scale = 4)
+    private @Nullable BigDecimal discountValue;
+
     @OneToMany(mappedBy = "labFile", cascade = CascadeType.ALL, orphanRemoval = true)
     private final List<Sample> samples = new ArrayList<>();
 
@@ -100,6 +121,8 @@ public class LabFile {
             LabFileRegistrationNumber regNum,
             @Nullable String createdByUserId,
             Clock clock) {
+        validateFees(cmd.homeCollectionFee(), cmd.additionalFees());
+        validateDiscount(cmd.discountKind(), cmd.discountValue());
         var now = clock.instant();
         var f = new LabFile();
         f.id = Ulid.generate();
@@ -110,6 +133,12 @@ public class LabFile {
         f.urgent = cmd.urgent();
         f.status = LabFileStatus.OPEN;
         f.createdByUserId = createdByUserId;
+        f.insuranceId = cmd.insuranceId();
+        f.partnerId = cmd.partnerId();
+        f.homeCollectionFee = cmd.homeCollectionFee();
+        f.additionalFees = cmd.additionalFees();
+        f.discountKind = cmd.discountKind();
+        f.discountValue = cmd.discountValue();
         f.createdAt = now;
         f.updatedAt = now;
         return f;
@@ -211,8 +240,10 @@ public class LabFile {
 
     /**
      * Whitelist update. Each field on the command is nullable; a {@code null} sentinel means "no
-     * change". Only {@code urgent} / {@code prescriberId} / {@code preleveurId} can be touched
-     * through this path.
+     * change". Mutable: {@code urgent} / {@code prescriberId} / {@code preleveurId} + the 1.6.a
+     * billing block ({@code insuranceId} / {@code partnerId} / {@code homeCollectionFee} / {@code
+     * additionalFees} / {@code discountKind} / {@code discountValue}). Discount pair + non-negative
+     * invariants apply on PATCH as well.
      */
     public void update(UpdateLabFile cmd, Clock clock) {
         if (status != LabFileStatus.OPEN) {
@@ -227,6 +258,59 @@ public class LabFile {
         if (cmd.preleveurId() != null) {
             this.preleveurId = cmd.preleveurId();
         }
+        if (cmd.insuranceId() != null) {
+            this.insuranceId = cmd.insuranceId();
+        }
+        if (cmd.partnerId() != null) {
+            this.partnerId = cmd.partnerId();
+        }
+        BigDecimal newHomeFee =
+                cmd.homeCollectionFee() != null ? cmd.homeCollectionFee() : this.homeCollectionFee;
+        BigDecimal newAdditionalFees =
+                cmd.additionalFees() != null ? cmd.additionalFees() : this.additionalFees;
+        validateFees(newHomeFee, newAdditionalFees);
+        this.homeCollectionFee = newHomeFee;
+        this.additionalFees = newAdditionalFees;
+        if (cmd.discountKind() != null || cmd.discountValue() != null) {
+            applyDiscount(cmd.discountKind(), cmd.discountValue());
+        }
         this.updatedAt = clock.instant();
+    }
+
+    /**
+     * Apply (or clear) the discount pair. Either both {@code kind} and {@code value} are {@code
+     * null} (clear) or both are non-null (apply). Validates the same invariants as the DB CHECK
+     * constraints: paired-or-cleared, non-negative value, {@code PERCENT} value in {@code [0, 1]}.
+     */
+    public void applyDiscount(@Nullable DiscountKind kind, @Nullable BigDecimal value) {
+        validateDiscount(kind, value);
+        this.discountKind = kind;
+        this.discountValue = value;
+    }
+
+    private static void validateDiscount(@Nullable DiscountKind kind, @Nullable BigDecimal value) {
+        if ((kind == null) != (value == null)) {
+            throw new IllegalArgumentException(
+                    "discountKind and discountValue must be both null or both set");
+        }
+        if (value == null) {
+            return;
+        }
+        if (value.signum() < 0) {
+            throw new IllegalArgumentException("discountValue must be non-negative: " + value);
+        }
+        if (kind == DiscountKind.PERCENT && value.compareTo(BigDecimal.ONE) > 0) {
+            throw new IllegalArgumentException("PERCENT discountValue must be <= 1: " + value);
+        }
+    }
+
+    private static void validateFees(BigDecimal homeFee, BigDecimal addFees) {
+        if (homeFee.signum() < 0) {
+            throw new IllegalArgumentException(
+                    "homeCollectionFee must be non-negative: " + homeFee);
+        }
+        if (addFees.signum() < 0) {
+            throw new IllegalArgumentException("additionalFees must be non-negative: " + addFees);
+        }
     }
 }

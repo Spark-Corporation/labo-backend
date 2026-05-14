@@ -1,10 +1,14 @@
 package org.sparkcorporation.lims.order.api;
 
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
 
 import org.jspecify.annotations.Nullable;
 
+import org.sparkcorporation.lims.catalog.api.InsuranceId;
+import org.sparkcorporation.lims.catalog.api.PartnerId;
+import org.sparkcorporation.lims.catalog.api.PartnerKind;
 import org.sparkcorporation.lims.shared.domain.Sex;
 
 /**
@@ -14,6 +18,11 @@ import org.sparkcorporation.lims.shared.domain.Sex;
  * N+1) plus a sealed {@link SampleSummary} hierarchy and the analyses-on-file list. Snapshot
  * resolution policy: see spec §6.2 — soft-deleted children are surfaced (the dossier outlives
  * dictionary edits).
+ *
+ * <p>1.6.a additions: {@link InsuranceSnapshot} + {@link PartnerSnapshot} (both nullable — the file
+ * may belong to neither, to an insurance, or to a partner) and a non-null {@link BillingBlock}
+ * carrying the per-file fees + optional discount. The snapshots resolve to {@code null} when the
+ * underlying catalog row is soft-deleted, even if the lab file still carries the FK.
  */
 public record LabFileSummary(
         LabFileId id,
@@ -25,6 +34,9 @@ public record LabFileSummary(
         LabFileStatus status,
         List<SampleSummary> samples,
         List<AnalysisRequestSummary> analyses,
+        @Nullable InsuranceSnapshot insurance,
+        @Nullable PartnerSnapshot partner,
+        BillingBlock billing,
         Instant createdAt,
         @Nullable String createdByUserId) {
 
@@ -43,6 +55,22 @@ public record LabFileSummary(
 
     /** Flat snapshot of the linked Préleveur at read time — nullable on the LabFile. */
     public record PreleveurSnapshot(String id, String code, String fullName) {}
+
+    /** Flat snapshot of the lab-file's insurance — code + name only, no rates leaked here. */
+    public record InsuranceSnapshot(InsuranceId id, String code, String name) {}
+
+    /** Flat snapshot of the lab-file's partner — includes the partner kind for §V filtering. */
+    public record PartnerSnapshot(PartnerId id, String code, String name, PartnerKind kind) {}
+
+    /**
+     * Billing block snapshot — fees never null (default {@link BigDecimal#ZERO}); discount pair is
+     * either both null (no discount) or both non-null.
+     */
+    public record BillingBlock(
+            BigDecimal homeCollectionFee,
+            BigDecimal additionalFees,
+            @Nullable DiscountKind discountKind,
+            @Nullable BigDecimal discountValue) {}
 
     /**
      * Sealed hierarchy mirrors the {@code Sample} aggregate's three sub-types — InLab / Home /

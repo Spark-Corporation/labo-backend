@@ -1,0 +1,58 @@
+databaseChangeLog:
+  - changeSet:
+      id: 202605120840-create-payments
+      author: samuel
+      preconditions:
+        - onFail: HALT
+        - tableExists: { tableName: lab_files }
+        - tableExists: { tableName: cash_registers }
+        - tableExists: { tableName: invoices }
+      changes:
+        - createTable:
+            tableName: payments
+            columns:
+              - column: { name: id, type: "varchar(26)", constraints: { primaryKey: true, nullable: false } }
+              - column: { name: lab_file_id, type: "varchar(26)", constraints: { nullable: false } }
+              - column: { name: invoice_id, type: "varchar(26)" }
+              - column: { name: mode, type: "varchar(20)", constraints: { nullable: false } }
+              - column: { name: amount, type: "numeric(18,2)", constraints: { nullable: false } }
+              - column: { name: cash_register_id, type: "varchar(26)", constraints: { nullable: false } }
+              - column: { name: recorded_by_user_id, type: "varchar(26)", constraints: { nullable: false } }
+              - column: { name: recorded_at, type: TIMESTAMP WITH TIME ZONE, constraints: { nullable: false } }
+              - column: { name: note, type: "varchar(500)" }
+        - addForeignKeyConstraint:
+            baseTableName: payments
+            baseColumnNames: lab_file_id
+            referencedTableName: lab_files
+            referencedColumnNames: id
+            constraintName: payments_lab_file_fk
+        - addForeignKeyConstraint:
+            baseTableName: payments
+            baseColumnNames: invoice_id
+            referencedTableName: invoices
+            referencedColumnNames: id
+            constraintName: payments_invoice_fk
+        - addForeignKeyConstraint:
+            baseTableName: payments
+            baseColumnNames: cash_register_id
+            referencedTableName: cash_registers
+            referencedColumnNames: id
+            constraintName: payments_cash_register_fk
+        - sql:
+            sql: |
+              ALTER TABLE payments
+                ADD CONSTRAINT payments_amount_positive_chk CHECK (amount > 0);
+              ALTER TABLE payments
+                ADD CONSTRAINT payments_mode_chk
+                CHECK (mode IN ('CASH', 'CHEQUE', 'CARD_TPE', 'FLOOZ', 'MIXX_BY_YAS'));
+        - createIndex:
+            tableName: payments
+            indexName: payments_lab_file_idx
+            columns:
+              - column: { name: lab_file_id }
+        - createIndex:
+            tableName: payments
+            indexName: payments_invoice_idx
+            columns:
+              - column: { name: invoice_id }
+      # rollback: AUTHORED BY USER

@@ -100,8 +100,13 @@ public class Patient {
     @Nullable
     private Guardian guardian;
 
-    @Column(nullable = false)
-    private boolean insured;
+    @Column(name = "insurance_id", length = 26)
+    @Nullable
+    private String insuranceId;
+
+    @Column(name = "partner_id", length = 26)
+    @Nullable
+    private String partnerId;
 
     @Column(name = "portal_login", length = 80, unique = true)
     @Nullable
@@ -155,7 +160,8 @@ public class Patient {
         p.clinicalNotes = cmd.clinicalNotes();
         p.contact = cmd.contact();
         p.guardian = cmd.guardian();
-        p.insured = cmd.insured();
+        p.insuranceId = cmd.insuranceId();
+        p.partnerId = cmd.partnerId();
         p.portalLogin = cmd.portalLogin();
         p.portalPasswordHash = cmd.portalPasswordHash();
         return p;
@@ -172,7 +178,8 @@ public class Patient {
         if (cmd.clinicalNotes() != null) this.clinicalNotes = cmd.clinicalNotes();
         if (cmd.contact() != null) this.contact = cmd.contact();
         if (cmd.guardian() != null) this.guardian = cmd.guardian();
-        if (cmd.insured() != null) this.insured = cmd.insured();
+        if (cmd.insuranceId() != null) this.insuranceId = cmd.insuranceId();
+        if (cmd.partnerId() != null) this.partnerId = cmd.partnerId();
         if (cmd.portalLogin() != null) this.portalLogin = cmd.portalLogin();
         if (cmd.portalPasswordHash() != null) this.portalPasswordHash = cmd.portalPasswordHash();
     }
@@ -236,8 +243,12 @@ public class Patient {
         return guardian;
     }
 
-    public boolean insured() {
-        return insured;
+    public @Nullable String insuranceId() {
+        return insuranceId;
+    }
+
+    public @Nullable String partnerId() {
+        return partnerId;
     }
 
     public @Nullable String portalLogin() {

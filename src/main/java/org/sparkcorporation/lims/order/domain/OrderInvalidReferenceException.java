@@ -16,7 +16,9 @@ public abstract sealed class OrderInvalidReferenceException extends RuntimeExcep
         permits OrderInvalidPatientReferenceException,
                 OrderInvalidPrescriberReferenceException,
                 OrderInvalidPreleveurReferenceException,
-                OrderInvalidAnalysisReferenceException {
+                OrderInvalidAnalysisReferenceException,
+                OrderInvalidInsuranceReferenceException,
+                OrderInvalidPartnerReferenceException {
 
     private final String referenceKind;
     private final String invalidValue;

@@ -75,7 +75,7 @@ The CDC (`CAHIER DES CHARGES LOGICIEL DE GESTION DU LABORATOIRE.docx.pdf`) is th
 | `order` (lab files, samples, urgency) | §II Dossier Analyse, §VI Prélèvements à réaliser, §IX Gestion des dossiers |
 | `catalog` (configurations) | §VII Gestion des disciplines; Onglet Configurations (matrices, disciplines, récap, bilan société, préleveurs, antibiotiques, spécialités prescripteurs, analyses simples / groupées) |
 | `result` (entry, validation, antibiogram) | §IV Résultats par Patient, §V Recherche par paramètre, §X Validation biologique |
-| `billing` (invoices, society panels) | §II Facturation; Gestion comptable §1 Factures |
+| `billing` (invoices, payments, cash-registers) | §I, §II Facturation; §VIII Comptes et caisses (read-only); Gestion comptable §1 Factures. Insurance + Partner reference dictionaries live in `catalog`. Society panels live in `catalog` as `AnalysisKind.SOCIETY_PANEL`. |
 | `cashbox` (registers, journal, expenses, home-collection fees) | §VIII Comptes et caisses; Gestion comptable §2 Dépenses, §3 Caisses, §4 Journal des caisses, §5 Frais de Prélèvement à domicile |
 | `delivery` (print / mail / online) | §IV mode de diffusion (Mail, en ligne) |
 | `stats` | Onglet Statistiques |
@@ -575,9 +575,9 @@ Example: `1151024-001` = Biochimie, 15 Oct 2024, 1st sample of the day.
 
 Generated atomically per discipline via `SELECT … FOR UPDATE` on a `daily_counters(day, discipline_prefix)` row.
 
-**Invoice number** (CDC Gestion comptable §1 Factures) — format: `<labCode><yyMMdd>-<seq>` where `labCode` = `LTA` (laboratoires Togo) or `LBA` (laboratoires Bénin).
+**Invoice number** (CDC Gestion comptable §1 Factures) — format: `<labCode><yy>-<ddMM>-<seq>` where `labCode` = `LTA` (laboratoires Togo) or `LBA` (laboratoires Bénin).
 
-Example: `LTA24-1710-005` = Togo lab, 17 Oct 2024, 5th invoice of the day.
+Example: `LTA24-1710-005` = Togo lab, 17 Oct 2024 (day 17, month 10), 5th invoice of the day.
 
 **Patient lab code** (CDC §I "Génération automatique d'un code laboratoire") — format: `<labPrefix>-<yyMMdd>-<seq>`, per-lab counter, generated within the patient-creation transaction so failures roll back the counter.
 
@@ -706,11 +706,18 @@ SLA-policy plumbing. Two batched cross-module accessors landed:
 plus a `PatientSummary.insured` field for §V's patient-type filter.
 
 ### 8.5 `billing` Module
-**Invoice number** format follows the spec: `<labCode>-<yyMMdd>-<seq>` (e.g. `LTA24-1710-005`). Generated per lab via a per-day counter table.
 
-**Insurance pricing.** Insurance coverage is computed on the canonical price (`B-value × B-rate`) multiplied by the coverage rate. Discounts are applied last and can be a fixed amount or a percentage.
+1.6.a delivers the transactional core:
 
-**Society panels** are modeled as a special `Analysis` with `kind = SOCIETY_PANEL` and its own indiciary value, billed as a single line.
+- **Invoice** is 1:1 with `LabFile`, auto-created via an `@ApplicationModuleListener` on `BiologicalValidationDone` once all analyses on the lab-file are biologically validated. Manual override is available via `POST /api/v1/invoices` (`LAB_MANAGER` only).
+- **Invoice number** format: `<labCode><yy>-<MMdd>-<seq>` (e.g. `LTA24-0512-005`). Generated through a per-`(labCode, date)` PostgreSQL upsert counter (atomic `INSERT … ON CONFLICT DO UPDATE … RETURNING`) — no race with concurrent issuance.
+- **Pricing contexts.** Three strategies — `SelfPay`, `Insured`, `PartnerRouted` — share a `PricingEngine`. Patient share = subtotal − coverage; discount (`AMOUNT` or `PERCENT`) is applied on the patient share *after* coverage.
+- **Payment** is 1:N with `LabFile`; the `invoice_id` column is nullable and back-filled at invoice issuance via a bulk JPQL update so partial early payments link up automatically.
+- **CashRegister** has an M:N assignment to users validated through `iam::api` on assignment, and `payment.collect` requires the calling user to be assigned to the cash register being used.
+- **§VIII observation read endpoints** (3) are built as native-SQL projections in `AccountingReadModel`.
+- **Society panels** stay in `catalog` as `Analysis.kind = SOCIETY_PANEL` and are billed as a single line.
+
+Insurance and partner reference dictionaries live in `catalog` (`InsuranceApi`, `PartnerApi`); billing depends on them through the published API only.
 
 ### 8.6 `cashbox` Module
 A cash register belongs to one or more receptionist accounts. Each payment posts a journal entry; an end-of-day close-out aggregates totals per payment mode (cash, cheque, TPE, Flooz, Mixx by Yas). Expenses post into the same journal with a negative sign and require a justification scan.

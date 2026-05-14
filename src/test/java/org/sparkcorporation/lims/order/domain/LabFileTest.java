@@ -3,6 +3,7 @@ package org.sparkcorporation.lims.order.domain;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
@@ -11,6 +12,7 @@ import java.util.List;
 import org.junit.jupiter.api.Test;
 
 import org.sparkcorporation.lims.order.api.AnalysisRequestId;
+import org.sparkcorporation.lims.order.api.DiscountKind;
 import org.sparkcorporation.lims.order.api.LabFileRegistrationNumber;
 import org.sparkcorporation.lims.order.api.LabFileStatus;
 import org.sparkcorporation.lims.order.api.SampleDailyId;
@@ -24,7 +26,18 @@ class LabFileTest {
     private static final SampleDailyId DAILY = new SampleDailyId("1070526-001");
 
     private static NewLabFile newCmd() {
-        return new NewLabFile("01PATIENT", "01PRESCRIBER", "01PRELEVEUR", false, List.of("GLUC"));
+        return new NewLabFile(
+                "01PATIENT",
+                "01PRESCRIBER",
+                "01PRELEVEUR",
+                false,
+                List.of("GLUC"),
+                null,
+                null,
+                BigDecimal.ZERO,
+                BigDecimal.ZERO,
+                null,
+                null);
     }
 
     @Test
@@ -51,7 +64,19 @@ class LabFileTest {
     @Test
     void newLabFile_command_copies_analysis_codes_defensively() {
         var src = new java.util.ArrayList<>(List.of("GLUC", "CHOL"));
-        var cmd = new NewLabFile("p", null, null, false, src);
+        var cmd =
+                new NewLabFile(
+                        "p",
+                        null,
+                        null,
+                        false,
+                        src,
+                        null,
+                        null,
+                        BigDecimal.ZERO,
+                        BigDecimal.ZERO,
+                        null,
+                        null);
         src.clear();
         assertThat(cmd.analysisCodes()).containsExactly("GLUC", "CHOL");
     }
@@ -70,7 +95,19 @@ class LabFileTest {
 
     @Test
     void markUrgent_idempotent_when_already_urgent_does_not_bump_clock() {
-        var openCmd = new NewLabFile("01PATIENT", null, null, true, List.of("GLUC"));
+        var openCmd =
+                new NewLabFile(
+                        "01PATIENT",
+                        null,
+                        null,
+                        true,
+                        List.of("GLUC"),
+                        null,
+                        null,
+                        BigDecimal.ZERO,
+                        BigDecimal.ZERO,
+                        null,
+                        null);
         var file = LabFile.open(openCmd, REG, "01CREATOR", FIXED);
         var laterClock = Clock.fixed(Instant.parse("2026-05-07T09:00:00Z"), ZoneOffset.UTC);
 
@@ -189,11 +226,26 @@ class LabFileTest {
 
     @Test
     void update_with_null_urgent_treated_as_no_change() {
-        var openCmd = new NewLabFile("01PATIENT", null, null, true, List.of("GLUC"));
+        var openCmd =
+                new NewLabFile(
+                        "01PATIENT",
+                        null,
+                        null,
+                        true,
+                        List.of("GLUC"),
+                        null,
+                        null,
+                        BigDecimal.ZERO,
+                        BigDecimal.ZERO,
+                        null,
+                        null);
         var file = LabFile.open(openCmd, REG, "01CREATOR", FIXED);
         var laterClock = Clock.fixed(Instant.parse("2026-05-07T09:00:00Z"), ZoneOffset.UTC);
 
-        file.update(new UpdateLabFile(null, "01NEWPRESCRIBER", null), laterClock);
+        file.update(
+                new UpdateLabFile(
+                        null, "01NEWPRESCRIBER", null, null, null, null, null, null, null),
+                laterClock);
 
         assertThat(file.isUrgent()).isTrue();
         assertThat(file.getPrescriberId()).isEqualTo("01NEWPRESCRIBER");
@@ -203,10 +255,23 @@ class LabFileTest {
 
     @Test
     void update_clears_urgent_when_explicit_false() {
-        var openCmd = new NewLabFile("01PATIENT", null, null, true, List.of("GLUC"));
+        var openCmd =
+                new NewLabFile(
+                        "01PATIENT",
+                        null,
+                        null,
+                        true,
+                        List.of("GLUC"),
+                        null,
+                        null,
+                        BigDecimal.ZERO,
+                        BigDecimal.ZERO,
+                        null,
+                        null);
         var file = LabFile.open(openCmd, REG, "01CREATOR", FIXED);
 
-        file.update(new UpdateLabFile(false, null, null), FIXED);
+        file.update(
+                new UpdateLabFile(false, null, null, null, null, null, null, null, null), FIXED);
 
         assertThat(file.isUrgent()).isFalse();
     }
@@ -216,8 +281,103 @@ class LabFileTest {
         var file = LabFile.open(newCmd(), REG, "01CREATOR", FIXED);
         forceStatus(file, LabFileStatus.BIOLOGICALLY_VALIDATED);
 
-        assertThatThrownBy(() -> file.update(new UpdateLabFile(true, null, null), FIXED))
+        assertThatThrownBy(
+                        () ->
+                                file.update(
+                                        new UpdateLabFile(
+                                                true, null, null, null, null, null, null, null,
+                                                null),
+                                        FIXED))
                 .isInstanceOf(LabFileNotEditableException.class);
+    }
+
+    @Test
+    void applyDiscount_rejects_negative_value() {
+        var file = LabFile.open(newCmd(), REG, "01CREATOR", FIXED);
+        assertThatThrownBy(() -> file.applyDiscount(DiscountKind.AMOUNT, new BigDecimal("-1")))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("non-negative");
+    }
+
+    @Test
+    void applyDiscount_rejects_percent_above_one() {
+        var file = LabFile.open(newCmd(), REG, "01CREATOR", FIXED);
+        assertThatThrownBy(() -> file.applyDiscount(DiscountKind.PERCENT, new BigDecimal("1.5")))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("<= 1");
+    }
+
+    @Test
+    void applyDiscount_rejects_kind_without_value() {
+        var file = LabFile.open(newCmd(), REG, "01CREATOR", FIXED);
+        assertThatThrownBy(() -> file.applyDiscount(DiscountKind.AMOUNT, null))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("both null or both set");
+    }
+
+    @Test
+    void applyDiscount_rejects_value_without_kind() {
+        var file = LabFile.open(newCmd(), REG, "01CREATOR", FIXED);
+        assertThatThrownBy(() -> file.applyDiscount(null, new BigDecimal("100")))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("both null or both set");
+    }
+
+    @Test
+    void applyDiscount_sets_amount_discount_when_valid() {
+        var file = LabFile.open(newCmd(), REG, "01CREATOR", FIXED);
+        file.applyDiscount(DiscountKind.AMOUNT, new BigDecimal("250"));
+        assertThat(file.getDiscountKind()).isEqualTo(DiscountKind.AMOUNT);
+        assertThat(file.getDiscountValue()).isEqualByComparingTo(new BigDecimal("250"));
+    }
+
+    @Test
+    void applyDiscount_clears_when_both_null() {
+        var file = LabFile.open(newCmd(), REG, "01CREATOR", FIXED);
+        file.applyDiscount(DiscountKind.PERCENT, new BigDecimal("0.2"));
+        file.applyDiscount(null, null);
+        assertThat(file.getDiscountKind()).isNull();
+        assertThat(file.getDiscountValue()).isNull();
+    }
+
+    @Test
+    void open_rejects_negative_home_collection_fee() {
+        var cmd =
+                new NewLabFile(
+                        "01PATIENT",
+                        null,
+                        null,
+                        false,
+                        List.of("GLUC"),
+                        null,
+                        null,
+                        new BigDecimal("-1"),
+                        BigDecimal.ZERO,
+                        null,
+                        null);
+        assertThatThrownBy(() -> LabFile.open(cmd, REG, "01CREATOR", FIXED))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("non-negative");
+    }
+
+    @Test
+    void open_rejects_unpaired_discount_kind_without_value() {
+        var cmd =
+                new NewLabFile(
+                        "01PATIENT",
+                        null,
+                        null,
+                        false,
+                        List.of("GLUC"),
+                        null,
+                        null,
+                        BigDecimal.ZERO,
+                        BigDecimal.ZERO,
+                        DiscountKind.AMOUNT,
+                        null);
+        assertThatThrownBy(() -> LabFile.open(cmd, REG, "01CREATOR", FIXED))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("both null or both set");
     }
 
     /**

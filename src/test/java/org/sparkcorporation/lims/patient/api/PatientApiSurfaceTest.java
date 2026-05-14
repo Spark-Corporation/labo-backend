@@ -10,18 +10,16 @@ import org.junit.jupiter.api.Test;
 class PatientApiSurfaceTest {
 
     @Test
-    void summary_exposes_insured_flag() {
+    void summary_exposes_insurance_and_partner_snapshots() {
         RecordComponent[] components = PatientSummary.class.getRecordComponents();
-        boolean hasInsured =
-                Arrays.stream(components)
-                        .anyMatch(
-                                rc ->
-                                        rc.getName().equals("insured")
-                                                && rc.getType().equals(boolean.class));
-        assertThat(hasInsured)
-                .as(
-                        "PatientSummary must expose a primitive boolean 'insured' field at position"
-                                + " 8 — 1.5.b amendment")
-                .isTrue();
+
+        boolean stillHasInsuredField =
+                Arrays.stream(components).anyMatch(rc -> rc.getName().equals("insured"));
+        assertThat(stillHasInsuredField).as("1.5.b `insured` boolean must be removed").isFalse();
+
+        assertThat(components[7].getName()).isEqualTo("insurance");
+        assertThat(components[7].getType()).isEqualTo(PatientSummary.InsuranceSnapshot.class);
+        assertThat(components[8].getName()).isEqualTo("partner");
+        assertThat(components[8].getType()).isEqualTo(PatientSummary.PartnerSnapshot.class);
     }
 }

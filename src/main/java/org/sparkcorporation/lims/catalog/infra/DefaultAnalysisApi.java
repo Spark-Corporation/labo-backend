@@ -1,6 +1,9 @@
 package org.sparkcorporation.lims.catalog.infra;
 
+import java.util.Collection;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 
@@ -77,6 +80,22 @@ public class DefaultAnalysisApi implements AnalysisApi {
         return repo.findActiveByDiscipline(disciplineId.value()).stream()
                 .map(this::toSummary)
                 .toList();
+    }
+
+    @Override
+    public Map<AnalysisId, AnalysisSummary> findAllByIds(Collection<AnalysisId> ids) {
+        Objects.requireNonNull(ids, "ids");
+        if (ids.isEmpty()) {
+            return Map.of();
+        }
+        var rawIds = ids.stream().map(AnalysisId::value).toList();
+        var found = repo.findAllActiveByIdIn(rawIds);
+        var byId = new LinkedHashMap<AnalysisId, AnalysisSummary>(found.size());
+        for (var a : found) {
+            var summary = toSummary(a);
+            byId.put(summary.id(), summary);
+        }
+        return byId;
     }
 
     @Override

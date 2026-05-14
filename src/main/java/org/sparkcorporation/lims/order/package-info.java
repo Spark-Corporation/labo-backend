@@ -1,7 +1,13 @@
 @NullMarked
 @ApplicationModule(
         displayName = "Order",
-        allowedDependencies = {"shared::domain", "shared::id", "patient::api", "catalog::api"})
+        allowedDependencies = {
+            "shared::domain",
+            "shared::id",
+            "shared::money",
+            "patient::api",
+            "catalog::api"
+        })
 package org.sparkcorporation.lims.order;
 
 import org.jspecify.annotations.NullMarked;

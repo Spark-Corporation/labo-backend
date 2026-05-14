@@ -21,6 +21,11 @@ import org.sparkcorporation.lims.result.domain.Result;
  *
  * <p>The native query uses a custom {@code countQuery} that strips the column projection but
  * preserves the same FROM/WHERE.
+ *
+ * <p>{@code insuredFilter} keys off {@code patients.insurance_id}; {@code partnerKindEq} keys off
+ * {@code partners.kind} (joined via {@code patients.partner_id}). The two are mutually exclusive at
+ * the service layer — {@link org.sparkcorporation.lims.result.web.ResultSearchService} only sets
+ * one based on the §V {@code patientType} enum.
  */
 public interface ResultSearchRepository extends Repository<Result, String> {
 
@@ -56,10 +61,22 @@ public interface ResultSearchRepository extends Repository<Result, String> {
                       AND (CAST(:analysisCode AS text)     IS NULL
                            OR r.analysis_code_snapshot   = :analysisCode
                            OR rl.component_code_snapshot = :analysisCode)
-                      AND (CAST(:insuredFilter AS boolean) IS NULL OR EXISTS (
-                           SELECT 1 FROM patients p
-                           WHERE p.id = lf.patient_id
-                             AND p.insured = :insuredFilter))
+                      AND (CAST(:insuredFilter AS boolean) IS NULL
+                           OR (CAST(:insuredFilter AS boolean) = true AND EXISTS (
+                                SELECT 1 FROM patients p
+                                WHERE p.id = lf.patient_id
+                                  AND p.insurance_id IS NOT NULL))
+                           OR (CAST(:insuredFilter AS boolean) = false AND EXISTS (
+                                SELECT 1 FROM patients p
+                                WHERE p.id = lf.patient_id
+                                  AND p.insurance_id IS NULL
+                                  AND p.partner_id IS NULL)))
+                      AND (CAST(:partnerKindEq AS text) IS NULL
+                           OR EXISTS (
+                                SELECT 1 FROM patients p2
+                                JOIN partners pt ON pt.id = p2.partner_id
+                                WHERE p2.id = lf.patient_id
+                                  AND pt.kind = :partnerKindEq))
                       AND (CAST(:stateEq AS text) IS NULL OR r.state = :stateEq)
                       AND (CAST(:notValidated AS boolean) IS NULL
                            OR r.state IN ('DRAFT','ENTERED','TECHNICAL_VALIDATED'))
@@ -79,10 +96,22 @@ public interface ResultSearchRepository extends Repository<Result, String> {
                       AND (CAST(:analysisCode AS text)     IS NULL
                            OR r.analysis_code_snapshot   = :analysisCode
                            OR rl.component_code_snapshot = :analysisCode)
-                      AND (CAST(:insuredFilter AS boolean) IS NULL OR EXISTS (
-                           SELECT 1 FROM patients p
-                           WHERE p.id = lf.patient_id
-                             AND p.insured = :insuredFilter))
+                      AND (CAST(:insuredFilter AS boolean) IS NULL
+                           OR (CAST(:insuredFilter AS boolean) = true AND EXISTS (
+                                SELECT 1 FROM patients p
+                                WHERE p.id = lf.patient_id
+                                  AND p.insurance_id IS NOT NULL))
+                           OR (CAST(:insuredFilter AS boolean) = false AND EXISTS (
+                                SELECT 1 FROM patients p
+                                WHERE p.id = lf.patient_id
+                                  AND p.insurance_id IS NULL
+                                  AND p.partner_id IS NULL)))
+                      AND (CAST(:partnerKindEq AS text) IS NULL
+                           OR EXISTS (
+                                SELECT 1 FROM patients p2
+                                JOIN partners pt ON pt.id = p2.partner_id
+                                WHERE p2.id = lf.patient_id
+                                  AND pt.kind = :partnerKindEq))
                       AND (CAST(:stateEq AS text) IS NULL OR r.state = :stateEq)
                       AND (CAST(:notValidated AS boolean) IS NULL
                            OR r.state IN ('DRAFT','ENTERED','TECHNICAL_VALIDATED'))
@@ -94,6 +123,7 @@ public interface ResultSearchRepository extends Repository<Result, String> {
             @Param("dateTo") @Nullable Instant dateTo,
             @Param("analysisCode") @Nullable String analysisCode,
             @Param("insuredFilter") @Nullable Boolean insuredFilter,
+            @Param("partnerKindEq") @Nullable String partnerKindEq,
             @Param("stateEq") @Nullable String stateEq,
             @Param("notValidated") @Nullable Boolean notValidated,
             @Param("urgentOnly") @Nullable Boolean urgentOnly,

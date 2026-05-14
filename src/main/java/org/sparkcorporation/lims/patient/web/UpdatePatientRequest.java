@@ -22,6 +22,7 @@ public record UpdatePatientRequest(
         @Nullable String clinicalNotes,
         @Valid CreatePatientRequest.@Nullable ContactRequest contact,
         @Valid CreatePatientRequest.@Nullable GuardianRequest guardian,
-        @Nullable Boolean insured,
+        @Size(min = 26, max = 26) @Nullable String insuranceId,
+        @Size(min = 26, max = 26) @Nullable String partnerId,
         @Size(min = 4, max = 80) @Nullable String portalLogin,
         @Size(min = 8, max = 100) @Nullable String portalPassword) {}

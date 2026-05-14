@@ -2,6 +2,7 @@ package org.sparkcorporation.lims.order.infra;
 
 import static java.util.stream.Collectors.toUnmodifiableMap;
 
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -15,6 +16,12 @@ import org.springframework.transaction.annotation.Transactional;
 import org.sparkcorporation.lims.catalog.api.AnalysisApi;
 import org.sparkcorporation.lims.catalog.api.AnalysisId;
 import org.sparkcorporation.lims.catalog.api.AnalysisSummary;
+import org.sparkcorporation.lims.catalog.api.InsuranceApi;
+import org.sparkcorporation.lims.catalog.api.InsuranceId;
+import org.sparkcorporation.lims.catalog.api.InsuranceSummary;
+import org.sparkcorporation.lims.catalog.api.PartnerApi;
+import org.sparkcorporation.lims.catalog.api.PartnerId;
+import org.sparkcorporation.lims.catalog.api.PartnerSummary;
 import org.sparkcorporation.lims.catalog.api.PreleveurApi;
 import org.sparkcorporation.lims.catalog.api.PreleveurId;
 import org.sparkcorporation.lims.catalog.api.PreleveurSummary;
@@ -30,9 +37,12 @@ import org.sparkcorporation.lims.order.api.LabFileId;
 import org.sparkcorporation.lims.order.api.LabFileRegistrationNumber;
 import org.sparkcorporation.lims.order.api.LabFileSummary;
 import org.sparkcorporation.lims.order.api.LabFileSummary.AnalysisRequestSummary;
+import org.sparkcorporation.lims.order.api.LabFileSummary.BillingBlock;
 import org.sparkcorporation.lims.order.api.LabFileSummary.ExternalReceivedSampleSummary;
 import org.sparkcorporation.lims.order.api.LabFileSummary.HomeSampleSummary;
 import org.sparkcorporation.lims.order.api.LabFileSummary.InLabSampleSummary;
+import org.sparkcorporation.lims.order.api.LabFileSummary.InsuranceSnapshot;
+import org.sparkcorporation.lims.order.api.LabFileSummary.PartnerSnapshot;
 import org.sparkcorporation.lims.order.api.LabFileSummary.PatientSnapshot;
 import org.sparkcorporation.lims.order.api.LabFileSummary.PreleveurSnapshot;
 import org.sparkcorporation.lims.order.api.LabFileSummary.PrescriberSnapshot;
@@ -56,14 +66,14 @@ import org.sparkcorporation.lims.patient.api.PatientSummary;
  * multi-bag-fetch split). {@link #toSummary(LabFile)} performs three round-trips: (1) the lab-file
  * row already in hand, (2) {@link SampleRepository#findByLabFileId(String)} for the {@code samples}
  * bag, (3) {@link AnalysisRequestRepository#findByLabFileId(String)} for the {@code analyses} bag.
- * Patient / Prescriber / Préleveur snapshots are then resolved via the cross-module {@code
- * *Api.findById} reads.
+ * Patient / Prescriber / Préleveur / Insurance / Partner snapshots are then resolved via the
+ * cross-module {@code *Api.findById} reads.
  *
  * <p><b>Soft-deleted parents render gracefully.</b> Per spec §6.2, when a Patient / Prescriber /
- * Préleveur referenced by an active LabFile has been soft-deleted, the corresponding {@code
- * *Api.findById} returns {@link Optional#empty()} (catalog filters {@code deleted_at IS NULL}).
- * Snapshot resolution uses {@link Optional#orElse(Object)} (not {@code orElseThrow}) for the
- * nullable Prescriber / Préleveur fields so the dossier still renders. The Patient FK is NOT NULL —
+ * Préleveur / Insurance / Partner referenced by an active LabFile has been soft-deleted, the
+ * corresponding {@code *Api.findById} returns {@link Optional#empty()} (catalog filters {@code
+ * deleted_at IS NULL}). Snapshot resolution uses {@link Optional#orElse(Object)} (not {@code
+ * orElseThrow}) for the nullable fields so the dossier still renders. The Patient FK is NOT NULL —
  * a missing patient row indicates a Liquibase-invariant violation and surfaces as {@link
  * java.util.NoSuchElementException}.
  *
@@ -71,6 +81,9 @@ import org.sparkcorporation.lims.patient.api.PatientSummary;
  * resolve via the catalog APIs and fall back to {@code "?"} when the dictionary entry has been
  * soft-deleted — the analysis-request snapshot already preserves the historical code at request
  * time so no fallback is needed there.
+ *
+ * <p><b>Billing block.</b> Always non-null; fees coerce to {@link BigDecimal#ZERO} if the entity
+ * somehow stores a null. Discount pair passes through as stored.
  */
 @Service
 @RequiredArgsConstructor
@@ -83,6 +96,8 @@ public class DefaultLabFileApi implements LabFileApi {
     private final PatientApi patientApi;
     private final PrescriberApi prescriberApi;
     private final PreleveurApi preleveurApi;
+    private final InsuranceApi insuranceApi;
+    private final PartnerApi partnerApi;
     private final AnalysisApi analysisApi;
     private final RecipientApi recipientApi;
 
@@ -159,6 +174,30 @@ public class DefaultLabFileApi implements LabFileApi {
                                 .map(DefaultLabFileApi::toPreleveurSnapshot)
                                 .orElse(null);
 
+        var insurance =
+                lf.getInsuranceId() == null
+                        ? null
+                        : insuranceApi
+                                .findById(new InsuranceId(lf.getInsuranceId()))
+                                .map(DefaultLabFileApi::toInsuranceSnapshot)
+                                .orElse(null);
+
+        var partner =
+                lf.getPartnerId() == null
+                        ? null
+                        : partnerApi
+                                .findById(new PartnerId(lf.getPartnerId()))
+                                .map(DefaultLabFileApi::toPartnerSnapshot)
+                                .orElse(null);
+
+        var homeFee =
+                lf.getHomeCollectionFee() == null ? BigDecimal.ZERO : lf.getHomeCollectionFee();
+        var additionalFees =
+                lf.getAdditionalFees() == null ? BigDecimal.ZERO : lf.getAdditionalFees();
+        var billing =
+                new BillingBlock(
+                        homeFee, additionalFees, lf.getDiscountKind(), lf.getDiscountValue());
+
         return new LabFileSummary(
                 lf.labFileId(),
                 lf.getRegistrationNumber(),
@@ -169,6 +208,9 @@ public class DefaultLabFileApi implements LabFileApi {
                 lf.getStatus(),
                 samples,
                 analyses,
+                insurance,
+                partner,
+                billing,
                 lf.getCreatedAt(),
                 lf.getCreatedByUserId());
     }
@@ -239,5 +281,13 @@ public class DefaultLabFileApi implements LabFileApi {
 
     private static PreleveurSnapshot toPreleveurSnapshot(PreleveurSummary p) {
         return new PreleveurSnapshot(p.id().value(), p.code(), p.name());
+    }
+
+    private static InsuranceSnapshot toInsuranceSnapshot(InsuranceSummary i) {
+        return new InsuranceSnapshot(i.id(), i.code(), i.name());
+    }
+
+    private static PartnerSnapshot toPartnerSnapshot(PartnerSummary p) {
+        return new PartnerSnapshot(p.id(), p.code(), p.name(), p.kind());
     }
 }

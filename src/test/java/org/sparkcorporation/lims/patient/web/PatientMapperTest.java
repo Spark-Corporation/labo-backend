@@ -10,6 +10,7 @@ import org.sparkcorporation.lims.patient.domain.LabCode;
 import org.sparkcorporation.lims.patient.domain.Patient;
 import org.sparkcorporation.lims.shared.domain.Civility;
 import org.sparkcorporation.lims.shared.domain.Sex;
+import org.sparkcorporation.lims.shared.id.Ulid;
 
 class PatientMapperTest {
 
@@ -17,6 +18,8 @@ class PatientMapperTest {
 
     @Test
     void toCreateCommand_maps_all_fields() {
+        var insuranceId = Ulid.generate();
+        var partnerId = Ulid.generate();
         var req =
                 new CreatePatientRequest(
                         new CreatePatientRequest.NameRequest("DOE", "Jane", null),
@@ -31,7 +34,8 @@ class PatientMapperTest {
                         new CreatePatientRequest.ContactRequest("+22890000000", "j@e.tg"),
                         new CreatePatientRequest.GuardianRequest(
                                 "DOE Sr", null, GuardianRelationship.PARENT),
-                        true,
+                        insuranceId,
+                        partnerId,
                         "jane.doe",
                         "$argon2id$...");
 
@@ -40,7 +44,8 @@ class PatientMapperTest {
         assertThat(cmd.civility()).isEqualTo(Civility.MADAME);
         assertThat(cmd.idDocument().type()).isEqualTo(IdDocumentType.PASSEPORT);
         assertThat(cmd.guardian().relationship()).isEqualTo(GuardianRelationship.PARENT);
-        assertThat(cmd.insured()).isTrue();
+        assertThat(cmd.insuranceId()).isEqualTo(insuranceId);
+        assertThat(cmd.partnerId()).isEqualTo(partnerId);
     }
 
     @Test
@@ -60,7 +65,8 @@ class PatientMapperTest {
                                 new org.sparkcorporation.lims.patient.domain.ContactInfo(
                                         null, null),
                                 null,
-                                false,
+                                null,
+                                null,
                                 null,
                                 null),
                         new LabCode("LAB-260505-001"));
@@ -69,5 +75,7 @@ class PatientMapperTest {
         assertThat(resp.labCode()).isEqualTo("LAB-260505-001");
         assertThat(resp.name().lastName()).isEqualTo("DOE");
         assertThat(resp.civility()).isEqualTo(Civility.MADAME);
+        assertThat(resp.insuranceId()).isNull();
+        assertThat(resp.partnerId()).isNull();
     }
 }

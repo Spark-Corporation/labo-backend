@@ -1,5 +1,6 @@
 package org.sparkcorporation.lims.order.web;
 
+import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -19,6 +20,10 @@ import org.springframework.transaction.annotation.Transactional;
 import org.sparkcorporation.lims.catalog.api.AnalysisApi;
 import org.sparkcorporation.lims.catalog.api.AnalysisCode;
 import org.sparkcorporation.lims.catalog.api.AnalysisSummary;
+import org.sparkcorporation.lims.catalog.api.InsuranceApi;
+import org.sparkcorporation.lims.catalog.api.InsuranceId;
+import org.sparkcorporation.lims.catalog.api.PartnerApi;
+import org.sparkcorporation.lims.catalog.api.PartnerId;
 import org.sparkcorporation.lims.catalog.api.PreleveurApi;
 import org.sparkcorporation.lims.catalog.api.PreleveurId;
 import org.sparkcorporation.lims.catalog.api.PrescriberApi;
@@ -33,6 +38,8 @@ import org.sparkcorporation.lims.order.domain.LabFileNotFoundException;
 import org.sparkcorporation.lims.order.domain.NewAnalysisRequest;
 import org.sparkcorporation.lims.order.domain.NewLabFile;
 import org.sparkcorporation.lims.order.domain.OrderInvalidAnalysisReferenceException;
+import org.sparkcorporation.lims.order.domain.OrderInvalidInsuranceReferenceException;
+import org.sparkcorporation.lims.order.domain.OrderInvalidPartnerReferenceException;
 import org.sparkcorporation.lims.order.domain.OrderInvalidPatientReferenceException;
 import org.sparkcorporation.lims.order.domain.OrderInvalidPreleveurReferenceException;
 import org.sparkcorporation.lims.order.domain.OrderInvalidPrescriberReferenceException;
@@ -41,13 +48,19 @@ import org.sparkcorporation.lims.order.infra.DefaultLabFileRegistrationGenerator
 import org.sparkcorporation.lims.order.infra.LabFileRepository;
 import org.sparkcorporation.lims.patient.api.PatientApi;
 import org.sparkcorporation.lims.patient.api.PatientId;
+import org.sparkcorporation.lims.patient.api.PatientSummary;
 
 /**
  * Application service for {@link LabFile}. Implements spec §7.2 cross-module validation order:
- * patient → prescriber → préleveur → analyses (resolve + dedup) → counter bump → factory → persist.
+ * patient → prescriber → préleveur → insurance → partner → analyses (resolve + dedup) → counter
+ * bump → factory → persist.
  *
  * <p>The counter is bumped <em>only after all validation passes</em> so a failure does not burn a
  * sequence number.
+ *
+ * <p>1.6.a: when the request omits {@code insuranceId} / {@code partnerId} (or sends {@code null}),
+ * the service defaults the FK from the patient's own insurance/partner (a known partial — the
+ * "force-clear" intent collides with "default from patient" in this shape).
  */
 @Service
 @RequiredArgsConstructor
@@ -58,6 +71,8 @@ public class LabFileService {
     private final PatientApi patientApi;
     private final PrescriberApi prescriberApi;
     private final PreleveurApi preleveurApi;
+    private final InsuranceApi insuranceApi;
+    private final PartnerApi partnerApi;
     private final AnalysisApi analysisApi;
     private final DefaultLabFileRegistrationGenerator regGen;
     private final ApplicationEventPublisher events;
@@ -65,21 +80,44 @@ public class LabFileService {
 
     @Transactional
     public LabFileResponse create(CreateLabFileRequest req, @Nullable String userId) {
-        // 1. patient — required
-        if (!patientApi.existsById(new PatientId(req.patientId()))) {
-            throw new OrderInvalidPatientReferenceException(req.patientId());
+        var patient = resolvePatient(req);
+        validateOptionalReferences(req);
+        var resolved = resolveAnalyses(req);
+        var rn = regGen.next(LocalDate.ofInstant(clock.instant(), ZoneOffset.UTC));
+        var cmd = buildCommand(req, patient);
+        var file = LabFile.open(cmd, rn, userId, clock);
+        for (var a : resolved) {
+            file.addAnalysisRequest(new NewAnalysisRequest(a.id().value(), a.code()), clock);
         }
-        // 2. prescriber — optional
+        fileRepo.save(file);
+        publishAnalysisRequestAdded(file);
+        return LabFileMapper.toResponse(labFileApi.requireById(file.labFileId()));
+    }
+
+    private PatientSummary resolvePatient(CreateLabFileRequest req) {
+        return patientApi
+                .findById(new PatientId(req.patientId()))
+                .orElseThrow(() -> new OrderInvalidPatientReferenceException(req.patientId()));
+    }
+
+    private void validateOptionalReferences(CreateLabFileRequest req) {
         if (req.prescriberId() != null
                 && !prescriberApi.existsById(new PrescriberId(req.prescriberId()))) {
             throw new OrderInvalidPrescriberReferenceException(req.prescriberId());
         }
-        // 3. preleveur — optional
         if (req.preleveurId() != null
                 && !preleveurApi.existsById(new PreleveurId(req.preleveurId()))) {
             throw new OrderInvalidPreleveurReferenceException(req.preleveurId());
         }
-        // 4. analyses — resolve every code + dedup within the request
+        if (req.insuranceId() != null && !insuranceApi.exists(new InsuranceId(req.insuranceId()))) {
+            throw new OrderInvalidInsuranceReferenceException(req.insuranceId());
+        }
+        if (req.partnerId() != null && !partnerApi.exists(new PartnerId(req.partnerId()))) {
+            throw new OrderInvalidPartnerReferenceException(req.partnerId());
+        }
+    }
+
+    private List<AnalysisSummary> resolveAnalyses(CreateLabFileRequest req) {
         var seen = new HashSet<String>();
         var resolved = new ArrayList<AnalysisSummary>();
         for (var code : req.analyses()) {
@@ -95,28 +133,25 @@ public class LabFileService {
                                                     code, "not found"));
             resolved.add(summary);
         }
-        // 5. counter bump — only after all validation passes (no burned sequence numbers)
-        var rn = regGen.next(LocalDate.ofInstant(clock.instant(), ZoneOffset.UTC));
-        // 6. domain factory
-        var cmd =
-                new NewLabFile(
-                        req.patientId(),
-                        req.prescriberId(),
-                        req.preleveurId(),
-                        req.urgent(),
-                        req.analyses());
-        var file = LabFile.open(cmd, rn, userId, clock);
-        // 6b. add the analysis requests to the aggregate
-        for (var a : resolved) {
-            file.addAnalysisRequest(new NewAnalysisRequest(a.id().value(), a.code()), clock);
-        }
-        // 7. persist + return rich response (re-resolves cross-module snapshots via LabFileApi)
-        fileRepo.save(file);
-        // 8. publish AnalysisRequestAdded for each newly-attached analysis. The
-        //    result module's AnalysisRequestEventHandler subscribes via @TransactionalEventListener
-        //    (AFTER_COMMIT) and materializes the matching Result aggregate. Publishing here ensures
-        //    Spring's event registry sees the events while the surrounding @Transactional is open;
-        //    delivery is deferred until commit so a rollback drops them.
+        return resolved;
+    }
+
+    private NewLabFile buildCommand(CreateLabFileRequest req, PatientSummary patient) {
+        return new NewLabFile(
+                req.patientId(),
+                req.prescriberId(),
+                req.preleveurId(),
+                req.urgent(),
+                req.analyses(),
+                resolveInsuranceId(req, patient),
+                resolvePartnerId(req, patient),
+                req.homeCollectionFee() != null ? req.homeCollectionFee() : BigDecimal.ZERO,
+                req.additionalFees() != null ? req.additionalFees() : BigDecimal.ZERO,
+                req.discountKind(),
+                req.discountValue());
+    }
+
+    private void publishAnalysisRequestAdded(LabFile file) {
         var occurredAt = clock.instant();
         for (var ar : file.getAnalyses()) {
             events.publishEvent(
@@ -126,7 +161,22 @@ public class LabFileService {
                             ar.getAnalysisCode(),
                             occurredAt));
         }
-        return LabFileMapper.toResponse(labFileApi.requireById(file.labFileId()));
+    }
+
+    private static @Nullable String resolveInsuranceId(
+            CreateLabFileRequest req, PatientSummary patient) {
+        if (req.insuranceId() != null) {
+            return req.insuranceId();
+        }
+        return patient.insurance() == null ? null : patient.insurance().id().value();
+    }
+
+    private static @Nullable String resolvePartnerId(
+            CreateLabFileRequest req, PatientSummary patient) {
+        if (req.partnerId() != null) {
+            return req.partnerId();
+        }
+        return patient.partner() == null ? null : patient.partner().id().value();
     }
 
     @Transactional(readOnly = true)
@@ -161,6 +211,12 @@ public class LabFileService {
 
     @Transactional
     public LabFileResponse update(LabFileId id, UpdateLabFile cmd) {
+        if (cmd.insuranceId() != null && !insuranceApi.exists(new InsuranceId(cmd.insuranceId()))) {
+            throw new OrderInvalidInsuranceReferenceException(cmd.insuranceId());
+        }
+        if (cmd.partnerId() != null && !partnerApi.exists(new PartnerId(cmd.partnerId()))) {
+            throw new OrderInvalidPartnerReferenceException(cmd.partnerId());
+        }
         var file =
                 fileRepo.findActiveById(id.value())
                         .orElseThrow(() -> new LabFileNotFoundException(id));

@@ -3,9 +3,16 @@ package org.sparkcorporation.lims.iam.domain;
 import java.util.Set;
 
 /**
- * Tech doc §9.5 permission catalog. Static set of 32 strings. Used as the source of truth for
+ * Tech doc §9.5 permission catalog. Static set of 34 strings. Used as the source of truth for
  * {@code @RequiresPermission(...)} keys; an integrity test at startup verifies this set matches the
  * DB-seeded {@code permissions.name} column set.
+ *
+ * <p>{@code cash-register.manage} was added in 1.6.a chunk 6 for the new {@code
+ * /api/v1/cash-registers/*} surface; seeded via {@code 202605120821-seed-cash-register-permission}.
+ *
+ * <p>{@code accounting.read} was added in 1.6.a chunk 8 for the new {@code /api/v1/accounting/*}
+ * read-side surface (CDC §VIII recap / by-mode / outstanding); seeded via {@code
+ * 202605120850-seed-accounting-permission}.
  */
 public final class PermissionCatalog {
 
@@ -40,9 +47,11 @@ public final class PermissionCatalog {
                     "prescriber.manage",
                     "insurance.manage",
                     "partner.manage",
+                    "cash-register.manage",
                     "users.manage",
                     "stats.read",
-                    "audit.read");
+                    "audit.read",
+                    "accounting.read");
 
     private PermissionCatalog() {}
 }

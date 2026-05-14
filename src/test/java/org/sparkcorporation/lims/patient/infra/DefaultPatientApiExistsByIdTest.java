@@ -8,6 +8,8 @@ import java.util.Optional;
 
 import org.junit.jupiter.api.Test;
 
+import org.sparkcorporation.lims.catalog.api.InsuranceApi;
+import org.sparkcorporation.lims.catalog.api.PartnerApi;
 import org.sparkcorporation.lims.patient.api.PatientId;
 import org.sparkcorporation.lims.patient.domain.Patient;
 import org.sparkcorporation.lims.shared.id.Ulid;
@@ -15,7 +17,9 @@ import org.sparkcorporation.lims.shared.id.Ulid;
 class DefaultPatientApiExistsByIdTest {
 
     private final PatientRepository repo = mock(PatientRepository.class);
-    private final DefaultPatientApi api = new DefaultPatientApi(repo);
+    private final InsuranceApi insuranceApi = mock(InsuranceApi.class);
+    private final PartnerApi partnerApi = mock(PartnerApi.class);
+    private final DefaultPatientApi api = new DefaultPatientApi(repo, insuranceApi, partnerApi);
 
     @Test
     void exists_by_id_returns_true_when_patient_present_and_active() {

@@ -134,7 +134,19 @@ class JpaLabFileRepositoryTest extends IntegrationTestBase {
     }
 
     private LabFile freshFile(String patientId) {
-        var cmd = new NewLabFile(patientId, null, null, false, List.of("GLUC"));
+        var cmd =
+                new NewLabFile(
+                        patientId,
+                        null,
+                        null,
+                        false,
+                        List.of("GLUC"),
+                        null,
+                        null,
+                        java.math.BigDecimal.ZERO,
+                        java.math.BigDecimal.ZERO,
+                        null,
+                        null);
         var rn = new LabFileRegistrationNumber(nextRegistrationNumber());
         return LabFile.open(cmd, rn, null, FIXED);
     }
@@ -147,7 +159,19 @@ class JpaLabFileRepositoryTest extends IntegrationTestBase {
      * all-filters-null} case).
      */
     private LabFile seedLabFile(String patientId, boolean urgent, Clock clock) {
-        var cmd = new NewLabFile(patientId, null, null, urgent, List.of("GLUC"));
+        var cmd =
+                new NewLabFile(
+                        patientId,
+                        null,
+                        null,
+                        urgent,
+                        List.of("GLUC"),
+                        null,
+                        null,
+                        java.math.BigDecimal.ZERO,
+                        java.math.BigDecimal.ZERO,
+                        null,
+                        null);
         var rn = new LabFileRegistrationNumber(nextRegistrationNumber());
         return LabFile.open(cmd, rn, null, clock);
     }

@@ -19,6 +19,7 @@ public record UpdatePatient(
         @Nullable String clinicalNotes,
         @Nullable ContactInfo contact,
         @Nullable Guardian guardian,
-        @Nullable Boolean insured,
+        @Nullable String insuranceId,
+        @Nullable String partnerId,
         @Nullable String portalLogin,
         @Nullable String portalPasswordHash) {}

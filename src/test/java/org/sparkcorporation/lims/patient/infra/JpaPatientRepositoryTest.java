@@ -49,7 +49,8 @@ class JpaPatientRepositoryTest extends IntegrationTestBase {
                 null,
                 new ContactInfo(null, null),
                 null,
-                false,
+                null,
+                null,
                 null,
                 null);
     }
@@ -104,7 +105,7 @@ class JpaPatientRepositoryTest extends IntegrationTestBase {
         repo.saveAndFlush(p);
 
         // Act — through DefaultPatientApi (the cross-module surface under test).
-        PatientApi api = new DefaultPatientApi(repo);
+        PatientApi api = new DefaultPatientApi(repo, null, null);
         PatientSummary summary = api.requireById(p.id());
 
         // Assert
@@ -116,7 +117,7 @@ class JpaPatientRepositoryTest extends IntegrationTestBase {
         var p = Patient.create(cmd("ROE", "John"), new LabCode("LAB-260509-101"));
         repo.saveAndFlush(p);
 
-        PatientApi api = new DefaultPatientApi(repo);
+        PatientApi api = new DefaultPatientApi(repo, null, null);
         PatientSummary summary = api.requireById(p.id());
 
         assertThat(summary.birthDate()).isNull();

@@ -48,7 +48,8 @@ class PatientControllerTest {
                 null,
                 new PatientResponse.Contact(null, null),
                 null,
-                false,
+                null,
+                null,
                 null,
                 null,
                 false,
@@ -71,7 +72,8 @@ class PatientControllerTest {
                         null,
                         new CreatePatientRequest.ContactRequest(null, null),
                         null,
-                        false,
+                        null,
+                        null,
                         null,
                         null);
         when(service.create(any(CreatePatientRequest.class))).thenReturn(sampleResponse());
@@ -90,7 +92,7 @@ class PatientControllerTest {
     void POST_patients_with_blank_lastName_returns_422() throws Exception {
         String invalid =
                 """
-                {"name":{"lastName":""},"civility":"MADAME","sex":"F","contact":{},"insured":false}\
+                {"name":{"lastName":""},"civility":"MADAME","sex":"F","contact":{}}\
                 """;
         mvc.perform(
                         post("/api/v1/patients")

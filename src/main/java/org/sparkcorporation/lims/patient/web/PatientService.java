@@ -11,11 +11,17 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import org.sparkcorporation.lims.catalog.api.InsuranceApi;
+import org.sparkcorporation.lims.catalog.api.InsuranceId;
+import org.sparkcorporation.lims.catalog.api.PartnerApi;
+import org.sparkcorporation.lims.catalog.api.PartnerId;
 import org.sparkcorporation.lims.patient.api.PatientCreated;
 import org.sparkcorporation.lims.patient.api.PatientId;
 import org.sparkcorporation.lims.patient.api.PatientMerged;
 import org.sparkcorporation.lims.patient.domain.LabCodeGenerator;
 import org.sparkcorporation.lims.patient.domain.Patient;
+import org.sparkcorporation.lims.patient.domain.PatientInvalidInsuranceReferenceException;
+import org.sparkcorporation.lims.patient.domain.PatientInvalidPartnerReferenceException;
 import org.sparkcorporation.lims.patient.domain.PatientMerger;
 import org.sparkcorporation.lims.patient.domain.PatientNotFoundException;
 import org.sparkcorporation.lims.patient.infra.PatientRepository;
@@ -30,10 +36,14 @@ public class PatientService {
     private final PatientMerger merger;
     private final ApplicationEventPublisher events;
     private final PasswordEncoder passwordEncoder;
+    private final InsuranceApi insuranceApi;
+    private final PartnerApi partnerApi;
     private final Clock clock;
 
     @Transactional
     public PatientResponse create(CreatePatientRequest req) {
+        validateInsuranceReference(req.insuranceId());
+        validatePartnerReference(req.partnerId());
         String hash =
                 req.portalPassword() == null ? null : passwordEncoder.encode(req.portalPassword());
         var code = generator.next(LocalDate.now(clock));
@@ -52,6 +62,8 @@ public class PatientService {
 
     @Transactional
     public PatientResponse update(PatientId id, UpdatePatientRequest req) {
+        validateInsuranceReference(req.insuranceId());
+        validatePartnerReference(req.partnerId());
         var p = repo.findById(id.value()).orElseThrow(() -> new PatientNotFoundException(id));
         var cmd = mapper.toUpdateCommand(req, () -> passwordEncoder.encode(req.portalPassword()));
         p.update(cmd);
@@ -99,6 +111,18 @@ public class PatientService {
                         emptyToNull(labCode),
                         PageRequest.of(page, size));
         return result.map(mapper::toResponse);
+    }
+
+    private void validateInsuranceReference(String insuranceId) {
+        if (insuranceId != null && !insuranceApi.exists(new InsuranceId(insuranceId))) {
+            throw new PatientInvalidInsuranceReferenceException(insuranceId);
+        }
+    }
+
+    private void validatePartnerReference(String partnerId) {
+        if (partnerId != null && !partnerApi.exists(new PartnerId(partnerId))) {
+            throw new PatientInvalidPartnerReferenceException(partnerId);
+        }
     }
 
     private static String emptyToNull(String s) {

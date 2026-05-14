@@ -35,12 +35,16 @@ public class ResultSearchService {
                             + ")");
         }
 
-        Boolean insuredFilter =
-                switch (filters.patientType()) {
-                    case INSURED -> Boolean.TRUE;
-                    case NOT_INSURED -> Boolean.FALSE;
-                    case null -> null;
-                };
+        Boolean insuredFilter = null;
+        String partnerKindEq = null;
+        if (filters.patientType() != null) {
+            switch (filters.patientType()) {
+                case INSURED -> insuredFilter = Boolean.TRUE;
+                case NOT_INSURED -> insuredFilter = Boolean.FALSE;
+                case SOCIETY -> partnerKindEq = "SOCIETY";
+                case PARTNER_LAB -> partnerKindEq = "PARTNER_LAB";
+            }
+        }
 
         String stateEq = null;
         Boolean notValidated = null;
@@ -68,6 +72,7 @@ public class ResultSearchService {
                         dateTo,
                         filters.analysisCode(),
                         insuredFilter,
+                        partnerKindEq,
                         stateEq,
                         notValidated,
                         urgentOnly,

@@ -7,6 +7,7 @@ import java.time.Instant;
 
 import org.junit.jupiter.api.Test;
 
+import org.sparkcorporation.lims.catalog.api.InsuranceId;
 import org.sparkcorporation.lims.patient.api.PatientId;
 import org.sparkcorporation.lims.patient.api.PatientSummary;
 import org.sparkcorporation.lims.result.infra.ResultSearchRowProjection;
@@ -45,7 +46,9 @@ class ResultSearchMapperTest {
                         Civility.MADAME,
                         Sex.F,
                         null,
-                        true,
+                        new PatientSummary.InsuranceSnapshot(
+                                new InsuranceId(Ulid.generate()), "INS", "Sample Insurance"),
+                        null,
                         false,
                         false);
 

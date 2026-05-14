@@ -29,7 +29,7 @@ public final class ResultSearchMapper {
                 patient == null ? null : patient.labCode(),
                 patient == null ? null : patient.lastName(),
                 patient == null ? null : patient.firstNames(),
-                patient != null && patient.insured(),
+                patient != null && patient.insurance() != null,
                 projection.getAnalysisCode(),
                 projection.getComponentCode(),
                 projection.getPosition(),

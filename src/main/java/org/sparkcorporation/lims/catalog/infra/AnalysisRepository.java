@@ -1,5 +1,6 @@
 package org.sparkcorporation.lims.catalog.infra;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -79,6 +80,20 @@ public interface AnalysisRepository extends JpaRepository<Analysis, String> {
             ORDER BY a.code
             """)
     List<Analysis> findActiveByDiscipline(@Param("disciplineId") String disciplineId);
+
+    /**
+     * Batched active-lookup by ids — used by {@code billing} invoice finalization to resolve all
+     * analyses on a lab-file in one round-trip. Soft-deleted rows are excluded.
+     */
+    @Query(
+            """
+            SELECT a FROM Analysis a
+                LEFT JOIN FETCH a.discipline
+                LEFT JOIN FETCH a.matrix
+                LEFT JOIN FETCH a.recipient
+            WHERE a.id IN :ids AND a.deletedAt IS NULL
+            """)
+    List<Analysis> findAllActiveByIdIn(@Param("ids") Collection<String> ids);
 
     /**
      * Batched resolution of (childId, childCode, childName, position) for a parent's components.

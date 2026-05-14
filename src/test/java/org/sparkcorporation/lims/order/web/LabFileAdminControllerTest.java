@@ -86,7 +86,19 @@ class LabFileAdminControllerTest {
 
     @Test
     void POST_creates_lab_file_201_with_location() throws Exception {
-        var req = new CreateLabFileRequest(VALID_ULID, null, null, false, List.of("GLU", "CREA"));
+        var req =
+                new CreateLabFileRequest(
+                        VALID_ULID,
+                        null,
+                        null,
+                        false,
+                        List.of("GLU", "CREA"),
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null);
         when(service.create(any(CreateLabFileRequest.class), any())).thenReturn(sample(VALID_ULID));
 
         mvc.perform(
@@ -111,7 +123,19 @@ class LabFileAdminControllerTest {
 
     @Test
     void POST_returns_422_on_empty_analyses() throws Exception {
-        var req = new CreateLabFileRequest(VALID_ULID, null, null, false, List.of());
+        var req =
+                new CreateLabFileRequest(
+                        VALID_ULID,
+                        null,
+                        null,
+                        false,
+                        List.of(),
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null);
         mvc.perform(
                         post("/api/v1/lab-files")
                                 .contentType(MediaType.APPLICATION_JSON)
@@ -123,7 +147,19 @@ class LabFileAdminControllerTest {
     void POST_returns_422_on_invalid_patient_reference() throws Exception {
         when(service.create(any(), any()))
                 .thenThrow(new OrderInvalidPatientReferenceException(VALID_ULID));
-        var req = new CreateLabFileRequest(VALID_ULID, null, null, false, List.of("GLU"));
+        var req =
+                new CreateLabFileRequest(
+                        VALID_ULID,
+                        null,
+                        null,
+                        false,
+                        List.of("GLU"),
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null);
         mvc.perform(
                         post("/api/v1/lab-files")
                                 .contentType(MediaType.APPLICATION_JSON)
@@ -136,7 +172,19 @@ class LabFileAdminControllerTest {
     @Test
     void POST_returns_422_on_duplicate_analysis() throws Exception {
         when(service.create(any(), any())).thenThrow(new DuplicateAnalysisRequestException("GLU"));
-        var req = new CreateLabFileRequest(VALID_ULID, null, null, false, List.of("GLU", "GLU"));
+        var req =
+                new CreateLabFileRequest(
+                        VALID_ULID,
+                        null,
+                        null,
+                        false,
+                        List.of("GLU", "GLU"),
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null);
         mvc.perform(
                         post("/api/v1/lab-files")
                                 .contentType(MediaType.APPLICATION_JSON)
@@ -228,6 +276,98 @@ class LabFileAdminControllerTest {
     void DELETE_returns_204() throws Exception {
         mvc.perform(delete("/api/v1/lab-files/" + VALID_ULID)).andExpect(status().isNoContent());
         verify(service).delete(new LabFileId(VALID_ULID));
+    }
+
+    // --- patch coercion helpers ----------------------------------------------------------------
+    // Exercises every branch of the asString / asBoolean / asBigDecimal / asDiscountKind helpers
+    // via JSON body shapes.
+
+    @Test
+    void PATCH_accepts_string_prescriberId_and_preleveurId() throws Exception {
+        when(service.update(any(LabFileId.class), any(UpdateLabFile.class)))
+                .thenReturn(sample(VALID_ULID));
+
+        mvc.perform(
+                        patch("/api/v1/lab-files/" + VALID_ULID)
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(
+                                        "{\"prescriberId\":\"01HZB0000000000000000PRSC1\","
+                                            + "\"preleveurId\":\"01HZB0000000000000000PRLV1\"}"))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    void PATCH_accepts_numeric_homeCollectionFee_and_additionalFees() throws Exception {
+        when(service.update(any(LabFileId.class), any(UpdateLabFile.class)))
+                .thenReturn(sample(VALID_ULID));
+
+        mvc.perform(
+                        patch("/api/v1/lab-files/" + VALID_ULID)
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content("{\"homeCollectionFee\":1500.50,\"additionalFees\":300}"))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    void PATCH_accepts_string_homeCollectionFee_value() throws Exception {
+        when(service.update(any(LabFileId.class), any(UpdateLabFile.class)))
+                .thenReturn(sample(VALID_ULID));
+
+        mvc.perform(
+                        patch("/api/v1/lab-files/" + VALID_ULID)
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content("{\"homeCollectionFee\":\"1500.00\"}"))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    void PATCH_accepts_string_discountKind_and_numeric_discountValue() throws Exception {
+        when(service.update(any(LabFileId.class), any(UpdateLabFile.class)))
+                .thenReturn(sample(VALID_ULID));
+
+        mvc.perform(
+                        patch("/api/v1/lab-files/" + VALID_ULID)
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content("{\"discountKind\":\"PERCENT\",\"discountValue\":10}"))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    void PATCH_rejects_non_boolean_urgent_with_500() throws Exception {
+        // The helper throws IllegalArgumentException for unsupported types — propagates as 500
+        // unless mapped. We assert it does NOT silently coerce to true.
+        mvc.perform(
+                        patch("/api/v1/lab-files/" + VALID_ULID)
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content("{\"urgent\":\"yes\"}"))
+                .andExpect(status().is4xxClientError());
+    }
+
+    @Test
+    void PATCH_rejects_non_string_prescriberId_with_error() throws Exception {
+        mvc.perform(
+                        patch("/api/v1/lab-files/" + VALID_ULID)
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content("{\"prescriberId\":123}"))
+                .andExpect(status().is4xxClientError());
+    }
+
+    @Test
+    void PATCH_rejects_non_numeric_homeCollectionFee_with_error() throws Exception {
+        mvc.perform(
+                        patch("/api/v1/lab-files/" + VALID_ULID)
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content("{\"homeCollectionFee\":true}"))
+                .andExpect(status().is4xxClientError());
+    }
+
+    @Test
+    void PATCH_rejects_non_string_discountKind_with_error() throws Exception {
+        mvc.perform(
+                        patch("/api/v1/lab-files/" + VALID_ULID)
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content("{\"discountKind\":123}"))
+                .andExpect(status().is4xxClientError());
     }
 
     // Permission gating (401/403) is exercised at the integration tier per established precedent

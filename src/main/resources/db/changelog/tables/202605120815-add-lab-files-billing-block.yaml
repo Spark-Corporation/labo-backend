@@ -1,0 +1,45 @@
+databaseChangeLog:
+  - changeSet:
+      id: 202605120815-add-lab-files-billing-block
+      author: samuel
+      preconditions:
+        - tableExists: { tableName: insurances }
+        - tableExists: { tableName: partners }
+      changes:
+        - addColumn:
+            tableName: lab_files
+            columns:
+              - column: { name: insurance_id, type: varchar(26) }
+              - column: { name: partner_id, type: varchar(26) }
+              - column: { name: home_collection_fee, type: "numeric(18,2)", defaultValueNumeric: 0, constraints: { nullable: false } }
+              - column: { name: additional_fees, type: "numeric(18,2)", defaultValueNumeric: 0, constraints: { nullable: false } }
+              - column: { name: discount_kind, type: varchar(10) }
+              - column: { name: discount_value, type: "numeric(18,4)" }
+        - addForeignKeyConstraint:
+            baseTableName: lab_files
+            baseColumnNames: insurance_id
+            referencedTableName: insurances
+            referencedColumnNames: id
+            constraintName: lab_files_insurance_fk
+        - addForeignKeyConstraint:
+            baseTableName: lab_files
+            baseColumnNames: partner_id
+            referencedTableName: partners
+            referencedColumnNames: id
+            constraintName: lab_files_partner_fk
+        - sql:
+            sql: |
+              ALTER TABLE lab_files
+                ADD CONSTRAINT lab_files_discount_pair_chk
+                CHECK ((discount_kind IS NULL) = (discount_value IS NULL));
+              ALTER TABLE lab_files
+                ADD CONSTRAINT lab_files_discount_percent_range_chk
+                CHECK (discount_kind IS DISTINCT FROM 'PERCENT'
+                       OR (discount_value >= 0 AND discount_value <= 1));
+              ALTER TABLE lab_files
+                ADD CONSTRAINT lab_files_discount_amount_nonneg_chk
+                CHECK (discount_kind IS DISTINCT FROM 'AMOUNT' OR discount_value >= 0);
+              ALTER TABLE lab_files
+                ADD CONSTRAINT lab_files_fees_nonneg_chk
+                CHECK (home_collection_fee >= 0 AND additional_fees >= 0);
+      # rollback: AUTHORED BY USER

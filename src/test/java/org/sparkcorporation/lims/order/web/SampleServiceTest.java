@@ -85,7 +85,18 @@ class SampleServiceTest {
 
     private static LabFile newOpenFile() {
         return LabFile.open(
-                new NewLabFile(VALID_ULID, null, null, false, List.of()),
+                new NewLabFile(
+                        VALID_ULID,
+                        null,
+                        null,
+                        false,
+                        List.of(),
+                        null,
+                        null,
+                        BigDecimal.ZERO,
+                        BigDecimal.ZERO,
+                        null,
+                        null),
                 new LabFileRegistrationNumber("LF-260507-0001"),
                 "user-1",
                 FIXED_CLOCK);
@@ -109,6 +120,9 @@ class SampleServiceTest {
                                 FIXED_NOW,
                                 null)),
                 List.of(),
+                null,
+                null,
+                new LabFileSummary.BillingBlock(BigDecimal.ZERO, BigDecimal.ZERO, null, null),
                 FIXED_NOW,
                 null);
     }

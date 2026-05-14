@@ -51,7 +51,8 @@ class JpaResultSearchRepositoryTest extends IntegrationTestBase {
     void search_with_no_filters_returns_all_active_lines() {
         seedFixture();
         var page =
-                repository.search(null, null, null, null, null, null, null, PageRequest.of(0, 100));
+                repository.search(
+                        null, null, null, null, null, null, null, null, PageRequest.of(0, 100));
         assertThat(page.getTotalElements()).isEqualTo(2L);
         assertThat(page.getContent()).hasSize(2);
     }
@@ -61,7 +62,7 @@ class JpaResultSearchRepositoryTest extends IntegrationTestBase {
         seedFixture();
         var page =
                 repository.search(
-                        null, null, "GLU", null, null, null, null, PageRequest.of(0, 100));
+                        null, null, "GLU", null, null, null, null, null, PageRequest.of(0, 100));
         assertThat(page.getContent()).hasSize(1);
         assertThat(page.getContent().get(0).getAnalysisCode()).isEqualTo("GLU");
     }
@@ -71,6 +72,7 @@ class JpaResultSearchRepositoryTest extends IntegrationTestBase {
         seedFixture();
         var page =
                 repository.search(
+                        null,
                         null,
                         null,
                         null,
@@ -88,7 +90,32 @@ class JpaResultSearchRepositoryTest extends IntegrationTestBase {
         seedFixture();
         var page =
                 repository.search(
-                        null, null, null, Boolean.TRUE, null, null, null, PageRequest.of(0, 100));
+                        null,
+                        null,
+                        null,
+                        Boolean.TRUE,
+                        null,
+                        null,
+                        null,
+                        null,
+                        PageRequest.of(0, 100));
+        assertThat(page.getContent()).hasSize(1);
+    }
+
+    @Test
+    void search_filters_by_partner_lab_patient_via_partner_kind() {
+        seedFixtureWithPartnerLab();
+        var page =
+                repository.search(
+                        null,
+                        null,
+                        null,
+                        null,
+                        "PARTNER_LAB",
+                        null,
+                        null,
+                        null,
+                        PageRequest.of(0, 100));
         assertThat(page.getContent()).hasSize(1);
     }
 
@@ -97,15 +124,17 @@ class JpaResultSearchRepositoryTest extends IntegrationTestBase {
         var ctx = seedMinimalResult("HEMO", false);
         jdbc.update("UPDATE results SET deleted_at = now() WHERE id = ?", ctx.resultId);
         var page =
-                repository.search(null, null, null, null, null, null, null, PageRequest.of(0, 100));
+                repository.search(
+                        null, null, null, null, null, null, null, null, PageRequest.of(0, 100));
         assertThat(page.getContent()).noneMatch(r -> r.getResultId().equals(ctx.resultId));
     }
 
     private record SeedContext(String patientId, String labFileId, String resultId) {}
 
     private void seedFixture() {
-        var insuredPatientId = seedPatient(true);
-        var notInsuredPatientId = seedPatient(false);
+        var insuranceId = seedInsurance();
+        var insuredPatientId = seedPatient(insuranceId, null);
+        var notInsuredPatientId = seedPatient(null, null);
         var disciplineId = seedDiscipline();
         var analysisGluId = seedAnalysis(disciplineId, "GLU");
         var analysisCbcId = seedAnalysis(disciplineId, "CBC");
@@ -119,8 +148,19 @@ class JpaResultSearchRepositoryTest extends IntegrationTestBase {
         seedResultLine(resultCbc, analysisCbcId, "CBC");
     }
 
+    private void seedFixtureWithPartnerLab() {
+        var partnerId = seedPartner("PARTNER_LAB");
+        var partnerPatientId = seedPatient(null, partnerId);
+        var disciplineId = seedDiscipline();
+        var analysisId = seedAnalysis(disciplineId, "GLU");
+        var labFileId = seedLabFile(partnerPatientId);
+        var arId = seedAnalysisRequest(labFileId, analysisId, "GLU");
+        var resultId = seedResult(labFileId, arId, analysisId, "GLU", "DRAFT");
+        seedResultLine(resultId, analysisId, "GLU");
+    }
+
     private SeedContext seedMinimalResult(String analysisCode, boolean insured) {
-        var patientId = seedPatient(insured);
+        var patientId = insured ? seedPatient(seedInsurance(), null) : seedPatient(null, null);
         var disciplineId = seedDiscipline();
         var analysisId = seedAnalysis(disciplineId, analysisCode);
         var labFileId = seedLabFile(patientId);
@@ -130,14 +170,42 @@ class JpaResultSearchRepositoryTest extends IntegrationTestBase {
         return new SeedContext(patientId, labFileId, resultId);
     }
 
-    private String seedPatient(boolean insured) {
+    private String seedPatient(
+            @org.jspecify.annotations.Nullable String insuranceId,
+            @org.jspecify.annotations.Nullable String partnerId) {
         var id = Ulid.generate();
         jdbc.update(
-                "INSERT INTO patients (id, lab_code, last_name, civility, sex, insured, version)"
-                        + " VALUES (?, ?, 'DOE', 'MADAME', 'F', ?, 0)",
+                "INSERT INTO patients (id, lab_code, last_name, civility, sex, insured,"
+                        + " insurance_id, partner_id, version)"
+                        + " VALUES (?, ?, 'DOE', 'MADAME', 'F', ?, ?, ?, 0)",
                 id,
                 "LAB-" + id.substring(0, 26),
-                insured);
+                insuranceId != null,
+                insuranceId,
+                partnerId);
+        return id;
+    }
+
+    private String seedInsurance() {
+        var id = Ulid.generate();
+        jdbc.update(
+                "INSERT INTO insurances (id, code, name, b_rate, coverage_rate,"
+                        + " created_at, updated_at) VALUES (?, ?, 'Acme Health', 200.00, 0.8000,"
+                        + " now(), now())",
+                id,
+                id.substring(20, 26));
+        return id;
+    }
+
+    private String seedPartner(String kind) {
+        var id = Ulid.generate();
+        jdbc.update(
+                "INSERT INTO partners (id, code, name, kind, b_rate,"
+                        + " created_at, updated_at) VALUES (?, ?, 'Acme Partner', ?, 200.00,"
+                        + " now(), now())",
+                id,
+                id.substring(20, 26),
+                kind);
         return id;
     }
 

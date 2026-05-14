@@ -34,7 +34,8 @@ public class PatientMapper {
                                 req.guardian().name(),
                                 req.guardian().phone(),
                                 req.guardian().relationship()),
-                req.insured(),
+                req.insuranceId(),
+                req.partnerId(),
                 req.portalLogin(),
                 passwordHashOrNull);
     }
@@ -75,7 +76,8 @@ public class PatientMapper {
                 req.clinicalNotes(),
                 contact,
                 guardian,
-                req.insured(),
+                req.insuranceId(),
+                req.partnerId(),
                 req.portalLogin(),
                 hash);
     }
@@ -110,7 +112,8 @@ public class PatientMapper {
                 p.clinicalNotes(),
                 contact,
                 guardian,
-                p.insured(),
+                p.insuranceId(),
+                p.partnerId(),
                 p.portalLogin(),
                 p.mergedIntoId(),
                 p.isDeleted(),

@@ -24,15 +24,15 @@ class PatientApiBatchIT extends IntegrationTestBase {
 
     @Test
     void find_all_by_ids_round_trips() {
-        var id1 = seedPatient(true);
-        var id2 = seedPatient(false);
-        var id3 = seedPatient(true);
+        var id1 = seedPatient();
+        var id2 = seedPatient();
+        var id3 = seedPatient();
 
         var map = patientApi.findAllByIds(Set.of(new PatientId(id1), new PatientId(id2)));
 
         assertThat(map).hasSize(2);
-        assertThat(map.get(new PatientId(id1)).insured()).isTrue();
-        assertThat(map.get(new PatientId(id2)).insured()).isFalse();
+        assertThat(map.get(new PatientId(id1)).labCode()).startsWith("LAB-");
+        assertThat(map.get(new PatientId(id2)).labCode()).startsWith("LAB-");
         assertThat(map.get(new PatientId(id3))).isNull();
     }
 
@@ -43,7 +43,7 @@ class PatientApiBatchIT extends IntegrationTestBase {
 
     @Test
     void find_all_by_ids_silently_drops_missing_ids() {
-        var id1 = seedPatient(true);
+        var id1 = seedPatient();
         var fakeId = Ulid.generate();
 
         var map = patientApi.findAllByIds(Set.of(new PatientId(id1), new PatientId(fakeId)));
@@ -52,14 +52,13 @@ class PatientApiBatchIT extends IntegrationTestBase {
         assertThat(map).containsOnlyKeys(new PatientId(id1));
     }
 
-    private String seedPatient(boolean insured) {
+    private String seedPatient() {
         var id = Ulid.generate();
         jdbc.update(
-                "INSERT INTO patients (id, lab_code, last_name, civility, sex, insured, version)"
-                        + " VALUES (?, ?, 'DOE', 'MADAME', 'F', ?, 0)",
+                "INSERT INTO patients (id, lab_code, last_name, civility, sex, version)"
+                        + " VALUES (?, ?, 'DOE', 'MADAME', 'F', 0)",
                 id,
-                "LAB-" + id.substring(0, 26),
-                insured);
+                "LAB-" + id.substring(0, 26));
         return id;
     }
 }

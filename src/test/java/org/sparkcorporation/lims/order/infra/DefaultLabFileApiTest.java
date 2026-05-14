@@ -20,6 +20,13 @@ import org.sparkcorporation.lims.catalog.api.AnalysisApi;
 import org.sparkcorporation.lims.catalog.api.AnalysisId;
 import org.sparkcorporation.lims.catalog.api.AnalysisKind;
 import org.sparkcorporation.lims.catalog.api.AnalysisSummary;
+import org.sparkcorporation.lims.catalog.api.InsuranceApi;
+import org.sparkcorporation.lims.catalog.api.InsuranceId;
+import org.sparkcorporation.lims.catalog.api.InsuranceSummary;
+import org.sparkcorporation.lims.catalog.api.PartnerApi;
+import org.sparkcorporation.lims.catalog.api.PartnerId;
+import org.sparkcorporation.lims.catalog.api.PartnerKind;
+import org.sparkcorporation.lims.catalog.api.PartnerSummary;
 import org.sparkcorporation.lims.catalog.api.PreleveurApi;
 import org.sparkcorporation.lims.catalog.api.PreleveurId;
 import org.sparkcorporation.lims.catalog.api.PreleveurSummary;
@@ -61,6 +68,8 @@ class DefaultLabFileApiTest {
     private final PatientApi patientApi = mock(PatientApi.class);
     private final PrescriberApi prescriberApi = mock(PrescriberApi.class);
     private final PreleveurApi preleveurApi = mock(PreleveurApi.class);
+    private final InsuranceApi insuranceApi = mock(InsuranceApi.class);
+    private final PartnerApi partnerApi = mock(PartnerApi.class);
     private final AnalysisApi analysisApi = mock(AnalysisApi.class);
     private final RecipientApi recipientApi = mock(RecipientApi.class);
 
@@ -72,6 +81,8 @@ class DefaultLabFileApiTest {
                     patientApi,
                     prescriberApi,
                     preleveurApi,
+                    insuranceApi,
+                    partnerApi,
                     analysisApi,
                     recipientApi);
 
@@ -80,15 +91,82 @@ class DefaultLabFileApiTest {
     private final String preleveurId = Ulid.generate();
     private final String analysisId = Ulid.generate();
     private final String recipientId = Ulid.generate();
+    private final String insuranceUlid = Ulid.generate();
+    private final String partnerUlid = Ulid.generate();
 
     private LabFile freshFile() {
-        var cmd = new NewLabFile(patientId, prescriberId, preleveurId, false, List.of("GLUC"));
+        var cmd =
+                new NewLabFile(
+                        patientId,
+                        prescriberId,
+                        preleveurId,
+                        false,
+                        List.of("GLUC"),
+                        null,
+                        null,
+                        BigDecimal.ZERO,
+                        BigDecimal.ZERO,
+                        null,
+                        null);
         return LabFile.open(cmd, new LabFileRegistrationNumber("LF-260507-0001"), null, FIXED);
     }
 
+    private LabFile freshFileWithBillingParties() {
+        var cmd =
+                new NewLabFile(
+                        patientId,
+                        prescriberId,
+                        preleveurId,
+                        false,
+                        List.of("GLUC"),
+                        insuranceUlid,
+                        partnerUlid,
+                        BigDecimal.ZERO,
+                        BigDecimal.ZERO,
+                        null,
+                        null);
+        return LabFile.open(cmd, new LabFileRegistrationNumber("LF-260507-0003"), null, FIXED);
+    }
+
     private LabFile freshFileWithoutPrescriber() {
-        var cmd = new NewLabFile(patientId, null, null, false, List.of());
+        var cmd =
+                new NewLabFile(
+                        patientId,
+                        null,
+                        null,
+                        false,
+                        List.of(),
+                        null,
+                        null,
+                        BigDecimal.ZERO,
+                        BigDecimal.ZERO,
+                        null,
+                        null);
         return LabFile.open(cmd, new LabFileRegistrationNumber("LF-260507-0002"), null, FIXED);
+    }
+
+    private InsuranceSummary insuranceSummary() {
+        return new InsuranceSummary(
+                new InsuranceId(insuranceUlid),
+                "CNAM",
+                "Caisse Nationale d'Assurance Maladie",
+                null,
+                null,
+                new BigDecimal("400.00"),
+                new BigDecimal("0.80"),
+                false);
+    }
+
+    private PartnerSummary partnerSummary() {
+        return new PartnerSummary(
+                new PartnerId(partnerUlid),
+                "SOC-1",
+                "Société Test",
+                PartnerKind.SOCIETY,
+                null,
+                null,
+                new BigDecimal("400.00"),
+                false);
     }
 
     private PatientSummary patientSummary() {
@@ -100,7 +178,8 @@ class DefaultLabFileApiTest {
                 Civility.MADAME,
                 Sex.F,
                 null,
-                false,
+                null,
+                null,
                 false,
                 false);
     }
@@ -368,6 +447,72 @@ class DefaultLabFileApiTest {
         assertThat(summary.analyses()).hasSize(1);
         assertThat(summary.analyses().get(0).analysisCode()).isEqualTo("GLUC");
         assertThat(summary.analyses().get(0).analysisId()).isEqualTo(analysisId);
+    }
+
+    @Test
+    void findById_resolves_insurance_and_partner_snapshots() {
+        var file = freshFileWithBillingParties();
+        when(fileRepo.findActiveById(file.getId())).thenReturn(Optional.of(file));
+        when(sampleRepo.findByLabFileId(file.getId())).thenReturn(List.of());
+        when(requestRepo.findByLabFileId(file.getId())).thenReturn(List.of());
+        when(patientApi.findById(any())).thenReturn(Optional.of(patientSummary()));
+        when(prescriberApi.findById(any())).thenReturn(Optional.of(prescriberSummary()));
+        when(preleveurApi.findById(any())).thenReturn(Optional.of(preleveurSummary()));
+        when(insuranceApi.findById(any())).thenReturn(Optional.of(insuranceSummary()));
+        when(partnerApi.findById(any())).thenReturn(Optional.of(partnerSummary()));
+
+        var summary = api.findById(file.labFileId()).orElseThrow();
+
+        assertThat(summary.insurance()).isNotNull();
+        assertThat(summary.insurance().code()).isEqualTo("CNAM");
+        assertThat(summary.partner()).isNotNull();
+        assertThat(summary.partner().code()).isEqualTo("SOC-1");
+        assertThat(summary.partner().kind()).isEqualTo(PartnerKind.SOCIETY);
+        assertThat(summary.billing()).isNotNull();
+        assertThat(summary.billing().homeCollectionFee()).isEqualByComparingTo(BigDecimal.ZERO);
+        assertThat(summary.billing().additionalFees()).isEqualByComparingTo(BigDecimal.ZERO);
+        assertThat(summary.billing().discountKind()).isNull();
+    }
+
+    @Test
+    void findById_renders_null_insurance_when_catalog_returns_empty_soft_deleted() {
+        var file = freshFileWithBillingParties();
+        when(fileRepo.findActiveById(file.getId())).thenReturn(Optional.of(file));
+        when(sampleRepo.findByLabFileId(file.getId())).thenReturn(List.of());
+        when(requestRepo.findByLabFileId(file.getId())).thenReturn(List.of());
+        when(patientApi.findById(any())).thenReturn(Optional.of(patientSummary()));
+        when(prescriberApi.findById(any())).thenReturn(Optional.of(prescriberSummary()));
+        when(preleveurApi.findById(any())).thenReturn(Optional.of(preleveurSummary()));
+        when(insuranceApi.findById(any())).thenReturn(Optional.empty()); // soft-deleted
+        when(partnerApi.findById(any())).thenReturn(Optional.empty()); // soft-deleted
+
+        var summary = api.findById(file.labFileId()).orElseThrow();
+
+        assertThat(summary.insurance()).isNull();
+        assertThat(summary.partner()).isNull();
+        // billing block always non-null
+        assertThat(summary.billing()).isNotNull();
+    }
+
+    @Test
+    void findById_billing_block_never_null_when_FKs_absent() {
+        var file = freshFile();
+        when(fileRepo.findActiveById(file.getId())).thenReturn(Optional.of(file));
+        when(sampleRepo.findByLabFileId(file.getId())).thenReturn(List.of());
+        when(requestRepo.findByLabFileId(file.getId())).thenReturn(List.of());
+        when(patientApi.findById(any())).thenReturn(Optional.of(patientSummary()));
+        when(prescriberApi.findById(any())).thenReturn(Optional.of(prescriberSummary()));
+        when(preleveurApi.findById(any())).thenReturn(Optional.of(preleveurSummary()));
+
+        var summary = api.findById(file.labFileId()).orElseThrow();
+
+        assertThat(summary.insurance()).isNull();
+        assertThat(summary.partner()).isNull();
+        assertThat(summary.billing()).isNotNull();
+        assertThat(summary.billing().homeCollectionFee()).isEqualByComparingTo(BigDecimal.ZERO);
+        assertThat(summary.billing().additionalFees()).isEqualByComparingTo(BigDecimal.ZERO);
+        assertThat(summary.billing().discountKind()).isNull();
+        assertThat(summary.billing().discountValue()).isNull();
     }
 
     @Test

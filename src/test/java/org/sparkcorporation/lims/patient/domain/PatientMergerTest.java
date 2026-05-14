@@ -25,7 +25,8 @@ class PatientMergerTest {
                         null,
                         new ContactInfo(null, null),
                         null,
-                        false,
+                        null,
+                        null,
                         null,
                         null),
                 new LabCode(code));

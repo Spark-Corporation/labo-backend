@@ -17,17 +17,24 @@ import org.junit.jupiter.api.Test;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
+import org.sparkcorporation.lims.catalog.api.InsuranceApi;
+import org.sparkcorporation.lims.catalog.api.InsuranceId;
+import org.sparkcorporation.lims.catalog.api.PartnerApi;
+import org.sparkcorporation.lims.catalog.api.PartnerId;
 import org.sparkcorporation.lims.patient.api.PatientCreated;
 import org.sparkcorporation.lims.patient.api.PatientId;
 import org.sparkcorporation.lims.patient.api.PatientMerged;
 import org.sparkcorporation.lims.patient.domain.LabCode;
 import org.sparkcorporation.lims.patient.domain.LabCodeGenerator;
 import org.sparkcorporation.lims.patient.domain.Patient;
+import org.sparkcorporation.lims.patient.domain.PatientInvalidInsuranceReferenceException;
+import org.sparkcorporation.lims.patient.domain.PatientInvalidPartnerReferenceException;
 import org.sparkcorporation.lims.patient.domain.PatientMerger;
 import org.sparkcorporation.lims.patient.domain.PatientNotFoundException;
 import org.sparkcorporation.lims.patient.infra.PatientRepository;
 import org.sparkcorporation.lims.shared.domain.Civility;
 import org.sparkcorporation.lims.shared.domain.Sex;
+import org.sparkcorporation.lims.shared.id.Ulid;
 
 class PatientServiceTest {
 
@@ -37,9 +44,12 @@ class PatientServiceTest {
     private final PatientMerger merger = new PatientMerger();
     private final ApplicationEventPublisher events = mock(ApplicationEventPublisher.class);
     private final PasswordEncoder encoder = mock(PasswordEncoder.class);
+    private final InsuranceApi insuranceApi = mock(InsuranceApi.class);
+    private final PartnerApi partnerApi = mock(PartnerApi.class);
     private final Clock clock = Clock.fixed(Instant.parse("2026-05-05T10:00:00Z"), ZoneOffset.UTC);
     private final PatientService service =
-            new PatientService(repo, gen, mapper, merger, events, encoder, clock);
+            new PatientService(
+                    repo, gen, mapper, merger, events, encoder, insuranceApi, partnerApi, clock);
 
     private static CreatePatientRequest req() {
         return new CreatePatientRequest(
@@ -53,7 +63,8 @@ class PatientServiceTest {
                 null,
                 new CreatePatientRequest.ContactRequest(null, null),
                 null,
-                false,
+                null,
+                null,
                 null,
                 null);
     }
@@ -88,12 +99,96 @@ class PatientServiceTest {
                         null,
                         req().contact(),
                         null,
-                        false,
+                        null,
+                        null,
                         "jane.doe",
                         "plain-password");
 
         service.create(withPwd);
         verify(encoder).encode("plain-password");
+    }
+
+    @Test
+    void create_rejects_unknown_insurance_reference() {
+        var fakeInsuranceId = Ulid.generate();
+        when(insuranceApi.exists(new InsuranceId(fakeInsuranceId))).thenReturn(false);
+
+        var withBadInsurance =
+                new CreatePatientRequest(
+                        req().name(),
+                        req().civility(),
+                        req().sex(),
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        req().contact(),
+                        null,
+                        fakeInsuranceId,
+                        null,
+                        null,
+                        null);
+
+        assertThatThrownBy(() -> service.create(withBadInsurance))
+                .isInstanceOf(PatientInvalidInsuranceReferenceException.class);
+    }
+
+    @Test
+    void create_rejects_unknown_partner_reference() {
+        var fakePartnerId = Ulid.generate();
+        when(partnerApi.exists(new PartnerId(fakePartnerId))).thenReturn(false);
+
+        var withBadPartner =
+                new CreatePatientRequest(
+                        req().name(),
+                        req().civility(),
+                        req().sex(),
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        req().contact(),
+                        null,
+                        null,
+                        fakePartnerId,
+                        null,
+                        null);
+
+        assertThatThrownBy(() -> service.create(withBadPartner))
+                .isInstanceOf(PatientInvalidPartnerReferenceException.class);
+    }
+
+    @Test
+    void create_accepts_known_insurance_and_partner_references() {
+        when(gen.next(any())).thenReturn(new LabCode("LAB-260505-006"));
+        when(repo.save(any(Patient.class))).thenAnswer(inv -> inv.getArgument(0));
+        var insuranceId = Ulid.generate();
+        var partnerId = Ulid.generate();
+        when(insuranceApi.exists(new InsuranceId(insuranceId))).thenReturn(true);
+        when(partnerApi.exists(new PartnerId(partnerId))).thenReturn(true);
+
+        var withRefs =
+                new CreatePatientRequest(
+                        req().name(),
+                        req().civility(),
+                        req().sex(),
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        req().contact(),
+                        null,
+                        insuranceId,
+                        partnerId,
+                        null,
+                        null);
+
+        var resp = service.create(withRefs);
+        assertThat(resp.insuranceId()).isEqualTo(insuranceId);
+        assertThat(resp.partnerId()).isEqualTo(partnerId);
     }
 
     @Test

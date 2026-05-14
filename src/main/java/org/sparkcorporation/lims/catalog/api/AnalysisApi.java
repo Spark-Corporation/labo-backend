@@ -1,6 +1,8 @@
 package org.sparkcorporation.lims.catalog.api;
 
+import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 /**
@@ -22,6 +24,13 @@ public interface AnalysisApi {
 
     /** Used by 1.4 {@code order} workflows to populate analysis pickers per discipline. */
     List<AnalysisSummary> findActiveByDiscipline(DisciplineId disciplineId);
+
+    /**
+     * Batched lookup. Returns a map keyed by the input ids; missing or inactive ids are silently
+     * absent. Empty input → empty map. Added in 1.6.a for {@code billing} invoice finalization to
+     * resolve all analysis snapshots on a lab-file with a single query.
+     */
+    Map<AnalysisId, AnalysisSummary> findAllByIds(Collection<AnalysisId> ids);
 
     /**
      * Returns all <strong>active</strong> {@link ReferenceIntervalSummary} rows for an analysis

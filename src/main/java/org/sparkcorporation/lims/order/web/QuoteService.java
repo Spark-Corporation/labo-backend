@@ -41,6 +41,7 @@ import org.sparkcorporation.lims.order.infra.DefaultQuoteNumberGenerator;
 import org.sparkcorporation.lims.order.infra.QuoteRepository;
 import org.sparkcorporation.lims.patient.api.PatientApi;
 import org.sparkcorporation.lims.patient.api.PatientId;
+import org.sparkcorporation.lims.shared.money.PricingProperties;
 
 /**
  * Application service for {@link Quote}. Implements spec §7.2 cross-module validation order:
@@ -236,7 +237,13 @@ public class QuoteService {
                         quote.getPrescriberId(),
                         /* preleveurId */ null,
                         req.urgent(),
-                        quote.getLines().stream().map(QuoteLine::getAnalysisCode).toList());
+                        quote.getLines().stream().map(QuoteLine::getAnalysisCode).toList(),
+                        /* insuranceId */ null,
+                        /* partnerId */ null,
+                        /* homeCollectionFee */ null,
+                        /* additionalFees */ null,
+                        /* discountKind */ null,
+                        /* discountValue */ null);
         // REQUIRED propagation — joins this @Transactional. Failure inside rolls back the whole
         // :convert flow atomically.
         var labFile = labFileService.create(createReq, userId);

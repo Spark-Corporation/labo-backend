@@ -9,6 +9,8 @@ import org.springframework.beans.factory.BeanCreationException;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 
+import org.sparkcorporation.lims.shared.money.PricingProperties;
+
 /**
  * Context-loading test that proves the Spring binder routes through {@link PricingProperties}'
  * compact constructor at startup. Uses {@link ApplicationContextRunner} (no full

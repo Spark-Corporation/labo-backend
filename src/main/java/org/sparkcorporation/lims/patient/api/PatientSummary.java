@@ -4,6 +4,9 @@ import java.time.LocalDate;
 
 import org.jspecify.annotations.Nullable;
 
+import org.sparkcorporation.lims.catalog.api.InsuranceId;
+import org.sparkcorporation.lims.catalog.api.PartnerId;
+import org.sparkcorporation.lims.catalog.api.PartnerKind;
 import org.sparkcorporation.lims.shared.domain.Civility;
 import org.sparkcorporation.lims.shared.domain.Sex;
 
@@ -16,9 +19,12 @@ import org.sparkcorporation.lims.shared.domain.Sex;
  * age)} for reference-interval matching. Nullable per CDC §I (registration is required, but the
  * date itself is not always known).
  *
- * <p>{@code insured} added in 1.5.b per result read-side spec §4.1 — needed by the result module's
- * §V search to filter on patient-type (INSURED | NOT_INSURED). Primitive boolean — the domain field
- * is non-null per CDC §I "assuré ou non".
+ * <p>{@code insurance} + {@code partner} snapshots added in 1.6.a (billing) per billing spec §4.2 /
+ * §4.3. Both are nullable: a patient may belong to neither, to an insurance, or to a partner
+ * (société / laboratoire partenaire / centre de santé). The snapshots resolve to {@code null} when
+ * the underlying catalog row is soft-deleted, even if the patient still carries the FK — callers
+ * treat a null snapshot as "no active billing party" for §V patient-type filtering and billing
+ * computations.
  */
 public record PatientSummary(
         PatientId id,
@@ -28,6 +34,14 @@ public record PatientSummary(
         Civility civility,
         Sex sex,
         @Nullable LocalDate birthDate,
-        boolean insured,
+        @Nullable InsuranceSnapshot insurance,
+        @Nullable PartnerSnapshot partner,
         boolean merged,
-        boolean deleted) {}
+        boolean deleted) {
+
+    /** Flat snapshot of the patient's insurance — code + name only, no rates leaked here. */
+    public record InsuranceSnapshot(InsuranceId id, String code, String name) {}
+
+    /** Flat snapshot of the patient's partner — includes the partner kind for §V filtering. */
+    public record PartnerSnapshot(PartnerId id, String code, String name, PartnerKind kind) {}
+}

@@ -7,6 +7,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Map;
 
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -43,6 +44,13 @@ class ResultSearchIT extends IntegrationTestBase {
     void setUp() {
         http = restClientFor(port, "TECHNICIAN");
         seedTwoPatientsAndResults();
+    }
+
+    @AfterEach
+    void clearInsuranceFkFromSeededPatients() {
+        // Detach patients from insurance / partner so downstream ITs can DELETE FROM insurances /
+        // partners without tripping patients_insurance_fk / patients_partner_fk.
+        jdbc.update("UPDATE patients SET insurance_id = NULL, partner_id = NULL");
     }
 
     @Test
@@ -168,13 +176,27 @@ class ResultSearchIT extends IntegrationTestBase {
     }
 
     private String seedPatient(boolean insured) {
+        var insuranceId = insured ? seedInsurance() : null;
         var id = Ulid.generate();
         jdbc.update(
-                "INSERT INTO patients (id, lab_code, last_name, civility, sex, insured, version)"
-                        + " VALUES (?, ?, 'DOE', 'MADAME', 'F', ?, 0)",
+                "INSERT INTO patients (id, lab_code, last_name, civility, sex, insured,"
+                        + " insurance_id, version)"
+                        + " VALUES (?, ?, 'DOE', 'MADAME', 'F', ?, ?, 0)",
                 id,
                 "LAB-" + id.substring(0, 26),
-                insured);
+                insured,
+                insuranceId);
+        return id;
+    }
+
+    private String seedInsurance() {
+        var id = Ulid.generate();
+        jdbc.update(
+                "INSERT INTO insurances (id, code, name, b_rate, coverage_rate,"
+                        + " created_at, updated_at) VALUES (?, ?, 'Acme Health', 200.00, 0.8000,"
+                        + " now(), now())",
+                id,
+                id.substring(20, 26));
         return id;
     }
 
