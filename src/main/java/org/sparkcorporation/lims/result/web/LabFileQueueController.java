@@ -27,4 +27,12 @@ public class LabFileQueueController {
             @RequestParam(defaultValue = "20") @Min(1) @Max(200) int size) {
         return UrgentDossierResponse.from(service.findUrgent(PageRequest.of(page, size)));
     }
+
+    @GetMapping("/overdue")
+    @RequiresPermission("lab-file.read")
+    public OverdueDossierResponse overdue(
+            @RequestParam(defaultValue = "0") @Min(0) int page,
+            @RequestParam(defaultValue = "20") @Min(1) @Max(200) int size) {
+        return OverdueDossierResponse.from(service.findOverdue(PageRequest.of(page, size)));
+    }
 }

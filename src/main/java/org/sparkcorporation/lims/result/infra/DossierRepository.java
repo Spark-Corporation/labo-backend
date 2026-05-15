@@ -64,6 +64,86 @@ public interface DossierRepository extends Repository<Result, String> {
     @Query(
             value =
                     """
+                    SELECT * FROM (
+                        SELECT DISTINCT ON (lf.id)
+                            lf.id            AS "labFileId",
+                            lf.patient_id    AS "patientId",
+                            a.code           AS "analysisCode",
+                            a.name           AS "analysisName",
+                            (lf.created_at
+                              + (COALESCE(a.delay_days, 0) || ' days')::interval
+                              + (COALESCE(a.delay_hours, 0) || ' hours')::interval) AS "deadline",
+                            CEIL(EXTRACT(EPOCH FROM (now()
+                              - (lf.created_at
+                                  + (COALESCE(a.delay_days, 0) || ' days')::interval
+                                  + (COALESCE(a.delay_hours, 0) || ' hours')::interval))) / 3600)::int
+                                                                                   AS "hoursPastDeadline",
+                            (SELECT COUNT(*)
+                               FROM analysis_requests ar2
+                               JOIN analyses a2 ON a2.id = ar2.analysis_id
+                               LEFT JOIN results r2
+                                 ON r2.lab_file_id = ar2.lab_file_id
+                                AND r2.analysis_request_id = ar2.id
+                                AND r2.deleted_at IS NULL
+                              WHERE ar2.lab_file_id = lf.id
+                                AND (a2.delay_days IS NOT NULL OR a2.delay_hours IS NOT NULL)
+                                AND (lf.created_at
+                                      + (COALESCE(a2.delay_days, 0) || ' days')::interval
+                                      + (COALESCE(a2.delay_hours, 0) || ' hours')::interval) < now()
+                                AND (r2.id IS NULL OR r2.state <> 'BIOLOGICAL_VALIDATED'))
+                                                                                   AS "overdueAnalysisCount",
+                            CASE
+                              WHEN EXISTS (SELECT 1 FROM results r3
+                                            WHERE r3.lab_file_id = lf.id
+                                              AND r3.deleted_at IS NULL
+                                              AND r3.state = 'DRAFT') THEN 'PEN'
+                              WHEN EXISTS (SELECT 1 FROM result_lines rl
+                                            JOIN results r4 ON r4.id = rl.result_id
+                                            WHERE r4.lab_file_id = lf.id
+                                              AND r4.deleted_at IS NULL
+                                              AND rl.is_out_of_range = true) THEN 'RED'
+                              ELSE 'GREEN'
+                            END                                                     AS "marker"
+                        FROM lab_files lf
+                        JOIN analysis_requests ar ON ar.lab_file_id = lf.id
+                        JOIN analyses a            ON a.id = ar.analysis_id
+                        LEFT JOIN results r
+                               ON r.lab_file_id = lf.id
+                              AND r.analysis_request_id = ar.id
+                              AND r.deleted_at IS NULL
+                        WHERE lf.deleted_at IS NULL
+                          AND (a.delay_days IS NOT NULL OR a.delay_hours IS NOT NULL)
+                          AND (lf.created_at
+                                + (COALESCE(a.delay_days, 0) || ' days')::interval
+                                + (COALESCE(a.delay_hours, 0) || ' hours')::interval) < now()
+                          AND (r.id IS NULL OR r.state <> 'BIOLOGICAL_VALIDATED')
+                        ORDER BY lf.id, "deadline" ASC, a.code ASC
+                    ) overdue
+                    ORDER BY overdue."hoursPastDeadline" DESC, overdue."labFileId" ASC
+                    """,
+            countQuery =
+                    """
+                    SELECT COUNT(DISTINCT lf.id)
+                    FROM lab_files lf
+                    JOIN analysis_requests ar ON ar.lab_file_id = lf.id
+                    JOIN analyses a            ON a.id = ar.analysis_id
+                    LEFT JOIN results r
+                           ON r.lab_file_id = lf.id
+                          AND r.analysis_request_id = ar.id
+                          AND r.deleted_at IS NULL
+                    WHERE lf.deleted_at IS NULL
+                      AND (a.delay_days IS NOT NULL OR a.delay_hours IS NOT NULL)
+                      AND (lf.created_at
+                            + (COALESCE(a.delay_days, 0) || ' days')::interval
+                            + (COALESCE(a.delay_hours, 0) || ' hours')::interval) < now()
+                      AND (r.id IS NULL OR r.state <> 'BIOLOGICAL_VALIDATED')
+                    """,
+            nativeQuery = true)
+    Page<OverdueDossierRowProjection> findOverdue(Pageable pageable);
+
+    @Query(
+            value =
+                    """
                     SELECT
                       lf.id          AS "labFileId",
                       lf.patient_id  AS "patientId",

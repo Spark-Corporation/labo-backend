@@ -698,12 +698,19 @@ anterior-results, §V multi-criteria line-level search, §X 3 queue lists (2
 result-grained for the biologist inbox: to-validate + to-print, 1 dossier-
 grained: urgent), §X computed dossier markers (vert / rouge / stylo via
 on-read SQL CASE), and §IX state-filtered dossier list at `/api/v1/dossiers`.
-No new tables, no Liquibase changeset — all queries read 1.5.a tables. The §X
-"Dossiers en retard" queue is deferred to a future 1.4.c sub-project that
-adds an `expected_delivery_date` deadline to `LabFile` along with the
-SLA-policy plumbing. Two batched cross-module accessors landed:
-`patient::api.PatientApi.findAllByIds` and `order::api.LabFileApi.findAllByIds`,
-plus a `PatientSummary.insured` field for §V's patient-type filter.
+No new tables, no Liquibase changeset — all queries read 1.5.a tables. Two
+batched cross-module accessors landed: `patient::api.PatientApi.findAllByIds`
+and `order::api.LabFileApi.findAllByIds`, plus a `PatientSummary.insured`
+field for §V's patient-type filter.
+
+**Overdue queue (sub-project 1.4.c).** `GET /api/v1/lab-files/queues/overdue`
+returns paginated lab files where at least one analysis has passed its
+configured analytical delay (`analyses.delay_days` + `delay_hours`) without
+being biologically validated. Each row carries the existing `DossierRow`
+block plus an `OverdueInfo` sub-block (canary analysis = earliest deadline,
+deadline timestamp, hours past deadline, total overdue count). Native SQL
+via Postgres `DISTINCT ON`; no new tables, no Liquibase changeset, no new
+permission, no modulith dependency edge. Permission: `lab-file.read`.
 
 ### 8.5 `billing` Module
 

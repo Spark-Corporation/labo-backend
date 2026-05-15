@@ -13,6 +13,7 @@ import org.sparkcorporation.lims.order.api.LabFileSummary;
 import org.sparkcorporation.lims.patient.api.PatientId;
 import org.sparkcorporation.lims.patient.api.PatientSummary;
 import org.sparkcorporation.lims.result.infra.DossierRowProjection;
+import org.sparkcorporation.lims.result.infra.OverdueDossierRowProjection;
 import org.sparkcorporation.lims.shared.domain.Civility;
 import org.sparkcorporation.lims.shared.domain.Sex;
 import org.sparkcorporation.lims.shared.id.Ulid;
@@ -56,6 +57,70 @@ class DossierMapperTest {
         assertThat(row.patientLabCode()).isNull();
         assertThat(row.patientLastName()).isNull();
         assertThat(row.patientInsured()).isFalse();
+    }
+
+    @Test
+    void toOverdueRow_composes_inner_dossier_row_and_overdue_info() {
+        OverdueDossierRowProjection projection = stubOverdueProjection("PEN");
+        LabFileSummary labFile = stubLabFile();
+        PatientSummary patient = stubPatient(true);
+
+        OverdueDossierRow row = DossierMapper.toOverdueRow(projection, labFile, patient);
+
+        assertThat(row.dossier().labFileId()).isEqualTo(projection.getLabFileId());
+        assertThat(row.dossier().registrationNumber()).isEqualTo("LF-260511-0001");
+        assertThat(row.dossier().patientInsured()).isTrue();
+        assertThat(row.dossier().marker()).isEqualTo(DossierMarker.PEN);
+
+        assertThat(row.overdue().analysisCode()).isEqualTo("GLY");
+        assertThat(row.overdue().analysisName()).isEqualTo("Glycemie a jeun");
+        assertThat(row.overdue().deadline()).isEqualTo(Instant.parse("2026-05-13T08:14:00Z"));
+        assertThat(row.overdue().hoursPastDeadline()).isEqualTo(47);
+        assertThat(row.overdue().overdueAnalysisCount()).isEqualTo(3);
+    }
+
+    private OverdueDossierRowProjection stubOverdueProjection(String marker) {
+        return new OverdueDossierRowProjection() {
+            @Override
+            public String getLabFileId() {
+                return "01HZX000000000000000000000";
+            }
+
+            @Override
+            public String getPatientId() {
+                return "01HZY000000000000000000000";
+            }
+
+            @Override
+            public String getMarker() {
+                return marker;
+            }
+
+            @Override
+            public String getAnalysisCode() {
+                return "GLY";
+            }
+
+            @Override
+            public String getAnalysisName() {
+                return "Glycemie a jeun";
+            }
+
+            @Override
+            public Instant getDeadline() {
+                return Instant.parse("2026-05-13T08:14:00Z");
+            }
+
+            @Override
+            public int getHoursPastDeadline() {
+                return 47;
+            }
+
+            @Override
+            public int getOverdueAnalysisCount() {
+                return 3;
+            }
+        };
     }
 
     private DossierRowProjection stubProjection(String marker) {

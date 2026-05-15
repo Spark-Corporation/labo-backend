@@ -5,6 +5,7 @@ import org.jspecify.annotations.Nullable;
 import org.sparkcorporation.lims.order.api.LabFileSummary;
 import org.sparkcorporation.lims.patient.api.PatientSummary;
 import org.sparkcorporation.lims.result.infra.DossierRowProjection;
+import org.sparkcorporation.lims.result.infra.OverdueDossierRowProjection;
 
 /**
  * Static, stateless mapper from the native-query projection + hydrated cross-module summaries to
@@ -31,5 +32,37 @@ public final class DossierMapper {
                 patient == null ? null : patient.firstNames(),
                 patient != null && patient.insurance() != null,
                 DossierMarker.valueOf(projection.getMarker()));
+    }
+
+    public static OverdueDossierRow toOverdueRow(
+            OverdueDossierRowProjection projection,
+            @Nullable LabFileSummary labFile,
+            @Nullable PatientSummary patient) {
+        DossierRowProjection adapter =
+                new DossierRowProjection() {
+                    @Override
+                    public String getLabFileId() {
+                        return projection.getLabFileId();
+                    }
+
+                    @Override
+                    public String getPatientId() {
+                        return projection.getPatientId();
+                    }
+
+                    @Override
+                    public String getMarker() {
+                        return projection.getMarker();
+                    }
+                };
+        var inner = toRow(adapter, labFile, patient);
+        var overdue =
+                new OverdueDossierRow.OverdueInfo(
+                        projection.getAnalysisCode(),
+                        projection.getAnalysisName(),
+                        projection.getDeadline(),
+                        projection.getHoursPastDeadline(),
+                        projection.getOverdueAnalysisCount());
+        return new OverdueDossierRow(inner, overdue);
     }
 }

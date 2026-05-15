@@ -7,6 +7,7 @@ import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Tag;
@@ -184,10 +185,11 @@ class AccountingControllerIT extends IntegrationTestBase {
         return id;
     }
 
+    private static final AtomicInteger INVOICE_SEQ = new AtomicInteger();
+
     private void seedInvoice(String labFileId, String patientId, String totalAmount, Instant at) {
         var id = Ulid.generate();
-        // Use a per-test unique invoice number — last 6 chars of ULID are random enough.
-        var number = "ACC26-0513-" + id.substring(20, 26).replaceAll("[^0-9]", "1");
+        var number = "ACC26-0513-" + String.format("%06d", INVOICE_SEQ.incrementAndGet());
         jdbc.update(
                 "INSERT INTO invoices (id, number, lab_file_id, issued_at, customer_kind,"
                         + " customer_id, customer_name_snapshot, home_collection_fee_snapshot,"
