@@ -6,7 +6,8 @@
             "shared::id",
             "shared::money",
             "patient::api",
-            "catalog::api"
+            "catalog::api",
+            "iam::api"
         })
 package org.sparkcorporation.lims.order;
 

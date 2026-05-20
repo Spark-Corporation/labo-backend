@@ -1,6 +1,8 @@
 package org.sparkcorporation.lims.iam.infra;
 
+import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import lombok.RequiredArgsConstructor;
@@ -36,6 +38,17 @@ public class DefaultUserApi implements UserApi {
     @Override
     public boolean existsById(UserId id) {
         return repo.existsById(id.value());
+    }
+
+    @Override
+    public Map<UserId, UserSummary> findAllByIds(Set<UserId> ids) {
+        if (ids.isEmpty()) {
+            return Map.of();
+        }
+        var rawIds = ids.stream().map(UserId::value).collect(Collectors.toUnmodifiableSet());
+        return repo.findAllByIdIn(rawIds).stream()
+                .map(DefaultUserApi::toSummary)
+                .collect(Collectors.toUnmodifiableMap(UserSummary::id, s -> s));
     }
 
     private static UserSummary toSummary(User u) {

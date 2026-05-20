@@ -1,0 +1,53 @@
+# TODO: author rollback block — domain semantics required (CLAUDE.md rule)
+databaseChangeLog:
+  - changeSet:
+      id: 202605180915-create-cashbox-journal-entries
+      author: samuel
+      changes:
+        - createTable:
+            tableName: cashbox_journal_entries
+            columns:
+              - column: { name: id, type: "varchar(26)", constraints: { primaryKey: true, nullable: false } }
+              - column: { name: operation_kind, type: "varchar(32)", constraints: { nullable: false } }
+              - column: { name: source_id, type: "varchar(32)", constraints: { nullable: false } }
+              - column: { name: cash_register_id, type: "varchar(26)", constraints: { nullable: false } }
+              - column: { name: user_id, type: "varchar(26)", constraints: { nullable: false } }
+              - column: { name: lab_file_id, type: "varchar(26)" }
+              - column: { name: patient_id, type: "varchar(26)" }
+              - column: { name: payment_mode, type: "varchar(16)" }
+              - column: { name: amount, type: "numeric(18,2)", constraints: { nullable: false } }
+              - column: { name: occurred_at, type: TIMESTAMP WITH TIME ZONE, constraints: { nullable: false } }
+        - addUniqueConstraint:
+            constraintName: uq_cashbox_journal_entries_source
+            tableName: cashbox_journal_entries
+            columnNames: operation_kind, source_id
+        - createIndex:
+            indexName: idx_cashbox_journal_register_occurred
+            tableName: cashbox_journal_entries
+            columns:
+              - column: { name: cash_register_id }
+              - column: { name: occurred_at }
+        - createIndex:
+            indexName: idx_cashbox_journal_lab_file_occurred
+            tableName: cashbox_journal_entries
+            columns:
+              - column: { name: lab_file_id }
+              - column: { name: occurred_at }
+              - column: { name: id }
+        - createIndex:
+            indexName: idx_cashbox_journal_occurred
+            tableName: cashbox_journal_entries
+            columns:
+              - column: { name: occurred_at }
+        - sql:
+            sql: |
+              ALTER TABLE cashbox_journal_entries
+                ADD CONSTRAINT cashbox_journal_entries_kind_chk
+                  CHECK (operation_kind IN ('PAYMENT','EXPENSE','HOME_COLLECTION_FEE'));
+              ALTER TABLE cashbox_journal_entries
+                ADD CONSTRAINT cashbox_journal_entries_mode_chk
+                  CHECK (payment_mode IS NULL OR payment_mode IN
+                         ('CASH','CHEQUE','CARD_TPE','FLOOZ','MIXX_BY_YAS'));
+              ALTER TABLE cashbox_journal_entries
+                ADD CONSTRAINT cashbox_journal_entries_mode_required_chk
+                  CHECK (operation_kind = 'HOME_COLLECTION_FEE' OR payment_mode IS NOT NULL);

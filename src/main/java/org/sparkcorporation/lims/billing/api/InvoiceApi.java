@@ -1,7 +1,9 @@
 package org.sparkcorporation.lims.billing.api;
 
 import java.time.Instant;
+import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 
 import org.jspecify.annotations.Nullable;
 import org.springframework.data.domain.Page;
@@ -22,6 +24,13 @@ public interface InvoiceApi {
     Optional<InvoiceSummary> findByLabFileId(LabFileId labFileId);
 
     Optional<InvoiceSummary> findByNumber(InvoiceNumber number);
+
+    /**
+     * Returns a map keyed by {@link LabFileId}, containing only the entries for which an invoice
+     * exists. Lab files without an invoice are absent from the result — no {@code null} values are
+     * placed. Used by cashbox journal-row enrichment (1.7.a).
+     */
+    Map<LabFileId, InvoiceSummary> findAllByLabFileIds(Set<LabFileId> labFileIds);
 
     /**
      * Search projection per spec §7.2 {@code GET /invoices}. All filters are optional; nulls match

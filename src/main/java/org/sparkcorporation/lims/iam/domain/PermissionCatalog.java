@@ -3,7 +3,7 @@ package org.sparkcorporation.lims.iam.domain;
 import java.util.Set;
 
 /**
- * Tech doc §9.5 permission catalog. Static set of 34 strings. Used as the source of truth for
+ * Tech doc §9.5 permission catalog. Static set of 43 strings. Used as the source of truth for
  * {@code @RequiresPermission(...)} keys; an integrity test at startup verifies this set matches the
  * DB-seeded {@code permissions.name} column set.
  *
@@ -13,6 +13,11 @@ import java.util.Set;
  * <p>{@code accounting.read} was added in 1.6.a chunk 8 for the new {@code /api/v1/accounting/*}
  * read-side surface (CDC §VIII recap / by-mode / outstanding); seeded via {@code
  * 202605120850-seed-accounting-permission}.
+ *
+ * <p>The 9 {@code cashbox.*} permissions (expense-category.{read,manage}, expense.{read,record},
+ * home-collection.{read,record}, journal.read, session.{close,reopen}) were added in 1.7.a chunk 2
+ * for the new {@code /api/v1/cashbox/*} surface; seeded via {@code
+ * 202605180930-seed-cashbox-permissions}.
  */
 public final class PermissionCatalog {
 
@@ -51,7 +56,16 @@ public final class PermissionCatalog {
                     "users.manage",
                     "stats.read",
                     "audit.read",
-                    "accounting.read");
+                    "accounting.read",
+                    "cashbox.expense-category.read",
+                    "cashbox.expense-category.manage",
+                    "cashbox.expense.read",
+                    "cashbox.expense.record",
+                    "cashbox.home-collection.read",
+                    "cashbox.home-collection.record",
+                    "cashbox.journal.read",
+                    "cashbox.session.close",
+                    "cashbox.session.reopen");
 
     private PermissionCatalog() {}
 }

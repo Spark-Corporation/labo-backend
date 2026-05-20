@@ -2,6 +2,7 @@ package org.sparkcorporation.lims.billing.infra;
 
 import java.time.Instant;
 import java.util.Collection;
+import java.util.List;
 import java.util.Optional;
 
 import org.jspecify.annotations.Nullable;
@@ -29,6 +30,8 @@ public interface InvoiceRepository extends JpaRepository<Invoice, String> {
     Optional<Invoice> findByLabFileId(String labFileId);
 
     Optional<Invoice> findByNumber(String number);
+
+    List<Invoice> findAllByLabFileIdIn(Collection<String> labFileIds);
 
     @Query(
             """

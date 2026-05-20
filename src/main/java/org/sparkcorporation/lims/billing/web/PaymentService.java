@@ -88,7 +88,9 @@ public class PaymentService {
                         new LabFileId(saved.getLabFileId()),
                         saved.getMode(),
                         saved.getAmount(),
-                        saved.getRecordedAt()));
+                        saved.getRecordedAt(),
+                        new CashRegisterId(saved.getCashRegisterId()),
+                        new UserId(saved.getRecordedByUserId())));
         return mapper.toResponse(saved);
     }
 

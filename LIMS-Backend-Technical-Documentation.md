@@ -76,7 +76,9 @@ The CDC (`CAHIER DES CHARGES LOGICIEL DE GESTION DU LABORATOIRE.docx.pdf`) is th
 | `catalog` (configurations) | §VII Gestion des disciplines; Onglet Configurations (matrices, disciplines, récap, bilan société, préleveurs, antibiotiques, spécialités prescripteurs, analyses simples / groupées) |
 | `result` (entry, validation, antibiogram) | §IV Résultats par Patient, §V Recherche par paramètre, §X Validation biologique |
 | `billing` (invoices, payments, cash-registers) | §I, §II Facturation; §VIII Comptes et caisses (read-only); Gestion comptable §1 Factures. Insurance + Partner reference dictionaries live in `catalog`. Society panels live in `catalog` as `AnalysisKind.SOCIETY_PANEL`. |
-| `cashbox` (registers, journal, expenses, home-collection fees) | §VIII Comptes et caisses; Gestion comptable §2 Dépenses, §3 Caisses, §4 Journal des caisses, §5 Frais de Prélèvement à domicile |
+| `cashbox` (registers, journal, expenses, home-collection fees) (1.7.a) | §VIII Comptes et caisses; Gestion comptable §2 Dépenses, §3 Caisses, §4 Journal des caisses, §5 Frais de Prélèvement à domicile |
+
+> Note on the home-collection fee overlap: Gestion comptable §5 places the recording action inside cashbox (`HomeCollectionFeeRecord` aggregate, journal row, audit trail), while §I/§II keep the *displayed* fee on the lab file and billing's `BillingSnapshot.homeCollectionFee` reads it from there at invoice issuance. Cashbox owns the act of recording; billing owns the snapshot. The two are kept in sync by the cashbox-side single-transaction write (`HomeCollectionFeeService` → `LabFileWriteApi.setHomeCollectionFee` + journal row), so an invoice issued after the fee is recorded always sees the same number.
 | `delivery` (print / mail / online) | §IV mode de diffusion (Mail, en ligne) |
 | `stats` | Onglet Statistiques |
 | `notification` (Mail, WhatsApp) | §III Devis (envoi par Mail / WhatsApp), §IV Résultats (envoi par Mail) |
@@ -642,7 +644,24 @@ Example: `LTA24-1710-005` = Togo lab, 17 Oct 2024 (day 17, month 10), 5th invoic
 | `GET/POST/PUT/DELETE` `/analyses`, `/analyses/grouped`, `/disciplines`, `/matrices`, `/techniques`, `/recipients`, `/antibiotics`, `/prescribers`, `/insurances`, `/partners`, `/society-panels`, `/collectors` |
 
 #### Billing & Cashbox
-| `POST` `/invoices` (auto from a lab file) · `POST` `/payments` · `POST` `/expenses` · `GET` `/cash-registers/{id}/journal?date=...` |
+| `POST` `/invoices` (auto from a lab file) · `POST` `/payments` |
+
+**Cashbox (sub-project 1.7.a, 12 endpoints under `/api/v1/cashbox/`).**
+
+| Method | Path | Notes |
+|---|---|---|
+| `GET` | `/api/v1/cashbox/expense-categories` | list (filter by `active`) |
+| `POST` | `/api/v1/cashbox/expense-categories` | create (LAB_MANAGER) |
+| `PATCH` | `/api/v1/cashbox/expense-categories/{id}` | rename / reactivate |
+| `DELETE` | `/api/v1/cashbox/expense-categories/{id}` | soft-delete (sets `active=false`) |
+| `GET` | `/api/v1/cashbox/expenses` | filtered list |
+| `POST` | `/api/v1/cashbox/expenses` | record an expense (writes journal row) |
+| `GET` | `/api/v1/cashbox/home-collection-fees` | filtered list |
+| `POST` | `/api/v1/cashbox/home-collection-fees` | record a fee (writes journal row + syncs `lab_files.home_collection_fee`) |
+| `GET` | `/api/v1/cashbox/journal` | §4 Journal des caisses; rows with `paid_so_far` running total via CTE window function |
+| `GET` | `/api/v1/cashbox/sessions/{cashRegisterId}/{sessionDate}` | read a cash-session (per-mode totals recomputed from journal) |
+| `POST` | `/api/v1/cashbox/sessions/{cashRegisterId}/{sessionDate}:close` | soft close-out |
+| `POST` | `/api/v1/cashbox/sessions/{cashRegisterId}/{sessionDate}:reopen` | LAB_MANAGER reopen with reason |
 
 #### Statistics
 | `GET` `/stats?from=...&to=...&groupBy=discipline,prescriber&filters=...` |
@@ -675,6 +694,8 @@ Every controller is annotated; the schema is generated at `/v3/api-docs` and ren
 **Sample collection.** Three sample sub-types (`IN_LAB`, `HOME`, `EXTERNAL_RECEIVED`) modeled with a sealed hierarchy persisted as single-table inheritance with a discriminator. Validation rules differ per type (a home collection needs a distance and time window; an external sample needs a receiving operator).
 
 **Urgency flag** is a boolean on the file, but the module also raises `LabFileMarkedUrgent` so the dashboard can highlight it without polling.
+
+**Write-side cross-module port (sub-project 1.7.a).** `order::api.LabFileWriteApi` is a new write-side companion to the read-only `LabFileApi`. It exposes a single method, `setHomeCollectionFee(LabFileId, BigDecimal, UserId)`, intended for use by the cashbox module when recording a home-collection fee. The implementation wraps `LabFile.update(...)` inside the caller's transaction, so the lab-file row and the corresponding `cashbox_journal_entries` row commit together. Only `OPEN` lab files accept fee updates (otherwise `LabFileNotEditableException`). The `recordedBy` parameter is accepted now for future audit-trail use; until the audit module lands, only `updated_at` is persisted. The read-side `LabFileApi` stays strictly read-only.
 
 ### 8.4 `result` Module
 **Two-step validation.** A result becomes available for biological validation only after technical validation. The API enforces ordering with state-machine guards. The biological validation event triggers invoice finalization, label printing, and result delivery.
@@ -726,8 +747,30 @@ permission, no modulith dependency edge. Permission: `lab-file.read`.
 
 Insurance and partner reference dictionaries live in `catalog` (`InsuranceApi`, `PartnerApi`); billing depends on them through the published API only.
 
+**Cross-module amendments landed in 1.7.a.**
+- `billing::api.PaymentRecorded` payload widened with `cashRegisterId` and `recordedBy` so cashbox's idempotent `@ApplicationModuleListener` can write a complete journal row from the event alone, without an extra round-trip to `PaymentApi`.
+- `billing::api.InvoiceApi.findAllByLabFileIds(Set<LabFileId>) : Map<LabFileId, InvoiceSummary>` added — a batched read used by cashbox's journal-row enrichment (§4 Journal des caisses) to attach invoice context to each row in a single round-trip.
+
 ### 8.6 `cashbox` Module
-A cash register belongs to one or more receptionist accounts. Each payment posts a journal entry; an end-of-day close-out aggregates totals per payment mode (cash, cheque, TPE, Flooz, Mixx by Yas). Expenses post into the same journal with a negative sign and require a justification scan.
+
+**Sub-project 1.7.a** delivers the full cashbox surface (CDC §VIII + Gestion comptable §2–§5).
+
+**Aggregates (5).**
+- `ExpenseCategory` — soft-deletable reference data (`active` flag), unique-by-name. CRUD by `LAB_MANAGER`.
+- `Expense` — recorded outflow with `category_id`, `amount`, `recorded_by`, `recorded_at`, optional `scan_uri`, optional justification text. Posts a journal row in the same transaction.
+- `HomeCollectionFeeRecord` — per-lab-file home-collection fee. Posts a journal row AND updates `lab_files.home_collection_fee` (via `order::api.LabFileWriteApi`) in the same JPA transaction so billing's `BillingSnapshot.homeCollectionFee` and the cashbox journal stay consistent.
+- `JournalEntry` — denormalized row in `cashbox_journal_entries`. The single source of truth for §4 Journal des caisses: payments (sign +), expenses (sign −), home-collection fees (sign +). One row per source event.
+- `CashSession` — composite primary key `(cash_register_id, session_date)`. Soft close-out (`OPEN → CLOSED`), `LAB_MANAGER` may reopen with a typed reason (`CLOSED → OPEN` carries `reopened_at`, `reopened_by`, `reopen_reason`). Per-mode totals (CASH, CHEQUE, TPE, FLOOZ, MIXX_BY_YAS) are recomputed from the journal at close time, not denormalized eagerly.
+
+**Single journal table.** `cashbox_journal_entries` is the source of truth for §4. It is written synchronously by cashbox's own operations (`Expense`, `HomeCollectionFeeRecord`) and asynchronously by an `@ApplicationModuleListener` on `billing.PaymentRecorded` (AFTER_COMMIT, REQUIRES_NEW). Idempotency is enforced by a UNIQUE constraint on `(operation_kind, source_id)`; the listener uses `ON CONFLICT DO NOTHING` so duplicate event delivery is safe.
+
+**`paid_so_far` via window function.** The read endpoint `GET /api/v1/cashbox/journal` returns, for each journal row, a running `paid_so_far` per lab file computed at read time via a CTE-wrapped `SUM(...) OVER (PARTITION BY lab_file_id ORDER BY occurred_at, id)`. No denormalization, no replay-time recompute risk.
+
+**Domain events emitted (4).** `ExpenseRecorded`, `HomeCollectionFeeRecorded`, `CashSessionClosed`, `CashSessionReopened`. The first two are consumed internally to write journal rows in the same transaction. The session events are observable by `stats` (sub-project 1.9) without coupling.
+
+**Scan URIs.** `Expense.scan_uri` and `HomeCollectionFeeRecord.scan_uri` are nullable. Per CDC §2 the recording action is independent from the scan upload, which is handled by the `attachment` module (deferred to a later sub-project). When `attachment` lands the column starts being populated; until then it stays null without breaking the recording path.
+
+**Permissions.** 9 new permissions catalogued in §9.5: read/manage on expense categories, read/record on expenses and home-collection fees, read on journal, close/reopen on sessions.
 
 ### 8.7 `delivery` Module
 Three channels: print, email, online portal.
@@ -809,6 +852,15 @@ The permission strings used in `@RequiresPermission(…)` (from `secured-x-rbac`
 | `users.manage` | implied (admin labo) | LAB_MANAGER, ADMIN |
 | `stats.read` | Onglet Statistiques | ACCOUNTANT, BIOLOGIST, LAB_MANAGER |
 | `audit.read` | implied | ADMIN |
+| `cashbox.expense-category.read` (1.7.a) | Gestion comptable §2 | RECEPTIONIST, LAB_MANAGER, BIOLOGIST, ACCOUNTANT, CASHIER |
+| `cashbox.expense-category.manage` (1.7.a) | Gestion comptable §2 | LAB_MANAGER |
+| `cashbox.expense.read` (1.7.a) | Gestion comptable §2, §4 | RECEPTIONIST, LAB_MANAGER, ACCOUNTANT, CASHIER |
+| `cashbox.expense.record` (1.7.a) | Gestion comptable §2 | RECEPTIONIST, LAB_MANAGER, CASHIER |
+| `cashbox.home-collection.read` (1.7.a) | Gestion comptable §5 | RECEPTIONIST, LAB_MANAGER, ACCOUNTANT, CASHIER |
+| `cashbox.home-collection.record` (1.7.a) | Gestion comptable §5 | RECEPTIONIST, LAB_MANAGER, CASHIER |
+| `cashbox.journal.read` (1.7.a) | Gestion comptable §4 | RECEPTIONIST, LAB_MANAGER, ACCOUNTANT, CASHIER |
+| `cashbox.session.close` (1.7.a) | §VIII, Gestion comptable §3 | RECEPTIONIST, LAB_MANAGER, CASHIER |
+| `cashbox.session.reopen` (1.7.a) | §VIII, Gestion comptable §3 | LAB_MANAGER |
 
 Permissions outside this catalog are not seeded; adding one requires a CDC amendment.
 

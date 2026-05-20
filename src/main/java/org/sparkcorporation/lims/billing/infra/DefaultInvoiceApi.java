@@ -2,7 +2,10 @@ package org.sparkcorporation.lims.billing.infra;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 import lombok.RequiredArgsConstructor;
 import org.jspecify.annotations.Nullable;
@@ -48,6 +51,18 @@ public class DefaultInvoiceApi implements InvoiceApi {
     @Override
     public Optional<InvoiceSummary> findByNumber(InvoiceNumber number) {
         return repo.findByNumber(number.value()).map(DefaultInvoiceApi::toSummary);
+    }
+
+    @Override
+    public Map<LabFileId, InvoiceSummary> findAllByLabFileIds(Set<LabFileId> labFileIds) {
+        if (labFileIds.isEmpty()) {
+            return Map.of();
+        }
+        var rawIds =
+                labFileIds.stream().map(LabFileId::value).collect(Collectors.toUnmodifiableSet());
+        return repo.findAllByLabFileIdIn(rawIds).stream()
+                .map(DefaultInvoiceApi::toSummary)
+                .collect(Collectors.toUnmodifiableMap(InvoiceSummary::labFileId, s -> s));
     }
 
     @Override

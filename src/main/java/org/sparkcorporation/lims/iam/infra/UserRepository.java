@@ -1,5 +1,7 @@
 package org.sparkcorporation.lims.iam.infra;
 
+import java.util.Collection;
+import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 
@@ -16,6 +18,8 @@ public interface UserRepository extends JpaRepository<User, String> {
     Optional<User> findByEmailIgnoreCase(String email);
 
     boolean existsByEmailIgnoreCase(String email);
+
+    List<User> findAllByIdIn(Collection<String> ids);
 
     @Query(
             """

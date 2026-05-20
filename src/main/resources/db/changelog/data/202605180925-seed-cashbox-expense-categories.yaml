@@ -1,0 +1,72 @@
+# Seed expense-category test fixtures used by cashbox ITs.
+#
+# ULID assignments (captured from UlidGenerator throwaway helper, deleted before commit):
+#   UTILITIES   = 01KRXY4CP5B3C4VHZ47NJ0Z0XJ
+#   SUPPLIES    = 01KRXY4CP5PAKJS1WDTNYHSXT3
+#   MAINTENANCE = 01KRXY4CP50ZP9EQG2687P2BTE
+#   TRANSPORT   = 01KRXY4CP57GABS60YDPZ5A2GT
+#   OTHER       = 01KRXY4CP593JZ55M7BJNP345F
+#
+# TODO: author rollback block — domain semantics required (CLAUDE.md rule)
+databaseChangeLog:
+  - changeSet:
+      id: 202605180925-seed-cashbox-expense-categories
+      author: samuel
+      contextFilter: test
+      labels: phase-1-7-a,test-fixture
+      preConditions:
+        - onFail: MARK_RAN
+        - sqlCheck:
+            expectedResult: 0
+            sql: SELECT COUNT(*) FROM cashbox_expense_categories
+      changes:
+        - insert:
+            tableName: cashbox_expense_categories
+            columns:
+              - column: { name: id, value: "01KRXY4CP5B3C4VHZ47NJ0Z0XJ" }
+              - column: { name: code, value: "UTILITIES" }
+              - column: { name: label, value: "Utilities (electricity, water, internet)" }
+              - column: { name: active, valueBoolean: true }
+              - column: { name: created_at, valueComputed: "NOW()" }
+              - column: { name: updated_at, valueComputed: "NOW()" }
+              - column: { name: version, valueNumeric: 0 }
+        - insert:
+            tableName: cashbox_expense_categories
+            columns:
+              - column: { name: id, value: "01KRXY4CP5PAKJS1WDTNYHSXT3" }
+              - column: { name: code, value: "SUPPLIES" }
+              - column: { name: label, value: "Consumables and lab supplies" }
+              - column: { name: active, valueBoolean: true }
+              - column: { name: created_at, valueComputed: "NOW()" }
+              - column: { name: updated_at, valueComputed: "NOW()" }
+              - column: { name: version, valueNumeric: 0 }
+        - insert:
+            tableName: cashbox_expense_categories
+            columns:
+              - column: { name: id, value: "01KRXY4CP50ZP9EQG2687P2BTE" }
+              - column: { name: code, value: "MAINTENANCE" }
+              - column: { name: label, value: "Equipment maintenance and repairs" }
+              - column: { name: active, valueBoolean: true }
+              - column: { name: created_at, valueComputed: "NOW()" }
+              - column: { name: updated_at, valueComputed: "NOW()" }
+              - column: { name: version, valueNumeric: 0 }
+        - insert:
+            tableName: cashbox_expense_categories
+            columns:
+              - column: { name: id, value: "01KRXY4CP57GABS60YDPZ5A2GT" }
+              - column: { name: code, value: "TRANSPORT" }
+              - column: { name: label, value: "Transport and courier costs" }
+              - column: { name: active, valueBoolean: true }
+              - column: { name: created_at, valueComputed: "NOW()" }
+              - column: { name: updated_at, valueComputed: "NOW()" }
+              - column: { name: version, valueNumeric: 0 }
+        - insert:
+            tableName: cashbox_expense_categories
+            columns:
+              - column: { name: id, value: "01KRXY4CP593JZ55M7BJNP345F" }
+              - column: { name: code, value: "OTHER" }
+              - column: { name: label, value: "Miscellaneous expenses" }
+              - column: { name: active, valueBoolean: true }
+              - column: { name: created_at, valueComputed: "NOW()" }
+              - column: { name: updated_at, valueComputed: "NOW()" }
+              - column: { name: version, valueNumeric: 0 }
