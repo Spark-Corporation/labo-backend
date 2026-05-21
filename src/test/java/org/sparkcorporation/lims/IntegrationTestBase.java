@@ -51,6 +51,14 @@ public abstract class IntegrationTestBase {
                     .withDatabaseName("lims")
                     .withUsername("lims")
                     .withPassword("lims")
+                    // PG default max_connections=100 is too low for the IT suite. Each
+                    // @SpringBootTest spins up its own HikariPool (default
+                    // maximum-pool-size=10) and contexts accumulate across the run; once we
+                    // crossed ~160 ITs we started seeing intermittent
+                    // "FATAL: sorry, too many clients already" on context load. Bumping the
+                    // ceiling buys headroom without changing application behaviour — this is
+                    // a test-infra knob only.
+                    .withCommand("postgres", "-c", "max_connections=500")
                     .withInitScript("init-schemas.sql");
 
     static {

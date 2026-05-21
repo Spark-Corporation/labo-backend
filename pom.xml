@@ -36,6 +36,8 @@
     <!-- Override Spring Boot 4.0.6 BOM (42.7.10) — patches CVE-2026-42198
          (GHSA-98qh-xjc8-98pq, SCRAM PBKDF2 unbounded DoS, CVSS 7.5). -->
     <postgresql.version>42.7.11</postgresql.version>
+    <openhtmltopdf.version>1.0.10</openhtmltopdf.version>
+    <openpdf.version>2.0.3</openpdf.version>
 
     <jacoco.version>0.8.13</jacoco.version>
     <jacoco.coverage.line.minimum>0.80</jacoco.coverage.line.minimum>
@@ -51,6 +53,20 @@
 
     <nexus.releases.url>https://example.invalid/repository/maven-releases/</nexus.releases.url>
     <nexus.snapshots.url>https://example.invalid/repository/maven-snapshots/</nexus.snapshots.url>
+
+    <!-- Homelab Jenkins shared-pipeline config (read by vars/mavenAppPipeline.groovy). -->
+    <homelab.jenkins.timeoutMinutes>60</homelab.jenkins.timeoutMinutes>
+    <homelab.jenkins.buildGoals>clean verify</homelab.jenkins.buildGoals>
+    <homelab.jenkins.junitPattern>**/target/surefire-reports/*.xml,**/target/failsafe-reports/*.xml</homelab.jenkins.junitPattern>
+    <homelab.jenkins.mutation>true</homelab.jenkins.mutation>
+    <homelab.jenkins.nexusDeploy>true</homelab.jenkins.nexusDeploy>
+    <homelab.jenkins.releaseType>none</homelab.jenkins.releaseType>
+    <homelab.jenkins.imageBuildProfile>docker</homelab.jenkins.imageBuildProfile>
+    <homelab.jenkins.imagePushProfile>docker-deploy</homelab.jenkins.imagePushProfile>
+    <homelab.jenkins.dockerRegistry>registry.sparksam.dev</homelab.jenkins.dockerRegistry>
+    <homelab.jenkins.dockerImagePath>sparkcorporation/lims-backend</homelab.jenkins.dockerImagePath>
+    <homelab.jenkins.trivyScan>true</homelab.jenkins.trivyScan>
+    <homelab.jenkins.sonarFailOnQualityGate>true</homelab.jenkins.sonarFailOnQualityGate>
   </properties>
 
   <dependencyManagement>
@@ -164,6 +180,26 @@
       <artifactId>lombok</artifactId>
       <version>${lombok.version}</version>
       <scope>provided</scope>
+    </dependency>
+
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-thymeleaf</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>com.openhtmltopdf</groupId>
+      <artifactId>openhtmltopdf-pdfbox</artifactId>
+      <version>${openhtmltopdf.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>com.openhtmltopdf</groupId>
+      <artifactId>openhtmltopdf-slf4j</artifactId>
+      <version>${openhtmltopdf.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>com.github.librepdf</groupId>
+      <artifactId>openpdf</artifactId>
+      <version>${openpdf.version}</version>
     </dependency>
 
     <dependency>

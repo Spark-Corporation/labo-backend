@@ -84,6 +84,7 @@ The CDC (`CAHIER DES CHARGES LOGICIEL DE GESTION DU LABORATOIRE.docx.pdf`) is th
 | `notification` (Mail, WhatsApp) | §III Devis (envoi par Mail / WhatsApp), §IV Résultats (envoi par Mail) |
 | `attachment` (scan direct) | §IV "Joindre des fichiers par scan direct (détection des scanners dans le réseau)" |
 | Quotes (`quote`) | §III Devis |
+| `pdf` (shared HTML → PDF rendering, 1.5.c) | §IV Impression; §X Édition compte-rendu |
 
 Anything not traceable to a CDC clause is **out of scope** and requires a CDC amendment before it can be added to this project.
 
@@ -130,7 +131,8 @@ Anything not traceable to a CDC clause is **out of scope** and requires a CDC am
 
 ### 2.7 Document & Reporting
 - **Apache POI** — XLSX export
-- **OpenPDF / iText 7 (community)** — PDF generation (invoices, lab reports)
+- **OpenHTMLtoPDF** — primary HTML → PDF engine (Thymeleaf templates → PDF bytes), used by the shared `pdf` module (§8.8) for the result compte-rendu and all subsequent consumer reports
+- **OpenPDF** — reserved for post-processing (PDF merge, password protection, watermarking) when the delivery module lands in 1.8
 - **docx4j** — DOCX export of result files
 - **JasperReports** (optional) — complex statistics reports
 
@@ -176,6 +178,7 @@ This style fits the scope of a single-lab deployment, simplifies operations, and
 | `stats` | Aggregated reporting and KPIs |
 | `notification` | Outbound mail / WhatsApp / SMS |
 | `attachment` | Scanned documents and lab-report file storage |
+| `pdf` (1.5.c) | Shared HTML → PDF rendering engine (sync + async), font registry, job table + cleanup scheduler; consumed by `result` (1.5.c), and later by `delivery` (1.8), cashbox receipts, quote PDFs, accounting exports |
 
 ### 3.4 Cross-cutting Adapters
 - `security` — provided by **secured-x** library: JWT (RS256) issuing, Argon2id password hashing (via `secured-x-provider-local`), per-user Ed25519 action signing chain, role/permission enforcement (via `secured-x-rbac`)
@@ -778,7 +781,21 @@ Three channels: print, email, online portal.
 - **Email** sends the PDF as an attachment, password-protected with a per-file random password delivered via SMS or WhatsApp.
 - **Online** publishes the PDF behind a per-file token. The patient logs in with the credentials issued at registration.
 
-### 8.8 `stats` Module
+### 8.8 `pdf` Module (1.5.c)
+Shared HTML → PDF rendering infrastructure. Consumers declare their reports as Spring beans implementing the typed SPI `PdfDocumentType<T>` — `templatePath()` points to a classpath Thymeleaf template, `buildModel(T)` builds the view model, `pageSize()` selects the page geometry. Implementers live under `<consumer>/infra/pdf/` (e.g. `result/infra/pdf/ResultReportPdfDocument`); the rule is enforced by `PdfModuleStructureTest`.
+
+Two pipelines share the same engine:
+
+- **Synchronous** — `PdfRenderingService.render(documentType, input)` returns a `RenderedPdf` (bytes + content type) inline. Used by the result compte-rendu controller (`GET /api/v1/results/{labFileId}/pdf`) for the 1–4 page case.
+- **Asynchronous** — `enqueue(documentType, input)` commits a `pdf_render_jobs` row in state `QUEUED`, serialises the model into `model_json`, publishes the in-process event `PdfRenderJobQueued` after commit, and returns the job id. Spring's `@Async` `AFTER_COMMIT` listener (`AsyncPdfWorker`) hydrates the model from JSON, renders, and updates the row to `SUCCEEDED` (bytes in BYTEA) or `FAILED` (reason). Clients poll `GET /api/v1/pdf-jobs/{id}`. The polling endpoint is gated by `pdf.read-own-jobs` (default-granted to roles holding `lab-file.read`).
+
+A JPA `pdf_render_jobs` table holds queued/inflight/terminal state with a 10 MB CHECK on the bytes column. A scheduled `PdfRenderJobCleanupScheduler` runs hourly: it deletes terminal jobs older than 1 h (TTL) and re-flags QUEUED rows older than 1 h to `FAILED` with reason `worker_timeout` (orphan reaper — handles the executor-saturation case described in §12).
+
+The engine uses OpenHTMLtoPDF with Thymeleaf 3 for templating, and a bundled DejaVu Sans font family registered at startup (`PdfFontRegistry`) for consistent rendering of Togolese/Beninese names that include diacritics.
+
+See `docs/superpowers/specs/2026-05-20-pdf-renderer-design.md` for the full design.
+
+### 8.9 `stats` Module
 Heavy aggregates are precomputed nightly into materialized views (`mv_daily_files`, `mv_results_by_discipline`). Live filtering on top stays fast. Filters supported match the spec (prescribers, disciplines, analyses, normal/abnormal, antibiograms, insurances, partners, new/old patients, sex, age groups).
 
 ---
@@ -861,6 +878,7 @@ The permission strings used in `@RequiresPermission(…)` (from `secured-x-rbac`
 | `cashbox.journal.read` (1.7.a) | Gestion comptable §4 | RECEPTIONIST, LAB_MANAGER, ACCOUNTANT, CASHIER |
 | `cashbox.session.close` (1.7.a) | §VIII, Gestion comptable §3 | RECEPTIONIST, LAB_MANAGER, CASHIER |
 | `cashbox.session.reopen` (1.7.a) | §VIII, Gestion comptable §3 | LAB_MANAGER |
+| `pdf.read-own-jobs` (1.5.c) | §IV Impression, §X Édition compte-rendu — read your own PDF render jobs (poll `/pdf-jobs/{id}`) | Default-granted to roles holding `lab-file.read`; widens per consumer in follow-on PRs |
 
 Permissions outside this catalog are not seeded; adding one requires a CDC amendment.
 
@@ -904,8 +922,7 @@ User-facing free-text (clinical notes, comments, descriptions) goes through `Mes
 - Scans uploaded via multipart; max size 25 MB, type-checked by magic bytes (Apache Tika)
 
 ### 11.2 PDF Reports
-- Templates live in `templates/reports/*.html` and are rendered with **Thymeleaf** then converted to PDF with **OpenHTMLtoPDF**
-- A header layout, a centered patient block, the result table with out-of-range bolding, footnotes, biologist signature, and a barcode for the daily ID
+Reports are HTML files in `templates/<consumer-module>/*.html`, rendered by Thymeleaf and converted to PDF by OpenHTMLtoPDF. The shared engine lives in the `pdf` module (§8.8); each consumer module declares its document type as a Spring bean implementing `PdfDocumentType<T>`. Synchronous calls return the bytes inline (used today by the result CR). For reports expected to exceed 5 pages, the async pipeline serialises the model into `pdf_render_jobs.model_json`, renders in a background worker, and exposes the result via `GET /pdf-jobs/{id}` for polling. Generated PDFs are short-lived (1 h TTL); long-term archival of CRs is `delivery`'s responsibility.
 
 ### 11.3 Labels
 Label printing is delegated to the frontend or a dedicated print service. The backend exposes `GET /lab-files/{id}/labels` which returns label records (patient name, dob, age, sex, daily ID barcode, first 5 analyses) — the printer driver renders them to 4 cm × 2.5 cm thermal labels.
@@ -1407,7 +1424,7 @@ pipeline {
 | Statistics queries | materialized views refreshed nightly |
 | File listing | cursor pagination (`WHERE created_at < :cursor ORDER BY created_at DESC LIMIT 50`) |
 | Concurrent daily-ID generation | per-discipline sequences + per-day counter table |
-| PDF generation latency | async job + polling endpoint for files >5 pages |
+| PDF generation latency (Shipped capability — 1.5.c) | Sync renders 1–4 page reports inline; async `pdf_render_jobs` pipeline available for larger reports. |
 | Long writes | batched JDBC for bulk imports |
 | Read scaling (phase 2) | PostgreSQL read replica for `stats` |
 

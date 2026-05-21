@@ -6,7 +6,9 @@
             "shared::id",
             "patient::api",
             "catalog::api",
-            "order::api"
+            "order::api",
+            "iam::api",
+            "pdf::api"
         })
 package org.sparkcorporation.lims.result;
 

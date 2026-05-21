@@ -18,6 +18,7 @@ import org.sparkcorporation.lims.result.domain.IllegalStateTransitionException;
 import org.sparkcorporation.lims.result.domain.ResultLineKindMismatchException;
 import org.sparkcorporation.lims.result.domain.ResultLockedException;
 import org.sparkcorporation.lims.result.domain.ResultNotDeletableInStateException;
+import org.sparkcorporation.lims.result.infra.pdf.ResultsNotValidatedException;
 
 /**
  * Result-specific RFC 7807 {@link ProblemDetail} mapper per spec §8.1. Lives outside {@code
@@ -77,6 +78,19 @@ public class ResultProblemDetailAdvice {
                         "Result not deletable in current state",
                         req);
         pd.setProperty("state", ex.state().name());
+        return pd;
+    }
+
+    @ExceptionHandler(ResultsNotValidatedException.class)
+    public ProblemDetail handleResultsNotValidated(
+            ResultsNotValidatedException ex, HttpServletRequest req) {
+        var pd =
+                problem409(
+                        ex.getMessage(),
+                        "/errors/result/results.not-validated",
+                        "Results not biologically validated",
+                        req);
+        pd.setProperty("labFileId", ex.labFileId());
         return pd;
     }
 

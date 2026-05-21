@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="fr" xmlns:th="http://www.thymeleaf.org">
+<head>
+  <meta charset="UTF-8"/>
+  <title>Compte-rendu d'analyses</title>
+  <style>
+    @page { size: A4 portrait; margin: 18mm 15mm 18mm 15mm; }
+    body  { font-family: 'DejaVu Sans', sans-serif; font-size: 10pt; color: #111; }
+    h1    { font-size: 14pt; margin: 0 0 4mm 0; }
+    h2    { font-size: 11pt; margin: 6mm 0 2mm 0; border-bottom: 0.4pt solid #999; padding-bottom: 1mm; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { text-align: left; vertical-align: top; padding: 1.5mm 2mm; border-bottom: 0.3pt solid #ddd; font-size: 9.5pt; }
+    th    { font-weight: bold; background: #f4f4f4; }
+    td.num { text-align: right; font-variant-numeric: tabular-nums; }
+    .out  { color: #b00020; font-weight: bold; }
+    .lab-header { display: flex; justify-content: space-between; margin-bottom: 5mm; }
+    .lab-name   { font-size: 13pt; font-weight: bold; }
+    .meta       { font-size: 9pt; color: #555; }
+    .footer { position: fixed; bottom: 0; left: 0; right: 0; font-size: 8pt; color: #888; text-align: center; }
+  </style>
+</head>
+<body>
+
+  <div class="lab-header">
+    <div>
+      <div class="lab-name" th:text="${labIdentity.name}">Laboratoire</div>
+      <div class="meta"     th:text="${labIdentity.address}">Adresse</div>
+      <div class="meta"     th:text="'Accréditation : ' + ${labIdentity.accreditationNumber}">Accréditation</div>
+    </div>
+    <div class="meta" style="text-align: right;">
+      <div th:text="'Dossier : ' + ${labFile.dailyId}">Dossier</div>
+      <div th:text="'ULID : ' + ${labFile.labFileId}">ULID</div>
+      <div th:text="'Validé le ' + ${biologicalValidatedAtDisplay}">Validé le</div>
+      <div th:text="'Biologiste : ' + ${biologicalValidatedBy.displayName}">Biologiste</div>
+    </div>
+  </div>
+
+  <h1>Compte-rendu d'analyses</h1>
+
+  <h2>Patient</h2>
+  <table>
+    <tr>
+      <th>Nom</th><td th:text="${patient.lastName} + ' ' + ${patient.firstName}">Nom</td>
+      <th>Sexe</th><td th:text="${patient.sex}">M/F</td>
+    </tr>
+    <tr>
+      <th>Date de naissance</th><td th:text="${patient.dateOfBirth}">jj/mm/aaaa</td>
+      <th>Âge</th><td th:text="${patient.ageDisplay}">Âge</td>
+    </tr>
+    <tr th:if="${requestingPractitioner != null}">
+      <th>Médecin prescripteur</th>
+      <td colspan="3" th:text="${requestingPractitioner != null ? requestingPractitioner.displayName : ''}">Dr.</td>
+    </tr>
+  </table>
+
+  <div th:each="group : ${groups}">
+    <h2 th:text="${group.paillasseName}">Paillasse</h2>
+    <table>
+      <thead>
+        <tr>
+          <th style="width:18%;">Code</th>
+          <th style="width:42%;">Analyse</th>
+          <th style="width:14%;">Résultats</th>
+          <th style="width:12%;">Unités</th>
+          <th style="width:14%;">Références</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr th:each="row : ${group.rows}" th:classappend="${row.outOfRange} ? 'out' : ''">
+          <td th:text="${row.code}">CODE</td>
+          <td th:text="${row.label}">Libellé</td>
+          <td class="num" th:text="${row.valueDisplay}">valeur</td>
+          <td th:text="${row.unit}">unité</td>
+          <td th:text="${row.referenceRange}">référence</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div th:if="${!#lists.isEmpty(antibiograms)}">
+    <h2>Antibiogramme</h2>
+    <div th:each="abx : ${antibiograms}">
+      <p><strong th:text="${abx.sampleLabel}">échantillon</strong></p>
+      <table>
+        <thead><tr><th>Antibiotique</th><th>Diamètre (mm)</th><th>Interprétation</th></tr></thead>
+        <tbody>
+          <tr th:each="r : ${abx.readings}">
+            <td th:text="${r.antibioticSigle}">SIGLE</td>
+            <td class="num" th:text="${r.diameterMm}">mm</td>
+            <td th:text="${r.interpretation}">S/I/R</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="footer">
+    <span th:text="'— ' + ${labIdentity.name} + ' — Directeur : ' + ${labIdentity.managerName} + ' —'">— pied —</span>
+  </div>
+
+</body>
+</html>

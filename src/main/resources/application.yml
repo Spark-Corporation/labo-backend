@@ -23,6 +23,9 @@ spring:
       # Liquibase (changeset 202605120825-create-event-publication-tables).
       jdbc-schema-initialization:
         enabled: false
+  thymeleaf:
+    # Programmatic-only via SpringTemplateEngine in pdf/infra; no MVC view resolution.
+    enabled: false
 
 management:
   endpoints:
