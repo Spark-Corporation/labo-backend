@@ -5,15 +5,15 @@ import java.time.Instant;
 import org.jspecify.annotations.Nullable;
 
 /**
- * Read-side view of a row in {@code pdf_render_jobs}. Returned by {@link
- * PdfRenderingService#findJob}. Byte payload is populated only when {@link #status} is {@link
- * PdfRenderJobStatus#DONE}.
+ * Read-side JSON response DTO for a row in {@code pdf_render_jobs}. Returned by the polling
+ * endpoint when {@code ?download=false} (the default). For the byte payload, the caller switches to
+ * {@code ?download=true} which streams {@code application/pdf} directly. {@link
+ * PdfRenderJobRecord#toView()} produces an instance from an internal record.
  */
 public record PdfRenderJobView(
         String id,
         String documentTypeId,
         PdfRenderJobStatus status,
-        @Nullable byte[] bytes,
         @Nullable String suggestedFilename,
         @Nullable String errorMessage,
         Instant requestedAt,

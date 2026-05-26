@@ -9,6 +9,7 @@ import java.util.Map;
 
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.text.PDFTextStripper;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -22,6 +23,8 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.web.client.RestClient;
 
 import org.sparkcorporation.lims.IntegrationTestBase;
+import org.sparkcorporation.lims.labsettings.api.LabSettingsApi;
+import org.sparkcorporation.lims.labsettings.api.LabSettingsUpdateRequest;
 import org.sparkcorporation.lims.order.api.LabFileId;
 import org.sparkcorporation.lims.result.api.ResultApi;
 import org.sparkcorporation.lims.result.api.ResultState;
@@ -44,6 +47,7 @@ class ResultCrPdfAcceptanceIT extends IntegrationTestBase {
 
     @Autowired private JdbcTemplate jdbc;
     @Autowired private ResultApi resultApi;
+    @Autowired private LabSettingsApi labSettingsApi;
 
     private RestClient admin;
     private RestClient technician;
@@ -54,6 +58,18 @@ class ResultCrPdfAcceptanceIT extends IntegrationTestBase {
         admin = restClientFor(port, "ADMIN");
         technician = restClientFor(port, "TECHNICIAN");
         biologist = restClientFor(port, "BIOLOGIST");
+    }
+
+    // Restore the Liquibase seed values so subsequent IT classes inherit a known state
+    // (mirrors LabSettingsControllerIT chunk-3 pattern).
+    @AfterEach
+    void restoreLabSettingsSeed() {
+        labSettingsApi.update(
+                new LabSettingsUpdateRequest(
+                        "Laboratoire",
+                        "Adresse à configurer",
+                        "Numéro d'accréditation à configurer",
+                        "Directeur à configurer"));
     }
 
     @Test
@@ -92,6 +108,41 @@ class ResultCrPdfAcceptanceIT extends IntegrationTestBase {
             assertThat(text).contains("1.05");
             assertThat(text).contains("Compte-rendu");
             assertThat(text).contains("Résultats");
+        }
+    }
+
+    @Test
+    void renderedPdfShowsUpdatedLabSettingsName() throws Exception {
+        // Update the lab settings before driving the rest of the flow — the assembler reads them
+        // at render time.
+        labSettingsApi.update(
+                new LabSettingsUpdateRequest(
+                        "Laboratoire Sparkcorp",
+                        "12 Avenue du Test, Lomé",
+                        "ACC-2026-001",
+                        "Dr. KOFFI Adjoa"));
+
+        var patientId = seedPatient();
+        var disciplineId = seedDiscipline("Biochimie", "BIOCHIMIE");
+        var analysisCode = "GLU_" + Ulid.generate().substring(10, 16);
+        seedAnalysis(analysisCode, "Glucose", disciplineId);
+
+        var labFileId = openLabFile(patientId, List.of(analysisCode));
+
+        var resultIds = waitForResultsCreated(labFileId, 1);
+        for (var resultId : resultIds) {
+            var lineId = firstLineIdOf(resultId);
+            patchLineReal(resultId, lineId, "1.05");
+            validateTechnical(resultId);
+            validateBiological(resultId);
+        }
+
+        var pdf = fetchCrPdf(labFileId);
+        assertThat(pdf.getStatusCode()).isEqualTo(HttpStatus.OK);
+
+        try (var doc = PDDocument.load(pdf.getBody())) {
+            var text = new PDFTextStripper().getText(doc);
+            assertThat(text).contains("Laboratoire Sparkcorp");
         }
     }
 

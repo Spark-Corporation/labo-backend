@@ -14,6 +14,8 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 import lombok.RequiredArgsConstructor;
 import org.jspecify.annotations.Nullable;
@@ -24,9 +26,12 @@ import org.sparkcorporation.lims.catalog.api.AnalysisApi;
 import org.sparkcorporation.lims.catalog.api.AnalysisId;
 import org.sparkcorporation.lims.catalog.api.AnalysisSummary;
 import org.sparkcorporation.lims.catalog.api.AntibioticApi;
+import org.sparkcorporation.lims.catalog.api.AntibioticId;
+import org.sparkcorporation.lims.catalog.api.AntibioticSummary;
 import org.sparkcorporation.lims.iam.api.UserApi;
 import org.sparkcorporation.lims.iam.api.UserId;
 import org.sparkcorporation.lims.iam.api.UserSummary;
+import org.sparkcorporation.lims.labsettings.api.LabSettingsApi;
 import org.sparkcorporation.lims.order.api.LabFileApi;
 import org.sparkcorporation.lims.order.api.LabFileId;
 import org.sparkcorporation.lims.order.api.LabFileSummary;
@@ -54,9 +59,7 @@ import org.sparkcorporation.lims.result.api.ResultSummary;
  *       map; nullable references make the {@code != null} guard the canonical template form).
  * </ul>
  *
- * <p>The lab identity block is currently a hardcoded placeholder — there is no {@code LabSettings}
- * aggregate in this codebase. A spec amendment in a follow-up sub-project will introduce one and
- * inject it here.
+ * <p>The lab identity block is sourced from {@link LabSettingsApi}.
  */
 @Component
 @RequiredArgsConstructor
@@ -76,6 +79,7 @@ public class ResultReportModelAssembler {
     private final AnalysisApi analysisApi;
     private final AntibioticApi antibioticApi;
     private final UserApi userApi;
+    private final LabSettingsApi labSettingsApi;
 
     @SuppressWarnings(
             "unused") // kept for future "rendered-at" stamping; tests inject a fixed clock
@@ -116,7 +120,7 @@ public class ResultReportModelAssembler {
                         labFile.createdAt()),
                 buildPatient(patient, labFile.createdAt()),
                 buildPractitioner(labFile.prescriber()),
-                defaultLabIdentity(),
+                buildLabIdentity(),
                 validatedAt,
                 FRENCH_DATE_TIME.format(validatedAt),
                 buildUser(biologist),
@@ -170,13 +174,10 @@ public class ResultReportModelAssembler {
         return new ResultReportModel.UserSummary(user.id().value(), user.fullName(), "");
     }
 
-    /** Placeholder lab identity until a {@code LabSettings} aggregate lands. */
-    private static ResultReportModel.LabIdentity defaultLabIdentity() {
+    private ResultReportModel.LabIdentity buildLabIdentity() {
+        var s = labSettingsApi.get();
         return new ResultReportModel.LabIdentity(
-                "Laboratoire",
-                "Adresse à configurer",
-                "Numéro d'accréditation à configurer",
-                "Directeur à configurer");
+                s.name(), s.address(), s.accreditationNumber(), s.managerName());
     }
 
     private static List<ResultReportModel.AnalysisGroupBlock> buildGroups(
@@ -219,6 +220,14 @@ public class ResultReportModelAssembler {
 
     private List<ResultReportModel.AntibiogramBlock> buildAntibiograms(
             List<ResultSummary> results) {
+        Set<AntibioticId> allAntibioticIds =
+                results.stream()
+                        .flatMap(r -> r.antibiogramReadings().stream())
+                        .map(ResultSummary.AntibiogramReadingSummary::antibioticId)
+                        .collect(Collectors.toSet());
+        Map<AntibioticId, AntibioticSummary> antibiotics =
+                antibioticApi.findAllByIds(allAntibioticIds);
+
         var blocks = new ArrayList<ResultReportModel.AntibiogramBlock>();
         for (var r : results) {
             if (r.antibiogramReadings().isEmpty()) {
@@ -226,12 +235,13 @@ public class ResultReportModelAssembler {
             }
             var readings = new ArrayList<ResultReportModel.AntibiogramReading>();
             for (var reading : r.antibiogramReadings()) {
-                var abx = antibioticApi.findById(reading.antibioticId());
-                var sigle = abx.map(a -> a.code()).orElse(reading.antibioticId().value());
-                var interpretation = reading.interpretedSensitivity().name();
+                var abx = antibiotics.get(reading.antibioticId());
+                var sigle = abx != null ? abx.code() : reading.antibioticId().value();
                 readings.add(
                         new ResultReportModel.AntibiogramReading(
-                                sigle, plainDiameter(reading.measuredDiameter()), interpretation));
+                                sigle,
+                                plainDiameter(reading.measuredDiameter()),
+                                reading.interpretedSensitivity().name()));
             }
             blocks.add(new ResultReportModel.AntibiogramBlock(r.analysisCodeSnapshot(), readings));
         }

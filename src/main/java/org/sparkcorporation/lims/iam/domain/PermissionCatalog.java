@@ -3,7 +3,7 @@ package org.sparkcorporation.lims.iam.domain;
 import java.util.Set;
 
 /**
- * Tech doc §9.5 permission catalog. Static set of 44 strings. Used as the source of truth for
+ * Tech doc §9.5 permission catalog. Static set of 46 strings. Used as the source of truth for
  * {@code @RequiresPermission(...)} keys; an integrity test at startup verifies this set matches the
  * DB-seeded {@code permissions.name} column set.
  *
@@ -22,6 +22,12 @@ import java.util.Set;
  * <p>{@code pdf.read-own-jobs} was added in 1.5.c chunk 5 for the new {@code /api/v1/pdf-jobs/*}
  * polling surface; seeded via {@code 202605200905-seed-pdf-permission} (granted to every role
  * already holding {@code lab-file.read}).
+ *
+ * <p>{@code lab-settings.read} and {@code lab-settings.manage} were added in 1.5.e chunk 1 for the
+ * new {@code /api/v1/lab-settings} admin surface; seeded via {@code
+ * 202605210905-seed-lab-settings-permissions} (read granted to every role already holding {@code
+ * lab-file.read}; manage granted to the {@code ADMIN} role only — {@code ROLE_} is the secured-x
+ * runtime authority prefix, not the persisted role name).
  */
 public final class PermissionCatalog {
 
@@ -70,7 +76,9 @@ public final class PermissionCatalog {
                     "cashbox.journal.read",
                     "cashbox.session.close",
                     "cashbox.session.reopen",
-                    "pdf.read-own-jobs");
+                    "pdf.read-own-jobs",
+                    "lab-settings.read",
+                    "lab-settings.manage");
 
     private PermissionCatalog() {}
 }

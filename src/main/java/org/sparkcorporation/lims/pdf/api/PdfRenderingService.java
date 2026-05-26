@@ -24,12 +24,12 @@ public interface PdfRenderingService {
      */
     <T> String enqueue(PdfDocumentType<T> docType, T model);
 
-    /** Look up a job by id. {@link Optional#empty()} for unknown id. */
-    Optional<PdfRenderJobView> findJob(String jobId);
-
     /**
-     * Look up the original requester userId for a job. {@link Optional#empty()} for either an
-     * unknown id OR a system-issued render (no authenticated principal at enqueue time).
+     * Look up a job with its full record. {@link Optional#empty()} for unknown id.
+     *
+     * <p>Replaces the now-removed {@code findJob} / {@code findJobOwner} pair: the record bundles
+     * the view-able fields, the bytes, and the requester id so the polling controller can perform
+     * its ownership check + status response in a single DB roundtrip.
      */
-    Optional<String> findJobOwner(String jobId);
+    Optional<PdfRenderJobRecord> findJobRecord(String jobId);
 }

@@ -35,6 +35,8 @@ import org.sparkcorporation.lims.catalog.api.ResultType;
 import org.sparkcorporation.lims.iam.api.UserApi;
 import org.sparkcorporation.lims.iam.api.UserId;
 import org.sparkcorporation.lims.iam.api.UserSummary;
+import org.sparkcorporation.lims.labsettings.api.LabSettings;
+import org.sparkcorporation.lims.labsettings.api.LabSettingsApi;
 import org.sparkcorporation.lims.order.api.AnalysisRequestId;
 import org.sparkcorporation.lims.order.api.LabFileApi;
 import org.sparkcorporation.lims.order.api.LabFileId;
@@ -86,6 +88,7 @@ class ResultReportModelAssemblerTest {
     @Mock private AnalysisApi analysisApi;
     @Mock private AntibioticApi antibioticApi;
     @Mock private UserApi userApi;
+    @Mock private LabSettingsApi labSettingsApi;
 
     @InjectMocks private ResultReportModelAssembler assembler;
 
@@ -95,6 +98,15 @@ class ResultReportModelAssemblerTest {
         var labFileId = new LabFileId(LAB_FILE_ULID);
         var labFile = labFileWith(LabFileStatus.OPEN);
         when(labFileApi.requireById(labFileId)).thenReturn(labFile);
+
+        when(labSettingsApi.get())
+                .thenReturn(
+                        new LabSettings(
+                                "Test Lab",
+                                "1 rue du Test, Test City",
+                                "ACC-TEST-001",
+                                "Dr. Test",
+                                Instant.parse("2026-05-21T10:00:00Z")));
 
         var line1 =
                 new ResultSummary.LineSummary(
@@ -195,19 +207,19 @@ class ResultReportModelAssemblerTest {
                                         DISCIPLINE_HEMA,
                                         "Hématologie")));
 
-        when(antibioticApi.findById(new AntibioticId(ANTIBIOTIC_ULID)))
-                .thenReturn(
-                        Optional.of(
-                                new AntibioticSummary(
-                                        new AntibioticId(ANTIBIOTIC_ULID),
-                                        "AMX",
-                                        "Amoxicilline",
-                                        null,
-                                        "Pénicillines",
-                                        new BigDecimal("18.0"),
-                                        null,
-                                        null,
-                                        true)));
+        var amxId = new AntibioticId(ANTIBIOTIC_ULID);
+        var amxSummary =
+                new AntibioticSummary(
+                        amxId,
+                        "AMX",
+                        "Amoxicilline",
+                        null,
+                        "Pénicillines",
+                        new BigDecimal("18.0"),
+                        null,
+                        null,
+                        true);
+        when(antibioticApi.findAllByIds(Set.of(amxId))).thenReturn(Map.of(amxId, amxSummary));
 
         when(userApi.findById(new UserId(BIOLOGIST_ULID)))
                 .thenReturn(
@@ -237,9 +249,11 @@ class ResultReportModelAssemblerTest {
         // No prescriber on labFile snapshot → no practitioner on model.
         assertThat(model.requestingPractitioner()).isNull();
 
-        // Lab identity is a non-null placeholder (no LabSettings aggregate yet).
-        assertThat(model.labIdentity()).isNotNull();
-        assertThat(model.labIdentity().name()).isNotBlank();
+        // Lab identity is sourced from LabSettingsApi.
+        assertThat(model.labIdentity().name()).isEqualTo("Test Lab");
+        assertThat(model.labIdentity().address()).isEqualTo("1 rue du Test, Test City");
+        assertThat(model.labIdentity().accreditationNumber()).isEqualTo("ACC-TEST-001");
+        assertThat(model.labIdentity().managerName()).isEqualTo("Dr. Test");
 
         // Biological-validation block.
         assertThat(model.biologicalValidatedAt()).isEqualTo(VALIDATED_AT);

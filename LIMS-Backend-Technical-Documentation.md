@@ -85,6 +85,9 @@ The CDC (`CAHIER DES CHARGES LOGICIEL DE GESTION DU LABORATOIRE.docx.pdf`) is th
 | `attachment` (scan direct) | §IV "Joindre des fichiers par scan direct (détection des scanners dans le réseau)" |
 | Quotes (`quote`) | §III Devis |
 | `pdf` (shared HTML → PDF rendering, 1.5.c) | §IV Impression; §X Édition compte-rendu |
+| `labsettings` (Lab settings, 1.5.e) | §I informations générales du laboratoire (nom, adresse, accréditation, responsable); DB-backed singleton; admin updates via `PUT /api/v1/lab-settings` |
+| Payment receipt PDF (1.5.g) | §VIII (caisse / reçus) + §IV (impression); rendered by `billing/infra/pdf/` as a 1.5.c `PdfDocumentType` consumer; endpoint `GET /api/v1/payments/{id}/receipt.pdf` |
+| Quote PDF (1.5.h) | §III (devis) + §IV (impression); rendered by `order/infra/pdf/` as a 1.5.c `PdfDocumentType` consumer; endpoint `GET /api/v1/quotes/{id}/pdf` |
 
 Anything not traceable to a CDC clause is **out of scope** and requires a CDC amendment before it can be added to this project.
 
@@ -179,6 +182,7 @@ This style fits the scope of a single-lab deployment, simplifies operations, and
 | `notification` | Outbound mail / WhatsApp / SMS |
 | `attachment` | Scanned documents and lab-report file storage |
 | `pdf` (1.5.c) | Shared HTML → PDF rendering engine (sync + async), font registry, job table + cleanup scheduler; consumed by `result` (1.5.c), and later by `delivery` (1.8), cashbox receipts, quote PDFs, accounting exports |
+| `labsettings` (1.5.e) | DB-backed singleton aggregate carrying the lab's display identity (name, address, accreditation, manager). Consumed by document-rendering modules (result CR PDF; future cashbox receipt, quote, invoice PDFs) |
 
 ### 3.4 Cross-cutting Adapters
 - `security` — provided by **secured-x** library: JWT (RS256) issuing, Argon2id password hashing (via `secured-x-provider-local`), per-user Ed25519 action signing chain, role/permission enforcement (via `secured-x-rbac`)
@@ -793,6 +797,8 @@ A JPA `pdf_render_jobs` table holds queued/inflight/terminal state with a 10 MB 
 
 The engine uses OpenHTMLtoPDF with Thymeleaf 3 for templating, and a bundled DejaVu Sans font family registered at startup (`PdfFontRegistry`) for consistent rendering of Togolese/Beninese names that include diacritics.
 
+**Polling roundtrip (1.5.d).** `GET /api/v1/pdf-jobs/{id}` issues a single `findById` SELECT per request via `PdfRenderingService.findJobRecord`, which returns a `PdfRenderJobRecord` carrier (id, document-type id, status, bytes, filename, error, timestamps, requester user id). The controller performs the ownership check against `requestedByUserId` and projects to `PdfRenderJobView` (the lean response DTO) for the JSON status path, or streams `bytes` directly for the `?download=true` path. The earlier `findJob` / `findJobOwner` pair has been removed.
+
 See `docs/superpowers/specs/2026-05-20-pdf-renderer-design.md` for the full design.
 
 ### 8.9 `stats` Module
@@ -879,6 +885,8 @@ The permission strings used in `@RequiresPermission(…)` (from `secured-x-rbac`
 | `cashbox.session.close` (1.7.a) | §VIII, Gestion comptable §3 | RECEPTIONIST, LAB_MANAGER, CASHIER |
 | `cashbox.session.reopen` (1.7.a) | §VIII, Gestion comptable §3 | LAB_MANAGER |
 | `pdf.read-own-jobs` (1.5.c) | §IV Impression, §X Édition compte-rendu — read your own PDF render jobs (poll `/pdf-jobs/{id}`) | Default-granted to roles holding `lab-file.read`; widens per consumer in follow-on PRs |
+| `lab-settings.read` (1.5.e) | §I informations générales du laboratoire — read the lab identity (name, address, accreditation, manager) | Default-granted to every role holding `lab-file.read` |
+| `lab-settings.manage` (1.5.e) | §I informations générales du laboratoire — update the lab identity values | ADMIN |
 
 Permissions outside this catalog are not seeded; adding one requires a CDC amendment.
 
@@ -923,6 +931,10 @@ User-facing free-text (clinical notes, comments, descriptions) goes through `Mes
 
 ### 11.2 PDF Reports
 Reports are HTML files in `templates/<consumer-module>/*.html`, rendered by Thymeleaf and converted to PDF by OpenHTMLtoPDF. The shared engine lives in the `pdf` module (§8.8); each consumer module declares its document type as a Spring bean implementing `PdfDocumentType<T>`. Synchronous calls return the bytes inline (used today by the result CR). For reports expected to exceed 5 pages, the async pipeline serialises the model into `pdf_render_jobs.model_json`, renders in a background worker, and exposes the result via `GET /pdf-jobs/{id}` for polling. Generated PDFs are short-lived (1 h TTL); long-term archival of CRs is `delivery`'s responsibility.
+
+**Payment receipt (1.5.g).** A second `PdfDocumentType` registered at id `billing.payment-receipt`, rendered A5 portrait by `PaymentReceiptPdfDocument` (lives in `billing/infra/pdf/` alongside its `PaymentReceiptModel` and `PaymentReceiptModelAssembler`). Synchronous; endpoint `GET /api/v1/payments/{id}/receipt.pdf` guarded by `invoice.read`. Reads via `PaymentRepository` directly (same module) and the cross-module `LabFileApi` / `PatientApi` / `CashRegisterApi` / `UserApi` / `LabSettingsApi` for header data. Mode labels are French (Espèces / Chèque / Carte TPE / Flooz / Mixx by Yas); amounts formatted with `NumberFormat.getInstance(Locale.FRENCH)` + ` F CFA` suffix. Unknown / malformed payment ids surface as RFC 7807 problem details via `BillingProblemDetailAdvice`.
+
+**Quote / devis (1.5.h).** Third `PdfDocumentType` registered at id `order.quote-report`, rendered A4 portrait by `QuoteReportPdfDocument`. Synchronous; endpoint `GET /api/v1/quotes/{id}/pdf` with `quote.read`. Reads via `QuoteApi.requireById` (404 propagated via shared advice since `QuoteNotFoundException` extends `EntityNotFoundException`) plus `LabSettingsApi.get()` — patient + prescriber blocks come from `QuoteSummary`'s denormalized snapshots. All four `QuoteStatus` values render with a status banner (DRAFT → "BROUILLON — non contractuel"; LOCKED → "DEVIS"; CONVERTED → "DEVIS — converti en dossier"; EXPIRED → "DEVIS — expiré"). On DRAFT every pricing string is `"À déterminer"`; otherwise b-rates render via `NumberFormat` with grouping disabled (avoids `"1E+3"`) and amounts via `NumberFormat.getInstance(Locale.FRENCH)` + ` F CFA` suffix.
 
 ### 11.3 Labels
 Label printing is delegated to the frontend or a dedicated print service. The backend exposes `GET /lab-files/{id}/labels` which returns label records (patient name, dob, age, sex, daily ID barcode, first 5 analyses) — the printer driver renders them to 4 cm × 2.5 cm thermal labels.

@@ -24,7 +24,7 @@ public class PdfFontRegistry {
     /** Byte length of the {@code %PDF} magic header at the start of every valid PDF stream. */
     private static final int PDF_MAGIC_LENGTH = 4;
 
-    private record FontFace(String classpath, int weight, FontStyle style) {}
+    record FontFace(String classpath, int weight, FontStyle style) {}
 
     private static final List<FontFace> FACES =
             List.of(
@@ -35,7 +35,11 @@ public class PdfFontRegistry {
 
     @PostConstruct
     public void verifyResources() {
-        for (var face : FACES) {
+        verifyResources(FACES);
+    }
+
+    static void verifyResources(List<FontFace> faces) {
+        for (var face : faces) {
             var res = new ClassPathResource(face.classpath());
             if (!res.exists()) {
                 throw new IllegalStateException("missing bundled font: " + face.classpath());

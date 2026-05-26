@@ -27,7 +27,7 @@ import org.sparkcorporation.lims.pdf.api.PdfDocumentType;
 import org.sparkcorporation.lims.pdf.api.PdfEngineException;
 import org.sparkcorporation.lims.pdf.api.PdfModelException;
 import org.sparkcorporation.lims.pdf.api.PdfRenderJobQueued;
-import org.sparkcorporation.lims.pdf.api.PdfRenderJobView;
+import org.sparkcorporation.lims.pdf.api.PdfRenderJobRecord;
 import org.sparkcorporation.lims.pdf.api.PdfRenderingService;
 import org.sparkcorporation.lims.pdf.api.PdfTemplateException;
 import org.sparkcorporation.lims.pdf.api.RenderedPdf;
@@ -127,12 +127,7 @@ public class OpenHtmlToPdfRenderingService implements PdfRenderingService {
     }
 
     @Override
-    public Optional<PdfRenderJobView> findJob(String jobId) {
-        return jobRepo.findById(jobId).map(PdfJobResponseMapper::toView);
-    }
-
-    @Override
-    public Optional<String> findJobOwner(String jobId) {
-        return jobRepo.findById(jobId).map(PdfRenderJob::getRequestedByUserId);
+    public Optional<PdfRenderJobRecord> findJobRecord(String jobId) {
+        return jobRepo.findById(jobId).map(PdfJobResponseMapper::toRecord);
     }
 }

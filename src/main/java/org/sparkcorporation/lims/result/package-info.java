@@ -8,6 +8,7 @@
             "catalog::api",
             "order::api",
             "iam::api",
+            "labsettings::api",
             "pdf::api"
         })
 package org.sparkcorporation.lims.result;

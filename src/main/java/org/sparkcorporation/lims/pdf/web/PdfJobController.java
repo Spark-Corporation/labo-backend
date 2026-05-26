@@ -2,9 +2,11 @@ package org.sparkcorporation.lims.pdf.web;
 
 import dev.sparksam.securedx.rbac.RequiresPermission;
 import lombok.RequiredArgsConstructor;
+import org.jspecify.annotations.Nullable;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -14,7 +16,6 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
 
 import org.sparkcorporation.lims.pdf.api.PdfJobNotFoundException;
-import org.sparkcorporation.lims.pdf.api.PdfRenderJobView;
 import org.sparkcorporation.lims.pdf.api.PdfRenderingService;
 
 /**
@@ -38,47 +39,44 @@ public class PdfJobController {
             @PathVariable String id,
             @RequestParam(value = "download", defaultValue = "false") boolean download) {
 
-        var view = renderingService.findJob(id).orElseThrow(() -> new PdfJobNotFoundException(id));
+        var record =
+                renderingService
+                        .findJobRecord(id)
+                        .orElseThrow(() -> new PdfJobNotFoundException(id));
 
-        var auth = SecurityContextHolder.getContext().getAuthentication();
-        String caller =
-                (auth != null
-                                && auth.isAuthenticated()
-                                && !"anonymousUser".equals(auth.getPrincipal()))
-                        ? auth.getName()
-                        : null;
-        var ownerUserId = renderingService.findJobOwner(id).orElse(null);
-        if (ownerUserId != null && caller != null && !ownerUserId.equals(caller)) {
+        var caller = currentAuthName();
+        if (record.requestedByUserId() != null
+                && caller != null
+                && !record.requestedByUserId().equals(caller)) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "not the job requester");
         }
 
         if (!download) {
-            var stripped =
-                    new PdfRenderJobView(
-                            view.id(),
-                            view.documentTypeId(),
-                            view.status(),
-                            null,
-                            view.suggestedFilename(),
-                            view.errorMessage(),
-                            view.requestedAt(),
-                            view.completedAt());
-            return ResponseEntity.ok(stripped);
+            return ResponseEntity.ok(record.toView());
         }
 
-        return switch (view.status()) {
+        return switch (record.status()) {
             case QUEUED, RUNNING ->
                     throw new ResponseStatusException(HttpStatus.CONFLICT, "pdf job not ready");
             case FAILED ->
                     throw new ResponseStatusException(
-                            HttpStatus.GONE, "pdf job failed: " + view.errorMessage());
+                            HttpStatus.GONE, "pdf job failed: " + record.errorMessage());
             case DONE ->
                     ResponseEntity.ok()
                             .contentType(MediaType.APPLICATION_PDF)
                             .header(
                                     "Content-Disposition",
-                                    "attachment; filename=\"" + view.suggestedFilename() + "\"")
-                            .body(view.bytes());
+                                    "attachment; filename=\"" + record.suggestedFilename() + "\"")
+                            .body(record.bytes());
         };
+    }
+
+    private static @Nullable String currentAuthName() {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        return (auth != null
+                        && auth.isAuthenticated()
+                        && !"anonymousUser".equals(auth.getPrincipal()))
+                ? auth.getName()
+                : null;
     }
 }

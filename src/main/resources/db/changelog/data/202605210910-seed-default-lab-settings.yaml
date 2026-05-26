@@ -1,0 +1,27 @@
+# Seed the singleton lab_settings row with placeholder strings that mirror
+# the static defaultLabIdentity() helper previously in
+# ResultReportModelAssembler. The admin updates these via
+# PUT /api/v1/lab-settings.
+#
+# TODO: author rollback block — domain semantics required (CLAUDE.md rule).
+databaseChangeLog:
+  - changeSet:
+      id: 202605210910-seed-default-lab-settings
+      author: samuel
+      contextFilter: dev,test,prod
+      labels: phase-1-5-e,seed-data
+      preConditions:
+        - onFail: MARK_RAN
+        - sqlCheck:
+            expectedResult: 0
+            sql: SELECT COUNT(*) FROM lab_settings WHERE id = 'LAB_SETTINGS_SINGLETON'
+      changes:
+        - insert:
+            tableName: lab_settings
+            columns:
+              - column: { name: id,                   value: "LAB_SETTINGS_SINGLETON" }
+              - column: { name: name,                 value: "Laboratoire" }
+              - column: { name: address,              value: "Adresse à configurer" }
+              - column: { name: accreditation_number, value: "Numéro d'accréditation à configurer" }
+              - column: { name: manager_name,         value: "Directeur à configurer" }
+              - column: { name: updated_at,           valueComputed: "now()" }

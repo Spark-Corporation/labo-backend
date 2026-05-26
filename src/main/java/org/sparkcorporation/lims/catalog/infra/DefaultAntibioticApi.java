@@ -1,6 +1,10 @@
 package org.sparkcorporation.lims.catalog.infra;
 
+import java.util.Collection;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 
 import lombok.RequiredArgsConstructor;
@@ -24,6 +28,22 @@ public class DefaultAntibioticApi implements AntibioticApi {
     @Override
     public Optional<AntibioticSummary> findById(AntibioticId id) {
         return repo.findById(id.value()).map(DefaultAntibioticApi::toSummary);
+    }
+
+    @Override
+    public Map<AntibioticId, AntibioticSummary> findAllByIds(Collection<AntibioticId> ids) {
+        Objects.requireNonNull(ids, "ids");
+        if (ids.isEmpty()) {
+            return Map.of();
+        }
+        var rawIds = ids.stream().map(AntibioticId::value).toList();
+        var found = repo.findAllById(rawIds);
+        var byId = new LinkedHashMap<AntibioticId, AntibioticSummary>(found.size());
+        for (var a : found) {
+            var summary = toSummary(a);
+            byId.put(summary.id(), summary);
+        }
+        return byId;
     }
 
     @Override

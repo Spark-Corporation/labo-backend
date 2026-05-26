@@ -1,0 +1,58 @@
+# Create the lab_settings singleton table introduced in 1.5.e.
+#
+# Singleton invariant: the id column is PRIMARY KEY and is constrained
+# to a single literal value (LAB_SETTINGS_SINGLETON) via a CHECK. PK +
+# CHECK together guarantee that at most one row can exist; no row-count
+# trigger is needed.
+#
+# Note on column width: id is VARCHAR(26) to match the project's ULID
+# column convention even though the sentinel value
+# (LAB_SETTINGS_SINGLETON, 22 chars) is not a ULID. Conscious choice;
+# do not "fix" by shrinking the column.
+#
+# TODO: author rollback block — domain semantics required (CLAUDE.md rule).
+databaseChangeLog:
+  - changeSet:
+      id: 202605210900-create-lab-settings
+      author: samuel
+      contextFilter: dev,test,prod
+      labels: phase-1-5-e,schema
+      changes:
+        - createTable:
+            tableName: lab_settings
+            columns:
+              - column:
+                  name: id
+                  type: VARCHAR(26)
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: name
+                  type: VARCHAR(255)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: address
+                  type: TEXT
+                  constraints:
+                    nullable: false
+              - column:
+                  name: accreditation_number
+                  type: VARCHAR(64)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: manager_name
+                  type: VARCHAR(255)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: updated_at
+                  type: TIMESTAMP WITH TIME ZONE
+                  constraints:
+                    nullable: false
+        - sql:
+            sql: >
+              ALTER TABLE lab_settings ADD CONSTRAINT lab_settings_singleton
+              CHECK (id = 'LAB_SETTINGS_SINGLETON')

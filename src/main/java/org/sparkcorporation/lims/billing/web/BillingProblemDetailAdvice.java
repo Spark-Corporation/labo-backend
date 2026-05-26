@@ -19,6 +19,7 @@ import org.sparkcorporation.lims.billing.domain.InvalidPricingException;
 import org.sparkcorporation.lims.billing.domain.InvoiceAlreadyExistsForLabFileException;
 import org.sparkcorporation.lims.billing.domain.PaymentInvalidCashRegisterReferenceException;
 import org.sparkcorporation.lims.billing.domain.PaymentInvalidLabFileReferenceException;
+import org.sparkcorporation.lims.billing.infra.pdf.PaymentInvalidIdException;
 
 /**
  * Billing-specific RFC 7807 {@link ProblemDetail} mapper per spec §7.5. Lives outside {@code
@@ -88,6 +89,18 @@ public class BillingProblemDetailAdvice {
         pd.setTitle("Payment references unknown cash register");
         pd.setInstance(URI.create(req.getRequestURI()));
         pd.setProperty("cashRegisterId", ex.cashRegisterId());
+        pd.setProperty("traceId", traceId());
+        return pd;
+    }
+
+    @ExceptionHandler(PaymentInvalidIdException.class)
+    public ProblemDetail handlePaymentInvalidId(
+            PaymentInvalidIdException ex, HttpServletRequest req) {
+        var pd = ProblemDetail.forStatusAndDetail(HttpStatus.NOT_FOUND, ex.getMessage());
+        pd.setType(URI.create("/problems/payment-not-found"));
+        pd.setTitle("payment not found");
+        pd.setInstance(URI.create(req.getRequestURI()));
+        pd.setProperty("paymentId", ex.paymentId().value());
         pd.setProperty("traceId", traceId());
         return pd;
     }

@@ -78,14 +78,14 @@ class AsyncPdfWorkerIT extends IntegrationTestBase {
     }
 
     @Test
-    void findJobReturnsViewForKnownIdAndEmptyForUnknown() {
+    void findJobRecordReturnsRecordForKnownIdAndEmptyForUnknown() {
         var jobId = pdfService.enqueue(docType, new FakeModel("01HZX0ID00000000000000000B", "x"));
 
         await().atMost(Duration.ofSeconds(10))
                 .pollInterval(Duration.ofMillis(150))
                 .untilAsserted(
                         () ->
-                                assertThat(pdfService.findJob(jobId))
+                                assertThat(pdfService.findJobRecord(jobId))
                                         .hasValueSatisfying(
                                                 v ->
                                                         assertThat(v.status())
@@ -94,6 +94,6 @@ class AsyncPdfWorkerIT extends IntegrationTestBase {
                                                                         PdfRenderJobStatus
                                                                                 .FAILED)));
 
-        assertThat(pdfService.findJob("does-not-exist")).isEmpty();
+        assertThat(pdfService.findJobRecord("does-not-exist")).isEmpty();
     }
 }
