@@ -13,9 +13,31 @@ boundaries are wired; no business behavior is implemented yet.
 git clone <this repo>
 cd laboratory-information-management-system
 git config core.hooksPath .githooks    # one-time: enable pre-commit hook
+```
 
-# Local dev stack (Postgres + MinIO)
-docker compose up -d
+### Run the whole stack in containers
+
+`docker compose up` runs the full stack: the backend, Postgres, and MinIO.
+The image is built from a pre-built jar, so package it first:
+
+```bash
+./mvnw clean package          # produces target/lims-backend-*.jar
+docker compose up --build -d  # app + postgres + minio
+# -> http://localhost:8080/actuator/health  =>  {"status":"UP"}
+
+docker compose down           # stop the stack (add -v to drop the DB/MinIO data)
+```
+
+The app runs the `dev` profile (bootstrap admin `admin@local.dev`). Postgres
+pre-creates the `lims_liquibase` metadata schema on first start via
+`docker/postgres-init/init-schemas.sql`; Liquibase creates the rest.
+
+### Dev loop (run the app from source)
+
+Start only the dependencies and run the backend from your IDE or Maven:
+
+```bash
+docker compose up -d postgres minio    # dependencies only
 
 # Build, lint, run all tests (unit + integration)
 ./mvnw clean verify
