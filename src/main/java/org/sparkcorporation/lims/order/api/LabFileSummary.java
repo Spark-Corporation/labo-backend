@@ -38,7 +38,9 @@ public record LabFileSummary(
         @Nullable PartnerSnapshot partner,
         BillingBlock billing,
         Instant createdAt,
-        @Nullable String createdByUserId) {
+        @Nullable String createdByUserId,
+        @Nullable String signedBy,
+        @Nullable Instant signedAt) {
 
     public LabFileSummary {
         samples = List.copyOf(samples);

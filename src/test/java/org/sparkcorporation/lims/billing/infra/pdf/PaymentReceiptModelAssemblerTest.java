@@ -194,6 +194,8 @@ class PaymentReceiptModelAssemblerTest {
                 null,
                 new LabFileSummary.BillingBlock(BigDecimal.ZERO, BigDecimal.ZERO, null, null),
                 Instant.parse("2026-05-22T08:00:00Z"),
+                null,
+                null,
                 null);
     }
 

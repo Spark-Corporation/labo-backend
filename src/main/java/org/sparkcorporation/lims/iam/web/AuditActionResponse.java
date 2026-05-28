@@ -10,8 +10,8 @@ import org.sparkcorporation.lims.iam.infra.SignedActionEntity;
 /**
  * List-view projection of a {@code signed_actions} row (the persisted mirror of secured-x's {@code
  * SignedAction}). Deliberately omits the raw {@code signature} and {@code previousHash}: callers
- * verifying integrity use {@code POST /api/v1/audit/verify}, which re-checks the cryptographic chain
- * server-side; the read endpoint exposes only the human-auditable fields.
+ * verifying integrity use {@code POST /api/v1/audit/verify}, which re-checks the cryptographic
+ * chain server-side; the read endpoint exposes only the human-auditable fields.
  */
 public record AuditActionResponse(
         String actionId,

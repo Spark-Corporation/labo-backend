@@ -159,6 +159,8 @@ class DossierMapperTest {
                 new LabFileSummary.BillingBlock(
                         java.math.BigDecimal.ZERO, java.math.BigDecimal.ZERO, null, null),
                 Instant.now(),
+                null,
+                null,
                 null);
     }
 

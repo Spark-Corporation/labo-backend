@@ -16,7 +16,9 @@ import org.sparkcorporation.lims.catalog.api.AntibioticApi;
 import org.sparkcorporation.lims.catalog.api.AntibioticId;
 import org.sparkcorporation.lims.catalog.api.ReferenceIntervalSummary;
 import org.sparkcorporation.lims.order.api.AnalysisRequestId;
+import org.sparkcorporation.lims.order.api.LabFileApi;
 import org.sparkcorporation.lims.order.api.LabFileId;
+import org.sparkcorporation.lims.order.api.LabFileStatus;
 import org.sparkcorporation.lims.result.api.AntibiogramReadingId;
 import org.sparkcorporation.lims.result.api.BiologicalValidationDone;
 import org.sparkcorporation.lims.result.api.ResultApi;
@@ -27,6 +29,7 @@ import org.sparkcorporation.lims.result.api.ResultState;
 import org.sparkcorporation.lims.result.api.ResultSummary;
 import org.sparkcorporation.lims.result.api.TechnicalValidationDone;
 import org.sparkcorporation.lims.result.domain.AntibiogramAntibioticNotFoundException;
+import org.sparkcorporation.lims.result.domain.DossierLockedException;
 import org.sparkcorporation.lims.result.domain.NewAntibiogramReading;
 import org.sparkcorporation.lims.result.domain.NewLineValue;
 import org.sparkcorporation.lims.result.domain.ReferenceIntervalMatcher;
@@ -52,6 +55,7 @@ public class ResultService {
 
     private final ResultRepository repo;
     private final ResultApi resultApi;
+    private final LabFileApi labFileApi;
     private final AnalysisApi analysisApi;
     private final AntibioticApi antibioticApi;
     private final ApplicationEventPublisher events;
@@ -71,6 +75,7 @@ public class ResultService {
     public ResultSummary patchLine(ResultId id, ResultLineId lineId, PatchLineRequest req) {
         Result r =
                 repo.findActiveById(id.value()).orElseThrow(() -> new ResultNotFoundException(id));
+        assertDossierEditable(new LabFileId(r.getLabFileId()));
         ResultValue val = req.value() == null ? null : ResultMapper.toDomainValue(req.value());
         ReferenceIntervalSummary matched =
                 val == null ? null : matchInterval(r, new AnalysisId(r.getAnalysisId()));
@@ -90,6 +95,7 @@ public class ResultService {
     public void clearLineValue(ResultId id, ResultLineId lineId) {
         Result r =
                 repo.findActiveById(id.value()).orElseThrow(() -> new ResultNotFoundException(id));
+        assertDossierEditable(new LabFileId(r.getLabFileId()));
         r.clearLineValue(lineId);
     }
 
@@ -98,6 +104,7 @@ public class ResultService {
             ResultId id, AddAntibiogramReadingRequest req) {
         Result r =
                 repo.findActiveById(id.value()).orElseThrow(() -> new ResultNotFoundException(id));
+        assertDossierEditable(new LabFileId(r.getLabFileId()));
         var ab = new AntibioticId(req.antibioticId());
         var summary =
                 antibioticApi
@@ -119,6 +126,7 @@ public class ResultService {
     public void removeAntibiogramReading(ResultId id, AntibiogramReadingId readingId) {
         Result r =
                 repo.findActiveById(id.value()).orElseThrow(() -> new ResultNotFoundException(id));
+        assertDossierEditable(new LabFileId(r.getLabFileId()));
         r.removeAntibiogramReading(readingId);
     }
 
@@ -126,6 +134,7 @@ public class ResultService {
     public ResultSummary validateTechnical(ResultId id, String userId) {
         Result r =
                 repo.findActiveById(id.value()).orElseThrow(() -> new ResultNotFoundException(id));
+        assertDossierEditable(new LabFileId(r.getLabFileId()));
         r.validateTechnical(userId, clock);
         events.publishEvent(
                 new TechnicalValidationDone(
@@ -140,6 +149,7 @@ public class ResultService {
     public ResultSummary validateBiological(ResultId id, String userId) {
         Result r =
                 repo.findActiveById(id.value()).orElseThrow(() -> new ResultNotFoundException(id));
+        assertDossierEditable(new LabFileId(r.getLabFileId()));
         r.validateBiological(userId, clock);
         events.publishEvent(
                 new BiologicalValidationDone(
@@ -155,8 +165,21 @@ public class ResultService {
     public void delete(ResultId id) {
         Result r =
                 repo.findActiveById(id.value()).orElseThrow(() -> new ResultNotFoundException(id));
+        assertDossierEditable(new LabFileId(r.getLabFileId()));
         r.delete(); // throws ResultNotDeletableInStateException if not DRAFT
         repo.delete(r); // @SQLDelete sets deleted_at
+    }
+
+    /**
+     * Refuses any result mutation once the owning dossier is electronically {@code SIGNED} (or
+     * already {@code PUBLISHED}). The signed content is cryptographically attested (SP3), so the
+     * dossier-level lock supersedes the result aggregate's own state machine.
+     */
+    private void assertDossierEditable(LabFileId labFileId) {
+        var status = labFileApi.requireById(labFileId).status();
+        if (status == LabFileStatus.SIGNED || status == LabFileStatus.PUBLISHED) {
+            throw new DossierLockedException(labFileId);
+        }
     }
 
     private @Nullable ReferenceIntervalSummary matchInterval(Result r, AnalysisId analysisId) {

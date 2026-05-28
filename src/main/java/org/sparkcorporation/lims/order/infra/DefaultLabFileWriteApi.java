@@ -4,6 +4,7 @@ import java.math.BigDecimal;
 import java.time.Clock;
 
 import lombok.RequiredArgsConstructor;
+import org.jspecify.annotations.Nullable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -40,5 +41,15 @@ class DefaultLabFileWriteApi implements LabFileWriteApi {
                         .findActiveById(labFileId.value())
                         .orElseThrow(() -> new LabFileNotFoundException(labFileId));
         labFile.publish();
+    }
+
+    @Override
+    @Transactional
+    public void markSigned(LabFileId labFileId, @Nullable String signedBy) {
+        LabFile labFile =
+                labFileRepository
+                        .findActiveById(labFileId.value())
+                        .orElseThrow(() -> new LabFileNotFoundException(labFileId));
+        labFile.markSigned(signedBy, clock);
     }
 }

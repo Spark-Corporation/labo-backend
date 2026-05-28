@@ -88,6 +88,8 @@ class DefaultInvoiceApiTest {
                 null,
                 new BillingBlock(BigDecimal.ZERO, BigDecimal.ZERO, null, null),
                 ISSUED_AT,
+                null,
+                null,
                 null);
     }
 

@@ -14,6 +14,7 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
 import org.sparkcorporation.lims.result.domain.AntibiogramAntibioticNotFoundException;
+import org.sparkcorporation.lims.result.domain.DossierLockedException;
 import org.sparkcorporation.lims.result.domain.IllegalStateTransitionException;
 import org.sparkcorporation.lims.result.domain.ResultLineKindMismatchException;
 import org.sparkcorporation.lims.result.domain.ResultLockedException;
@@ -25,7 +26,7 @@ import org.sparkcorporation.lims.result.infra.pdf.ResultsNotValidatedException;
  * shared.web} so {@code shared} stays free of {@code result} dependencies (Spring Modulith
  * boundary).
  *
- * <p>5 handlers — 3 status-409 (state-machine conflicts) + 2 status-422 (semantic-validation). The
+ * <p>7 handlers — 5 status-409 (state-machine conflicts) + 2 status-422 (semantic-validation). The
  * 4 {@code *NotFoundException} types extend {@code EntityNotFoundException} → routed by the shared
  * advice's 404 mapper, so they are deliberately omitted here.
  *
@@ -91,6 +92,14 @@ public class ResultProblemDetailAdvice {
                         "Results not biologically validated",
                         req);
         pd.setProperty("labFileId", ex.labFileId());
+        return pd;
+    }
+
+    @ExceptionHandler(DossierLockedException.class)
+    public ProblemDetail handleDossierLocked(DossierLockedException ex, HttpServletRequest req) {
+        var pd =
+                problem409(ex.getMessage(), "/errors/result/dossier.locked", "Dossier locked", req);
+        pd.setProperty("labFileId", ex.labFileId().value());
         return pd;
     }
 

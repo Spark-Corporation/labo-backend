@@ -17,6 +17,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import org.sparkcorporation.lims.iam.infra.SignedActionEntity;
 import org.sparkcorporation.lims.iam.infra.SignedActionRepository;
 
 /**
@@ -39,17 +40,17 @@ public class AuditController {
     /**
      * Paged signed-action history, optionally filtered by {@code subject} (the acting user's ULID)
      * or by {@code resource} (the signed request URI). When both are supplied {@code subject} wins;
-     * when neither is supplied the full ledger is returned (most recent first).
+     * when neither is supplied the full ledger is returned.
      */
     @GetMapping("/actions")
     @RequiresPermission("audit.read")
-    public Page<AuditActionResponse> actions(
+    public AuditActionSearchResponse actions(
             @RequestParam(required = false) @Nullable String subject,
             @RequestParam(required = false) @Nullable String resource,
             @RequestParam(defaultValue = "0") @Min(0) int page,
             @RequestParam(defaultValue = "20") @Min(1) @Max(100) int size) {
         var pageable = PageRequest.of(page, size);
-        Page<org.sparkcorporation.lims.iam.infra.SignedActionEntity> result;
+        Page<SignedActionEntity> result;
         if (subject != null && !subject.isBlank()) {
             result = repo.findBySubject(subject, pageable);
         } else if (resource != null && !resource.isBlank()) {
@@ -57,13 +58,19 @@ public class AuditController {
         } else {
             result = repo.findAll(pageable);
         }
-        return result.map(AuditActionResponse::from);
+        Page<AuditActionResponse> mapped = result.map(AuditActionResponse::from);
+        return new AuditActionSearchResponse(
+                mapped.getContent(),
+                mapped.getNumber(),
+                mapped.getSize(),
+                mapped.getTotalElements(),
+                mapped.getTotalPages());
     }
 
     /**
      * Verifies the integrity of {@code subject}'s entire hash-chain (each link's signature plus the
-     * {@code previousHash} linkage). Returns {@code valid=false} for a tampered or broken chain;
-     * a subject with no signed actions verifies as {@code true} (an empty chain is trivially
+     * {@code previousHash} linkage). Returns {@code valid=false} for a tampered or broken chain; a
+     * subject with no signed actions verifies as {@code true} (an empty chain is trivially
      * consistent).
      */
     @PostMapping("/verify")

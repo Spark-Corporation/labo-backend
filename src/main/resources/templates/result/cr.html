@@ -32,6 +32,8 @@
       <div th:text="'ULID : ' + ${labFile.labFileId}">ULID</div>
       <div th:text="'Validé le ' + ${biologicalValidatedAtDisplay}">Validé le</div>
       <div th:text="'Biologiste : ' + ${biologicalValidatedBy.displayName}">Biologiste</div>
+      <div th:if="${signedByDisplay != null}"
+           th:text="'Signé électroniquement par ' + ${signedByDisplay} + ' le ' + ${signedAtDisplay}">Signé</div>
     </div>
   </div>
 

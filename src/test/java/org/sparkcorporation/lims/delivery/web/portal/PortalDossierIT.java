@@ -286,7 +286,9 @@ class PortalDossierIT extends IntegrationTestBase {
     }
 
     /**
-     * Drives open → enter → validate-technical → validate-biological → publish; returns labFileId.
+     * Drives open → enter → validate-technical → validate-biological → sign → publish; returns
+     * labFileId. Publication now requires the dossier to be {@code SIGNED} first (SP3), so the
+     * BIOLOGIST electronically signs it before publishing.
      */
     private String publishDossierFor(String patientId) {
         String labFileId = openLabFile(patientId);
@@ -309,6 +311,11 @@ class PortalDossierIT extends IntegrationTestBase {
         biologist
                 .post()
                 .uri("/api/v1/results/" + resultId + ":validate-biological")
+                .retrieve()
+                .toBodilessEntity();
+        biologist
+                .post()
+                .uri("/api/v1/lab-files/{id}:sign", labFileId)
                 .retrieve()
                 .toBodilessEntity();
         biologist

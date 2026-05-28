@@ -2,6 +2,8 @@ package org.sparkcorporation.lims.order.api;
 
 import java.math.BigDecimal;
 
+import org.jspecify.annotations.Nullable;
+
 import org.sparkcorporation.lims.iam.api.UserId;
 
 /**
@@ -32,4 +34,11 @@ public interface LabFileWriteApi {
      * Transitions the lab file to PUBLISHED (idempotent). Eligibility is enforced by the caller.
      */
     void publish(LabFileId labFileId);
+
+    /**
+     * Transitions the lab file to SIGNED (idempotent), recording {@code signedBy} and the signing
+     * instant. Eligibility ("all results biologically validated") and the cryptographic signature
+     * are enforced by the caller ({@code delivery} module).
+     */
+    void markSigned(LabFileId labFileId, @Nullable String signedBy);
 }

@@ -70,7 +70,7 @@ The CDC (`CAHIER DES CHARGES LOGICIEL DE GESTION DU LABORATOIRE.docx.pdf`) is th
 
 | LIMS module / feature | CDC section(s) |
 |---|---|
-| `iam` (auth, habilitations, signing chain) | §I (identifiants de connexion), §II (historique des actions, comptes), §IV (signer électroniquement le dossier), §VIII (caisse ↔ compte réceptionniste) |
+| `iam` (auth, habilitations, signing chain) | §I (identifiants de connexion), §II (historique des actions, comptes) **— action audit chain implemented, SP3**, §IV (signer électroniquement le dossier) **— dossier e-signature implemented, SP3**, §VIII (caisse ↔ compte réceptionniste) |
 | `patient` | §I Accueil et enregistrement des patients |
 | `order` (lab files, samples, urgency) | §II Dossier Analyse, §VI Prélèvements à réaliser, §IX Gestion des dossiers |
 | `catalog` (configurations) | §VII Gestion des disciplines; Onglet Configurations (matrices, disciplines, récap, bilan société, préleveurs, antibiotiques, spécialités prescripteurs, analyses simples / groupées) |
@@ -367,7 +367,11 @@ CREATE TABLE lab_files (
     patient_due NUMERIC(18,2) NOT NULL DEFAULT 0,
     discount NUMERIC(18,2) NOT NULL DEFAULT 0,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-    deleted_at TIMESTAMPTZ
+    deleted_at TIMESTAMPTZ,
+    -- SP3 dossier e-signature (changeset 202605281410-add-lab-files-signature, CDC §IV).
+    -- Set when the dossier transitions to SIGNED; publication is gated on SIGNED.
+    signed_by VARCHAR(26),                  -- users.id (ULID) of the signing biologist, null until signed
+    signed_at TIMESTAMPTZ                    -- when the dossier was electronically signed
 );
 ```
 
@@ -382,39 +386,52 @@ CREATE TABLE local_credentials (
     last_login_at TIMESTAMPTZ
 );
 
--- secured-x per-user Ed25519 key-pair store (private key encrypted at rest)
+-- secured-x per-user Ed25519 key-pair store (private key encrypted at rest, SP3)
+-- changeset 202605281400-create-user-key-pairs. The raw PKCS#8 private key the
+-- secured-x UserKeyPairManager hands us is encrypted with AES-256-GCM before
+-- persistence: private_key_encrypted holds the ciphertext (incl. GCM auth tag),
+-- private_key_iv holds the 12-byte nonce. The KEK comes from
+-- lims.signing.key-encryption-key (env LIMS_SIGNING_KEK).
 CREATE TABLE user_key_pairs (
-    key_id      VARCHAR(36) PRIMARY KEY,
-    subject     VARCHAR(26) NOT NULL REFERENCES users(id),
-    public_key  BYTEA NOT NULL,
-    private_key BYTEA NOT NULL,
-    created_at  TIMESTAMPTZ NOT NULL,
-    expires_at  TIMESTAMPTZ,
-    active      BOOLEAN NOT NULL DEFAULT TRUE
+    key_id                VARCHAR(36) PRIMARY KEY,
+    subject               VARCHAR(26) NOT NULL REFERENCES users(id),
+    public_key            BYTEA NOT NULL,
+    private_key_encrypted BYTEA NOT NULL,   -- AES-256-GCM ciphertext of the PKCS#8 key
+    private_key_iv        BYTEA NOT NULL,    -- 12-byte GCM nonce
+    created_at            TIMESTAMPTZ NOT NULL,
+    expires_at            TIMESTAMPTZ,       -- nullable
+    active                BOOLEAN NOT NULL
 );
-CREATE INDEX idx_user_key_pairs_subject ON user_key_pairs(subject);
+CREATE INDEX ix_user_key_pairs_subject_active ON user_key_pairs(subject, active);
 
--- secured-x append-only signed-action audit chain
+-- secured-x append-only signed-action audit chain (SP3)
+-- changeset 202605281405-create-signed-actions.
 CREATE TABLE signed_actions (
     action_id       VARCHAR(36) PRIMARY KEY,
-    subject         VARCHAR(26) NOT NULL,
-    action          VARCHAR(255) NOT NULL,
-    resource        VARCHAR(512),
-    timestamp       TIMESTAMPTZ NOT NULL,
-    correlation_id  VARCHAR(36),
+    subject         VARCHAR(26) NOT NULL,     -- users.id (ULID); no direct FK — reaches users via key_id → user_key_pairs.subject
+    action          VARCHAR(120) NOT NULL,
+    resource        VARCHAR(255),
+    -- timestamp is TEXT (ISO-8601), NOT timestamptz: it is persisted via
+    -- InstantIso8601Converter from Instant.toString() so the value the Ed25519
+    -- signature was computed over round-trips byte-identically (nanosecond
+    -- fidelity). Storing it as timestamptz would truncate / re-render the
+    -- instant and break chain verification.
+    timestamp       TEXT NOT NULL,
+    correlation_id  VARCHAR(64),
     key_id          VARCHAR(36) NOT NULL REFERENCES user_key_pairs(key_id),
     metadata        JSONB,
-    previous_hash   VARCHAR(44),
+    previous_hash   VARCHAR(64),             -- SHA-256(prev.signature), null for the genesis link
     sequence_number BIGINT NOT NULL,
     signature       TEXT NOT NULL,
     UNIQUE (subject, sequence_number)
 );
-CREATE INDEX idx_signed_actions_subject_seq ON signed_actions(subject, sequence_number);
-CREATE INDEX idx_signed_actions_timestamp   ON signed_actions(timestamp);
+CREATE INDEX ix_signed_actions_subject_seq ON signed_actions(subject, sequence_number);
+CREATE INDEX ix_signed_actions_resource    ON signed_actions(resource);
 
 -- enforce append-only at DB level (RULE blocks UPDATE / DELETE)
 CREATE RULE no_update_signed_actions AS ON UPDATE TO signed_actions DO INSTEAD NOTHING;
 CREATE RULE no_delete_signed_actions AS ON DELETE TO signed_actions DO INSTEAD NOTHING;
+-- AuditCheckpoint persistence is deferred to SP8 (no checkpoint table shipped in SP3).
 ```
 
 ### 6.3 Reference Intervals
@@ -642,7 +659,8 @@ Example: `LTA24-1710-005` = Togo lab, 17 Oct 2024 (day 17, month 10), 5th invoic
 | `POST` | `/lab-files/{id}/results:enter` | enter results (technical) |
 | `POST` | `/lab-files/{id}/results:validate-tech` | technical validation |
 | `POST` | `/lab-files/{id}/results:validate-bio` | biological validation, locks the file |
-| `POST` | `/lab-files/{id}:publish` | publish a fully bio-validated dossier (`dossier.publish`); transitions to `PUBLISHED`, emits `ResultPublished` (online channel — SP2). Manual only |
+| `POST` | `/lab-files/{id}:sign` | electronically sign a bio-validated dossier (`dossier.sign-electronically`, BIOLOGIST; CDC §IV). Binds a digest of the dossier into the signing biologist's Ed25519 action chain (explicit `ActionSigner.sign`), sets `signed_by`/`signed_at`, transitions to `SIGNED`, emits `DossierSigned`. Prerequisite for `:publish` (SP3) |
+| `POST` | `/lab-files/{id}:publish` | publish a dossier (`dossier.publish`); **now requires the dossier to be `SIGNED`** (SP3). Transitions to `PUBLISHED`, emits `ResultPublished` (online channel — SP2). Manual only |
 
 #### Quotes
 | `POST` `/quotes` · `GET` `/quotes/{id}` · `POST` `/quotes/{id}:lock` · `POST` `/quotes/{id}:send` |
@@ -690,6 +708,14 @@ A second, stateless authentication realm under `/api/v1/portal/**` (RS256 portal
 | `POST` | `/api/v1/portal/login` | public; verifies portal credentials via `patient::api`, returns a portal JWT |
 | `GET` | `/api/v1/portal/dossiers` | portal JWT; the authenticated patient's own `PUBLISHED` dossiers |
 | `GET` | `/api/v1/portal/dossiers/{id}/pdf` | portal JWT; compte-rendu PDF for one of the patient's own published dossiers (404 if not theirs / not published) |
+
+#### Audit (action history, SP3)
+ADMIN-only read access to the per-user signed-action chain (CDC §II). Both endpoints require `audit.read`.
+
+| Method | Path | Notes |
+|---|---|---|
+| `GET` | `/api/v1/audit/actions` | `audit.read` (ADMIN); list signed actions from the per-user chain (filter / paginate by subject + sequence range) |
+| `POST` | `/api/v1/audit/verify` | `audit.read` (ADMIN); re-verify a subject's chain (`ActionSignatureVerifier.verifyChain`) and report tamper-evidence status |
 
 ### 7.4 Versioning
 Major version in URL (`/v1`). Breaking changes ship as `/v2`; old versions stay alive for at least one release cycle.
@@ -800,11 +826,11 @@ Insurance and partner reference dictionaries live in `catalog` (`InsuranceApi`, 
 ### 8.7 `delivery` Module
 Three channels: print, email, online portal. The **online channel** and the staff publish use-case are **implemented** (SP2 / roadmap 1.8); print, email, and the intermediate dossier states are deferred.
 
-- **Publish use-case (implemented).** `POST /api/v1/lab-files/{id}:publish` (`dossier.publish`) transitions a fully bio-validated dossier to `PUBLISHED` and emits a `ResultPublished` application event (consumed downstream by SP4 notifications). Publication is **manual only** — there is no auto-publish on biological validation. Eligibility ("all results biologically validated") is checked in `delivery`'s `PublishService` via `result::api`'s `CompteRenduApi`; `order::api`'s `LabFileWriteApi.publish` owns the lifecycle transition.
+- **Publish use-case (implemented).** `POST /api/v1/lab-files/{id}:publish` (`dossier.publish`) transitions a dossier to `PUBLISHED` and emits a `ResultPublished` application event (consumed downstream by SP4 notifications). Since SP3 the dossier must be `SIGNED` before it can be published — `PublishService` rejects an unsigned dossier. Publication is **manual only** — there is no auto-publish on biological validation. Eligibility ("all results biologically validated") is checked in `delivery`'s `PublishService` via `result::api`'s `CompteRenduApi`; `order::api`'s `LabFileWriteApi.publish` owns the lifecycle transition.
 - **Online (implemented).** A second, stateless authentication realm for patients (RS256 portal JWT, `aud=lims-portal`, 30-min TTL, reusing the existing RSA keys). `POST /api/v1/portal/login` verifies the credentials issued at registration via `patient::api`; `GET /api/v1/portal/dossiers` and `GET /api/v1/portal/dossiers/{id}/pdf` serve the patient's own `PUBLISHED` dossiers and compte-rendu PDFs (404 otherwise — enumeration-safe). The realm is self-contained: encoder/decoder live inside `PortalTokenService` (never exposed as beans), `/api/v1/portal/**` is a `secured-x` public path, and a path-scoped servlet filter is the gate. Uses `spring-security-oauth2-jose` (Nimbus) for RS256.
 - **Print** generates the PDF report on demand and streams it back; a copy is archived in object storage. *(Pending.)*
 - **Email** sends the PDF as an attachment, password-protected with a per-file random password delivered via SMS or WhatsApp. *(Pending — SP4.)*
-- **Electronic signature** of the dossier (CDC §IV "signer électroniquement") is **pending — SP3**.
+- **Electronic signature** of the dossier (CDC §IV "signer électroniquement") is **implemented (SP3)**. `POST /api/v1/lab-files/{id}:sign` (`dossier.sign-electronically`, BIOLOGIST) binds a digest of the bio-validated dossier into the signing biologist's Ed25519 action chain, sets `lab_files.signed_by`/`signed_at`, transitions the dossier to `SIGNED`, and emits `DossierSigned`. Signing is the mandatory prerequisite for `:publish`. The signing infrastructure (key-pair store, append-only audit chain) lives in `iam` (see §9.1, §9.4); `delivery` owns the dossier-level `:sign`/`:publish` lifecycle.
 - The intermediate `PRINTED` / `SENT` dossier states and the full intermediate LabFile status machine are **deferred** (only the `PUBLISHED` transition exists today).
 
 ### 8.8 `pdf` Module (1.5.c)
@@ -866,9 +892,9 @@ Method-level enforcement via `@PreAuthorize("hasAuthority('result.validate-bio')
 Two complementary layers:
 
 - **Row-level history** — Hibernate Envers on the critical tables (`patients`, `lab_files`, `result_entries`, `invoices`, `users`). Captures *what* changed, when, and by whom on each row. Used for forensic queries and write reconstruction.
-- **Action history (secured-x signing chain)** — every authenticated HTTP request is signed with the user's Ed25519 key pair and stored in `signed_actions`, linked into a per-user tamper-evident hash chain. Satisfies CDC §II "Historique des actions effectuées sur le dossier (lié aux droits d'accès suivant les comptes)". Business operations that need explicit signing (`dossier.publish`, `dossier.sign-electronically` per CDC §IV) use the `@Signed("…")` AOP annotation from `secured-x-core`.
+- **Action history (secured-x signing chain) — implemented (SP3).** Every authenticated HTTP request is signed with the user's Ed25519 key pair and stored in `signed_actions`, linked into a per-user tamper-evident hash chain (`previous_hash = SHA-256(prev.signature)`, genesis link `sequence_number = 1` / `previous_hash = null`). Satisfies CDC §II "Historique des actions effectuées sur le dossier (lié aux droits d'accès suivant les comptes)". Key pairs are provisioned on first login and persisted in `user_key_pairs` with the private key AES-256-GCM-encrypted at rest (KEK `lims.signing.key-encryption-key` / `LIMS_SIGNING_KEK`). The per-request `ActionSigningFilter` is fail-open (logs on signing error, request proceeds) and matches exclusions by bare-prefix `startsWith`. The dossier e-signature (`dossier.sign-electronically` per CDC §IV) binds a digest via an explicit `ActionSigner.sign(...)` call rather than the metadata-free `@Signed` aspect, so the digest is carried in the signed `metadata`. ADMIN-only read access is exposed via `GET /api/v1/audit/actions` and `POST /api/v1/audit/verify` (both `audit.read`, see §7.3).
 
-The signing chain is append-only at the database level (PostgreSQL `RULE` blocks `UPDATE` and `DELETE` on `signed_actions`), giving the audit trail tamper-evidence on top of cryptographic integrity. The legacy `audit_event` table from earlier drafts is removed in favour of `signed_actions`.
+The signing chain is append-only at the database level (PostgreSQL `RULE` blocks `UPDATE` and `DELETE` on `signed_actions`), giving the audit trail tamper-evidence on top of cryptographic integrity. The legacy `audit_event` table from earlier drafts is removed in favour of `signed_actions`. **SP8 is reduced** by SP3: with the per-request audit chain + dossier e-signature now shipped, SP8 retains only the audit-chain **checkpointing** (`AuditCheckpoint` persistence — deferred, no checkpoint table shipped in SP3) and **advanced audit reporting**.
 
 ---
 

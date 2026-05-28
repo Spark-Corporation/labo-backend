@@ -212,7 +212,9 @@ public class DefaultLabFileApi implements LabFileApi {
                 partner,
                 billing,
                 lf.getCreatedAt(),
-                lf.getCreatedByUserId());
+                lf.getCreatedByUserId(),
+                lf.getSignedBy(),
+                lf.getSignedAt());
     }
 
     private SampleSummary toSampleSummary(Sample s) {

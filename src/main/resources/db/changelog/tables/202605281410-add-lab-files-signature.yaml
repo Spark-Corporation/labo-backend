@@ -1,0 +1,15 @@
+databaseChangeLog:
+  - changeSet:
+      id: 202605281410-add-lab-files-signature
+      author: samuel
+      preconditions:
+        - onFail: HALT
+        - tableExists: { tableName: lab_files }
+      changes:
+        - addColumn:
+            tableName: lab_files
+            columns:
+              - column: { name: signed_by, type: varchar(26) }
+              - column: { name: signed_at, type: timestamptz }
+      # rollback: AUTHORED BY USER
+      #   (proposed: dropColumn lab_files.signed_by; dropColumn lab_files.signed_at)

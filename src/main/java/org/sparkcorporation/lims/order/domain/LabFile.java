@@ -79,6 +79,12 @@ public class LabFile {
     @Column(name = "created_by_user_id")
     private @Nullable String createdByUserId;
 
+    @Column(name = "signed_by")
+    private @Nullable String signedBy;
+
+    @Column(name = "signed_at")
+    private @Nullable Instant signedAt;
+
     @Column(name = "insurance_id", length = 26)
     private @Nullable String insuranceId;
 
@@ -189,6 +195,22 @@ public class LabFile {
             return; // idempotent
         }
         this.status = LabFileStatus.PUBLISHED;
+    }
+
+    /**
+     * Transitions the lab file to {@link LabFileStatus#SIGNED} and records the signer + signing
+     * instant (idempotent). Eligibility ("all results biologically validated") and the
+     * cryptographic signing are enforced upstream by the {@code delivery} module; the aggregate
+     * owns only the lifecycle transition and the audit stamp.
+     */
+    public void markSigned(@Nullable String signedBy, Clock clock) {
+        if (this.status == LabFileStatus.SIGNED || this.status == LabFileStatus.PUBLISHED) {
+            return; // idempotent
+        }
+        this.status = LabFileStatus.SIGNED;
+        this.signedBy = signedBy;
+        this.signedAt = clock.instant();
+        this.updatedAt = clock.instant();
     }
 
     /**

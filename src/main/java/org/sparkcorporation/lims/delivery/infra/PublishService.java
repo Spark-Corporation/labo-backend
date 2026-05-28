@@ -15,12 +15,11 @@ import org.sparkcorporation.lims.order.api.LabFileId;
 import org.sparkcorporation.lims.order.api.LabFileStatus;
 import org.sparkcorporation.lims.order.api.LabFileWriteApi;
 import org.sparkcorporation.lims.patient.api.PatientId;
-import org.sparkcorporation.lims.result.api.CompteRenduApi;
 
 /**
- * Staff publish use-case: validates eligibility (every result biologically validated), transitions
- * the dossier to {@code PUBLISHED}, and emits {@link ResultPublished}. Idempotent — re-publishing
- * an already-published dossier is a no-op that emits no second event.
+ * Staff publish use-case: requires the dossier to be electronically {@code SIGNED} first,
+ * transitions it to {@code PUBLISHED}, and emits {@link ResultPublished}. Idempotent —
+ * re-publishing an already-published dossier is a no-op that emits no second event.
  */
 @Service
 @RequiredArgsConstructor
@@ -28,7 +27,6 @@ public class PublishService {
 
     private final LabFileApi labFileApi;
     private final LabFileWriteApi labFileWriteApi;
-    private final CompteRenduApi compteRenduApi;
     private final ApplicationEventPublisher events;
     private final Clock clock;
 
@@ -38,8 +36,8 @@ public class PublishService {
         if (summary.status() == LabFileStatus.PUBLISHED) {
             return; // idempotent — already published, no event
         }
-        if (!compteRenduApi.allResultsBiologicallyValidated(labFileId)) {
-            throw new NotPublishableException(labFileId);
+        if (summary.status() != LabFileStatus.SIGNED) {
+            throw new NotPublishableException(labFileId); // must be signed first
         }
         labFileWriteApi.publish(labFileId);
         events.publishEvent(

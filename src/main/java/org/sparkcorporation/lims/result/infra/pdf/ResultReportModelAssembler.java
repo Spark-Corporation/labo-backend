@@ -112,6 +112,19 @@ public class ResultReportModelAssembler {
         var groups = buildGroups(results, analyses);
         var antibiograms = buildAntibiograms(results);
 
+        // Electronic-signature attestation (SP3): present only once the dossier is SIGNED.
+        String signedByDisplay = null;
+        String signedAtDisplay = null;
+        if (labFile.signedBy() != null) {
+            signedByDisplay =
+                    userApi.findById(new UserId(labFile.signedBy()))
+                            .map(UserSummary::fullName)
+                            .orElse(labFile.signedBy());
+            if (labFile.signedAt() != null) {
+                signedAtDisplay = FRENCH_DATE_TIME.format(labFile.signedAt());
+            }
+        }
+
         var validatedAt = lastValidated.biologicalValidatedAt();
         return new ResultReportModel(
                 new ResultReportModel.LabFileSummary(
@@ -124,6 +137,8 @@ public class ResultReportModelAssembler {
                 validatedAt,
                 FRENCH_DATE_TIME.format(validatedAt),
                 buildUser(biologist),
+                signedByDisplay,
+                signedAtDisplay,
                 groups,
                 antibiograms,
                 Locale.FRENCH);

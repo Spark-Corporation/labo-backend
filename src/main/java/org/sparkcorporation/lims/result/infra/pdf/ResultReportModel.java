@@ -31,6 +31,8 @@ public record ResultReportModel(
         Instant biologicalValidatedAt,
         String biologicalValidatedAtDisplay,
         UserSummary biologicalValidatedBy,
+        @Nullable String signedByDisplay,
+        @Nullable String signedAtDisplay,
         List<AnalysisGroupBlock> groups,
         List<AntibiogramBlock> antibiograms,
         Locale locale) {

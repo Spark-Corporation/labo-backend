@@ -169,6 +169,8 @@ class OpenHtmlToPdfRenderingServiceIT extends IntegrationTestBase {
                 "20/05/2026 12:30",
                 new ResultReportModel.UserSummary(
                         "01HZB000000000000000BGST00", "Dr. KOFFI Adjoa", "Biologiste"),
+                "Dr. KOFFI Adjoa",
+                "28/05/2026 14:10",
                 java.util.List.of(
                         new ResultReportModel.AnalysisGroupBlock("Biochimie", biochimieRows),
                         new ResultReportModel.AnalysisGroupBlock("Hématologie", hemaRows)),

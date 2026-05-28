@@ -14,6 +14,7 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
 import org.sparkcorporation.lims.delivery.domain.NotPublishableException;
+import org.sparkcorporation.lims.delivery.domain.NotSignableException;
 
 /**
  * Delivery-specific RFC 7807 {@link ProblemDetail} mapper. Lives inside {@code delivery.web} so
@@ -29,6 +30,17 @@ public class DeliveryProblemDetailAdvice {
         var pd = ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT, ex.getMessage());
         pd.setType(URI.create("/problems/delivery/not-publishable"));
         pd.setTitle("Dossier not publishable");
+        pd.setInstance(URI.create(req.getRequestURI()));
+        pd.setProperty("labFileId", ex.labFileId().value());
+        pd.setProperty("traceId", traceId());
+        return pd;
+    }
+
+    @ExceptionHandler(NotSignableException.class)
+    public ProblemDetail handleNotSignable(NotSignableException ex, HttpServletRequest req) {
+        var pd = ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT, ex.getMessage());
+        pd.setType(URI.create("/problems/delivery/not-signable"));
+        pd.setTitle("Dossier not signable");
         pd.setInstance(URI.create(req.getRequestURI()));
         pd.setProperty("labFileId", ex.labFileId().value());
         pd.setProperty("traceId", traceId());

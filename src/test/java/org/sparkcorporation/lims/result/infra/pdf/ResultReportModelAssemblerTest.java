@@ -80,6 +80,7 @@ class ResultReportModelAssemblerTest {
 
     private static final Instant VALIDATED_AT = Instant.parse("2026-05-20T12:30:00Z");
     private static final Instant OPENED_AT = Instant.parse("2026-05-20T08:00:00Z");
+    private static final Instant SIGNED_AT = Instant.parse("2026-05-28T14:10:00Z");
     private static final Clock FIXED_CLOCK = Clock.fixed(VALIDATED_AT, ZoneId.of("UTC"));
 
     @Mock private LabFileApi labFileApi;
@@ -261,6 +262,10 @@ class ResultReportModelAssemblerTest {
         assertThat(model.biologicalValidatedBy().userId()).isEqualTo(BIOLOGIST_ULID);
         assertThat(model.biologicalValidatedBy().displayName()).isEqualTo("Dr. KOFFI Adjoa");
 
+        // Unsigned dossier → no electronic-signature attestation.
+        assertThat(model.signedByDisplay()).isNull();
+        assertThat(model.signedAtDisplay()).isNull();
+
         // Groups — one per discipline, ordered alphabetically.
         assertThat(model.groups()).hasSize(2);
         var biochimieGroup =
@@ -293,6 +298,84 @@ class ResultReportModelAssemblerTest {
 
         // Locale.
         assertThat(model.locale()).isNotNull();
+    }
+
+    @Test
+    void assembleSignedDossierCarriesElectronicSignatureAttestation() {
+        var labFileId = new LabFileId(LAB_FILE_ULID);
+        when(labFileApi.requireById(labFileId))
+                .thenReturn(signedLabFileWith(BIOLOGIST_ULID, SIGNED_AT));
+
+        when(labSettingsApi.get())
+                .thenReturn(
+                        new LabSettings(
+                                "Test Lab",
+                                "1 rue du Test, Test City",
+                                "ACC-TEST-001",
+                                "Dr. Test",
+                                Instant.parse("2026-05-21T10:00:00Z")));
+
+        var line =
+                new ResultSummary.LineSummary(
+                        new ResultLineId(LINE_ULID_1),
+                        new AnalysisId(ANALYSIS_ULID_1),
+                        "GLU",
+                        0,
+                        ResultType.REAL,
+                        null,
+                        new BigDecimal("1.05"),
+                        null,
+                        "g/L",
+                        2,
+                        null,
+                        null,
+                        null,
+                        false,
+                        null);
+        var r1 =
+                new ResultSummary(
+                        new ResultId(RESULT_ULID_1),
+                        labFileId,
+                        new AnalysisRequestId(AR_ULID_1),
+                        new AnalysisId(ANALYSIS_ULID_1),
+                        "GLU",
+                        ResultState.BIOLOGICAL_VALIDATED,
+                        "tech",
+                        Instant.parse("2026-05-20T11:00:00Z"),
+                        BIOLOGIST_ULID,
+                        VALIDATED_AT,
+                        List.of(line),
+                        List.of(),
+                        OPENED_AT,
+                        null);
+        when(resultApi.findActiveByLabFile(labFileId)).thenReturn(List.of(r1));
+
+        when(patientApi.findById(new PatientId(PATIENT_ULID)))
+                .thenReturn(Optional.of(patientSummary()));
+        when(analysisApi.findAllByIds(anyCollection()))
+                .thenReturn(
+                        Map.of(
+                                new AnalysisId(ANALYSIS_ULID_1),
+                                analysisSummary(
+                                        ANALYSIS_ULID_1,
+                                        "GLU",
+                                        "Glucose",
+                                        DISCIPLINE_BIOCH,
+                                        "Biochimie")));
+        when(userApi.findById(new UserId(BIOLOGIST_ULID)))
+                .thenReturn(
+                        Optional.of(
+                                new UserSummary(
+                                        new UserId(BIOLOGIST_ULID),
+                                        "biologist@test.local",
+                                        "Dr. KOFFI Adjoa",
+                                        true,
+                                        Set.of())));
+
+        var model = assembler.assemble(labFileId);
+
+        assertThat(model.signedByDisplay()).isEqualTo("Dr. KOFFI Adjoa");
+        assertThat(model.signedAtDisplay()).isEqualTo("28/05/2026 14:10");
     }
 
     @Test
@@ -369,7 +452,29 @@ class ResultReportModelAssemblerTest {
                 null,
                 new LabFileSummary.BillingBlock(BigDecimal.ZERO, BigDecimal.ZERO, null, null),
                 OPENED_AT,
+                null,
+                null,
                 null);
+    }
+
+    private static LabFileSummary signedLabFileWith(String signedBy, Instant signedAt) {
+        return new LabFileSummary(
+                new LabFileId(LAB_FILE_ULID),
+                new LabFileRegistrationNumber("LF-260520-9001"),
+                new LabFileSummary.PatientSnapshot(PATIENT_ULID, "LAB-00001", "DOE", "Jane", Sex.F),
+                null,
+                null,
+                false,
+                LabFileStatus.SIGNED,
+                List.of(),
+                List.of(),
+                null,
+                null,
+                new LabFileSummary.BillingBlock(BigDecimal.ZERO, BigDecimal.ZERO, null, null),
+                OPENED_AT,
+                null,
+                signedBy,
+                signedAt);
     }
 
     private static PatientSummary patientSummary() {

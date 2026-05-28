@@ -34,10 +34,11 @@ import org.sparkcorporation.lims.result.api.ResultCreated;
 import org.sparkcorporation.lims.shared.id.Ulid;
 
 /**
- * Acceptance IT for the {@code delivery} publish use-case (SP2 Task 5). Exercises {@code POST
- * /api/v1/lab-files/{id}:publish} across the four scenarios in the spec: happy path emits {@link
- * ResultPublished}, a partially-validated dossier is 409, a caller without {@code dossier.publish}
- * is 403, and a second publish is idempotent (200, no second event).
+ * Acceptance IT for the {@code delivery} publish use-case (SP2 Task 5; SP3 Task 10 gated publish on
+ * {@code SIGNED}). Exercises {@code POST /api/v1/lab-files/{id}:publish}: happy path is
+ * sign→publish and emits {@link ResultPublished}; a partially-validated dossier is 409; a
+ * bio-validated but unsigned dossier is 409; a caller without {@code dossier.publish} is 403; a
+ * second publish is idempotent (200, no second event).
  *
  * <p>Cross-module fixtures (patient + discipline + analysis) are seeded via raw SQL — the {@code
  * delivery} module cannot import other modules' entities (Modulith boundary; mirrors {@link
@@ -75,8 +76,8 @@ class PublishIT extends IntegrationTestBase {
     }
 
     @Test
-    void publish_succeeds_when_all_results_bio_validated_and_emits_event() {
-        String labFileId = aFullyBioValidatedDossier();
+    void publish_succeeds_when_dossier_is_signed_and_emits_event() {
+        String labFileId = aSignedDossier();
         var publisher = restClientFor(port, "BIOLOGIST");
 
         var resp =
@@ -114,8 +115,27 @@ class PublishIT extends IntegrationTestBase {
     }
 
     @Test
-    void publish_returns_403_without_dossier_publish_permission() {
+    void publish_returns_409_when_bio_validated_but_not_signed() {
         String labFileId = aFullyBioValidatedDossier();
+        var publisher = restClientFor(port, "BIOLOGIST");
+
+        assertThatThrownBy(
+                        () ->
+                                publisher
+                                        .post()
+                                        .uri("/api/v1/lab-files/{id}:publish", labFileId)
+                                        .retrieve()
+                                        .toBodilessEntity())
+                .isInstanceOfSatisfying(
+                        HttpClientErrorException.class,
+                        ex ->
+                                assertThat(ex.getStatusCode())
+                                        .isEqualTo(HttpStatusCode.valueOf(409)));
+    }
+
+    @Test
+    void publish_returns_403_without_dossier_publish_permission() {
+        String labFileId = aSignedDossier();
         var receptionist = restClientFor(port, "RECEPTIONIST");
 
         assertThatThrownBy(
@@ -134,7 +154,7 @@ class PublishIT extends IntegrationTestBase {
 
     @Test
     void double_publish_is_idempotent_200() {
-        String labFileId = aFullyBioValidatedDossier();
+        String labFileId = aSignedDossier();
         var publisher = restClientFor(port, "BIOLOGIST");
         publisher
                 .post()
@@ -160,6 +180,20 @@ class PublishIT extends IntegrationTestBase {
         biologist
                 .post()
                 .uri("/api/v1/results/" + resultId + ":validate-biological")
+                .retrieve()
+                .toBodilessEntity();
+        return labFileId;
+    }
+
+    /**
+     * Builds a fully bio-validated dossier and electronically signs it (BIOLOGIST). Publication now
+     * requires {@code SIGNED} (SP3), so every publish-success path must sign first.
+     */
+    private String aSignedDossier() {
+        String labFileId = aFullyBioValidatedDossier();
+        biologist
+                .post()
+                .uri("/api/v1/lab-files/{id}:sign", labFileId)
                 .retrieve()
                 .toBodilessEntity();
         return labFileId;

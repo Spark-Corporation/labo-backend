@@ -226,6 +226,8 @@ class HomeCollectionFeeServiceTest {
                 null,
                 new BillingBlock(BigDecimal.ZERO, BigDecimal.ZERO, null, null),
                 FIXED.instant(),
+                null,
+                null,
                 null);
     }
 }

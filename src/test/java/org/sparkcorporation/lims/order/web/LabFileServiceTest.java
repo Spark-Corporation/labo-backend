@@ -180,6 +180,8 @@ class LabFileServiceTest {
                 null,
                 new LabFileSummary.BillingBlock(BigDecimal.ZERO, BigDecimal.ZERO, null, null),
                 FIXED_NOW,
+                null,
+                null,
                 null);
     }
 
