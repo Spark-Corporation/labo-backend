@@ -80,7 +80,7 @@ The CDC (`CAHIER DES CHARGES LOGICIEL DE GESTION DU LABORATOIRE.docx.pdf`) is th
 
 > Note on the home-collection fee overlap: Gestion comptable §5 places the recording action inside cashbox (`HomeCollectionFeeRecord` aggregate, journal row, audit trail), while §I/§II keep the *displayed* fee on the lab file and billing's `BillingSnapshot.homeCollectionFee` reads it from there at invoice issuance. Cashbox owns the act of recording; billing owns the snapshot. The two are kept in sync by the cashbox-side single-transaction write (`HomeCollectionFeeService` → `LabFileWriteApi.setHomeCollectionFee` + journal row), so an invoice issued after the fee is recorded always sees the same number.
 | `delivery` (print / mail / online) | §IV mode de diffusion (Mail, en ligne) |
-| `stats` | Onglet Statistiques |
+| `stats` (implemented — live SQL, six JSON endpoints under `/api/v1/stats`) | Onglet Statistiques |
 | `notification` (Mail, WhatsApp) | §III Devis (envoi par Mail / WhatsApp), §IV Résultats (envoi par Mail) |
 | `attachment` (scan direct) | §IV "Joindre des fichiers par scan direct (détection des scanners dans le réseau)" |
 | Quotes (`quote`) | §III Devis |
@@ -671,7 +671,16 @@ Example: `LTA24-1710-005` = Togo lab, 17 Oct 2024 (day 17, month 10), 5th invoic
 | `POST` | `/api/v1/cashbox/sessions/{cashRegisterId}/{sessionDate}:reopen` | LAB_MANAGER reopen with reason |
 
 #### Statistics
-| `GET` `/stats?from=...&to=...&groupBy=discipline,prescriber&filters=...` |
+All endpoints `GET`, base `/api/v1/stats`, require `stats.read`, accept required `from`/`to` (ISO `LocalDate`); `from > to` → 400. Computed live with native SQL (no `groupBy` engine — six focused endpoints).
+
+| Method | Path | Optional filters |
+|---|---|---|
+| `GET` | `/api/v1/stats/activity` | insuranceId, partnerId, prescriberId, sex |
+| `GET` | `/api/v1/stats/by-discipline` | insuranceId, partnerId |
+| `GET` | `/api/v1/stats/by-prescriber` | disciplineId |
+| `GET` | `/api/v1/stats/analyses` | disciplineId |
+| `GET` | `/api/v1/stats/antibiograms` | disciplineId |
+| `GET` | `/api/v1/stats/patients` | insuranceId, partnerId |
 
 ### 7.4 Versioning
 Major version in URL (`/v1`). Breaking changes ship as `/v2`; old versions stay alive for at least one release cycle.
@@ -802,7 +811,7 @@ The engine uses OpenHTMLtoPDF with Thymeleaf 3 for templating, and a bundled Dej
 See `docs/superpowers/specs/2026-05-20-pdf-renderer-design.md` for the full design.
 
 ### 8.9 `stats` Module
-Heavy aggregates are precomputed nightly into materialized views (`mv_daily_files`, `mv_results_by_discipline`). Live filtering on top stays fast. Filters supported match the spec (prescribers, disciplines, analyses, normal/abnormal, antibiograms, insurances, partners, new/old patients, sex, age groups).
+Aggregates are computed **live** with native SQL over the operational tables (the `billing/infra/AccountingReadModel` convention) — no materialized views, no nightly refresh. A single `StatsReadModel` (`@Component`, constructor-injected `JdbcTemplate`, fixed SQL constants + inline `RowMapper`s) backs the read-only `StatsController`. Filters supported match the spec (prescribers, disciplines, analyses, normal/abnormal, antibiograms, insurances, partners, new/old patients, sex, age groups) and are applied by conditionally appending fixed bound-parameter predicates. See `docs/superpowers/specs/2026-05-27-statistics-module-design.md` for the full design.
 
 ---
 
@@ -873,7 +882,7 @@ The permission strings used in `@RequiresPermission(…)` (from `secured-x-rbac`
 | `catalog.manage` | §VII Configurations | LAB_MANAGER |
 | `prescriber.manage`, `insurance.manage`, `partner.manage` | "Boutons de fenêtre en général" | LAB_MANAGER |
 | `users.manage` | implied (admin labo) | LAB_MANAGER, ADMIN |
-| `stats.read` | Onglet Statistiques | ACCOUNTANT, BIOLOGIST, LAB_MANAGER |
+| `stats.read` | Onglet Statistiques | ADMIN, ACCOUNTANT, BIOLOGIST, LAB_MANAGER |
 | `audit.read` | implied | ADMIN |
 | `cashbox.expense-category.read` (1.7.a) | Gestion comptable §2 | RECEPTIONIST, LAB_MANAGER, BIOLOGIST, ACCOUNTANT, CASHIER |
 | `cashbox.expense-category.manage` (1.7.a) | Gestion comptable §2 | LAB_MANAGER |
@@ -971,16 +980,13 @@ All sends go through an outbox table. A scheduled job retries failures with expo
 ## 13. Reporting & Statistics
 
 ### 13.1 Online Aggregates
-Endpoints under `/stats` accept a date range and a list of grouping dimensions plus filters. Implemented with JPA Criteria + native SQL when needed for performance.
+The six focused endpoints under `/api/v1/stats` (§7.3, §8.9) accept a `from`/`to` date range plus optional fixed filters, each returning JSON. Implemented with live native SQL (`StatsReadModel` + `JdbcTemplate`), not a flexible `groupBy` engine — every query is fixed and bound-parameterized.
 
-### 13.2 Materialized Views
-Refreshed nightly:
-- `mv_daily_kpis(date, lab_files_count, validated_count, revenue_total, urgent_count)`
-- `mv_results_by_discipline(date, discipline_id, count, abnormal_count)`
-- `mv_antibiogram_summary(date, antibiotic_id, sensitive, intermediate, resistant)`
+### 13.2 Precomputation
+None. Aggregates are computed live per request; no materialized views and no nightly refresh (modest pilot volume; the day-oriented views must be current). Revisited only if production volume proves live SQL insufficient.
 
 ### 13.3 Exports
-XLSX (Apache POI) and PDF (JasperReports) for accountants and the lab manager.
+Deferred to **SP5 (Document exports)** — `stats` ships JSON only for now. XLSX (Apache POI) / PDF report files for accountants and the lab manager arrive with the export sub-project.
 
 ---
 
@@ -1433,7 +1439,7 @@ pipeline {
 | Concern | Approach |
 |---|---|
 | Hot patient search | trigram index `gin (last_name gin_trgm_ops)` |
-| Statistics queries | materialized views refreshed nightly |
+| Statistics queries | live native SQL over operational tables (no materialized views) |
 | File listing | cursor pagination (`WHERE created_at < :cursor ORDER BY created_at DESC LIMIT 50`) |
 | Concurrent daily-ID generation | per-discipline sequences + per-day counter table |
 | PDF generation latency (Shipped capability — 1.5.c) | Sync renders 1–4 page reports inline; async `pdf_render_jobs` pipeline available for larger reports. |
@@ -1485,7 +1491,7 @@ Goal: deployable to a real lab for pilot with manual billing.
 - `delivery` (print + email + online portal).
 
 ### Phase 3 — Analytics & Notifications (3–4 weeks)
-- `stats` with materialized views and exports.
+- `stats` — live SQL + JSON (file export deferred to SP5).
 - `notification` (email + WhatsApp + SMS) with outbox.
 - Antibiogram automation polish.
 
