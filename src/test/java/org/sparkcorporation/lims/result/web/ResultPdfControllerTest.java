@@ -8,8 +8,6 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-import java.time.Instant;
-
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
@@ -18,10 +16,8 @@ import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
-import org.sparkcorporation.lims.pdf.api.PdfRenderingService;
-import org.sparkcorporation.lims.pdf.api.RenderedPdf;
-import org.sparkcorporation.lims.result.infra.pdf.ResultReportModelAssembler;
-import org.sparkcorporation.lims.result.infra.pdf.ResultReportPdfDocument;
+import org.sparkcorporation.lims.result.api.CompteRenduApi;
+import org.sparkcorporation.lims.result.api.CompteRenduPdf;
 import org.sparkcorporation.lims.result.infra.pdf.ResultsNotValidatedException;
 import org.sparkcorporation.lims.shared.web.ProblemDetailAdvice;
 
@@ -41,19 +37,15 @@ class ResultPdfControllerTest {
     private static final String LAB_FILE_ULID = "01HZB0000000000000000KBFE0";
 
     @Autowired private MockMvc mvc;
-    @MockitoBean private PdfRenderingService pdfService;
-    @MockitoBean private ResultReportModelAssembler assembler;
-    @MockitoBean private ResultReportPdfDocument resultReportPdfDocument;
+    @MockitoBean private CompteRenduApi compteRenduApi;
 
     @Test
     void getCrPdfReturnsApplicationPdf() throws Exception {
-        when(assembler.assemble(any())).thenReturn(null);
-        when(pdfService.render(any(), any()))
+        when(compteRenduApi.renderCompteRendu(any()))
                 .thenReturn(
-                        new RenderedPdf(
+                        new CompteRenduPdf(
                                 new byte[] {'%', 'P', 'D', 'F'},
-                                "CR-" + LAB_FILE_ULID + "-20260520.pdf",
-                                Instant.now()));
+                                "CR-" + LAB_FILE_ULID + "-20260520.pdf"));
 
         mvc.perform(get("/api/v1/results/{labFileId}/pdf", LAB_FILE_ULID))
                 .andExpect(status().isOk())
@@ -68,7 +60,8 @@ class ResultPdfControllerTest {
 
     @Test
     void notYetValidatedReturns409() throws Exception {
-        when(assembler.assemble(any())).thenThrow(new ResultsNotValidatedException(LAB_FILE_ULID));
+        when(compteRenduApi.renderCompteRendu(any()))
+                .thenThrow(new ResultsNotValidatedException(LAB_FILE_ULID));
 
         mvc.perform(get("/api/v1/results/{labFileId}/pdf", LAB_FILE_ULID))
                 .andExpect(status().isConflict())

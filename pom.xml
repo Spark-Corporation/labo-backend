@@ -109,6 +109,10 @@
       <groupId>org.springframework.security</groupId>
       <artifactId>spring-security-crypto</artifactId>
     </dependency>
+    <dependency>
+      <groupId>org.springframework.security</groupId>
+      <artifactId>spring-security-oauth2-jose</artifactId>
+    </dependency>
 
     <!--
       Jackson Java-time module (Spring Boot 4 with Jackson 2 bridge requires explicit registration

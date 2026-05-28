@@ -180,6 +180,18 @@ public class LabFile {
     }
 
     /**
+     * Transitions the lab file to {@link LabFileStatus#PUBLISHED} (idempotent). Eligibility ("all
+     * results biologically validated") is enforced upstream by the {@code delivery} module; the
+     * aggregate owns only the lifecycle transition.
+     */
+    public void publish() {
+        if (this.status == LabFileStatus.PUBLISHED) {
+            return; // idempotent
+        }
+        this.status = LabFileStatus.PUBLISHED;
+    }
+
+    /**
      * Append an already-attached sample to the aggregate. Pre-condition: the caller (service) has
      * invoked {@code sample.attachToFile(this, dailyId)} BEFORE this method. The aggregate's
      * responsibility is the OPEN-status invariant + collection mutation only.

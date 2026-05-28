@@ -8,6 +8,7 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 
+import org.jspecify.annotations.Nullable;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -131,14 +132,49 @@ class BillingFinalizationListenerIT extends IntegrationTestBase {
                         });
     }
 
+    @Test
+    void bio_validation_persists_full_length_analysis_code_snapshot() {
+        // Regression: invoice_lines.analysis_code_snapshot must hold the full analyses.code width
+        // (varchar(30)). It was varchar(8), so finalization silently failed for any code > 8 chars.
+        var longCode = "ANALYSE-LONG-CODE-" + Ulid.generate().substring(14, 26); // 30 chars, > 8
+        var fixture = seedReadyLabFile(longCode);
+
+        publishInTx(
+                new BiologicalValidationDone(
+                        new ResultId(fixture.resultId()),
+                        new LabFileId(fixture.labFileId()),
+                        new AnalysisRequestId(fixture.analysisRequestId()),
+                        "biologist-x",
+                        Instant.now()));
+
+        await().atMost(Duration.ofSeconds(15))
+                .pollInterval(Duration.ofMillis(200))
+                .untilAsserted(
+                        () -> {
+                            var maybe =
+                                    invoiceApi.findByLabFileId(new LabFileId(fixture.labFileId()));
+                            assertThat(maybe).isPresent();
+                            assertThat(maybe.get().lines()).hasSize(1);
+                            assertThat(maybe.get().lines().get(0).analysisCodeSnapshot())
+                                    .isEqualTo(longCode);
+                        });
+    }
+
     /**
      * Seed a fully-staged lab-file: patient, analysis, lab-file, analysis-request, biologically
      * validated result. Returns the relevant identifiers in a {@link Fixture}.
      */
     private Fixture seedReadyLabFile() {
+        return seedReadyLabFile(null);
+    }
+
+    private Fixture seedReadyLabFile(@Nullable String explicitAnalysisCode) {
         var patientId = seedPatient();
         var disciplineId = seedDiscipline();
-        var analysisId = seedAnalysis(disciplineId);
+        var analysisId =
+                explicitAnalysisCode == null
+                        ? seedAnalysis(disciplineId)
+                        : seedAnalysisWithCode(disciplineId, explicitAnalysisCode);
         var analysisCode = lookupAnalysisCode(analysisId);
         var labFileId = seedLabFile(patientId);
         var analysisRequestId = seedAnalysisRequest(labFileId, analysisId, analysisCode);
@@ -193,8 +229,12 @@ class BillingFinalizationListenerIT extends IntegrationTestBase {
     }
 
     private String seedAnalysis(String disciplineId) {
+        var code = "G" + Ulid.generate().substring(20, 26); // last 6 chars carry the random tail
+        return seedAnalysisWithCode(disciplineId, code);
+    }
+
+    private String seedAnalysisWithCode(String disciplineId, String code) {
         var id = Ulid.generate();
-        var code = "G" + id.substring(20, 26); // last 6 chars carry the random tail
         jdbc.update(
                 "INSERT INTO analyses (id, code, name, kind, indiciary_value_b, label_count,"
                         + " discipline_id, result_type, version) VALUES (?, ?, 'Glucose',"

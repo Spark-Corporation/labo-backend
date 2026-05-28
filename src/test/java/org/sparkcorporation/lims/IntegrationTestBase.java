@@ -126,4 +126,26 @@ public abstract class IntegrationTestBase {
                 .defaultHeader("Authorization", "Bearer " + jwt)
                 .build();
     }
+
+    /**
+     * A {@link RestClient} bound to the test server's base URL with <em>no</em> {@code
+     * Authorization} header. Used by patient-portal ITs to call public paths (e.g. {@code POST
+     * /api/v1/portal/login}) and to assert that token-protected portal endpoints reject anonymous
+     * callers with 401.
+     */
+    protected static RestClient restClientAnonymous(int port) {
+        return RestClient.builder().baseUrl("http://localhost:" + port).build();
+    }
+
+    /**
+     * A {@link RestClient} bound to the test server's base URL carrying {@code Authorization:
+     * Bearer <token>}. Used by patient-portal ITs to present a portal JWT (minted via {@code POST
+     * /api/v1/portal/login}) on the portal's protected endpoints.
+     */
+    protected static RestClient portalClient(int port, String token) {
+        return RestClient.builder()
+                .baseUrl("http://localhost:" + port)
+                .defaultHeader("Authorization", "Bearer " + token)
+                .build();
+    }
 }

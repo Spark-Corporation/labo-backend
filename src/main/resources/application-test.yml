@@ -1,6 +1,10 @@
 spring:
   liquibase:
     contexts: test
+lims:
+  signing:
+    # Fixed test key so ITs are deterministic and don't need the LIMS_SIGNING_KEK env var.
+    key-encryption-key: VR6qSfkiiulXOMY2rXP/LJW9eORmgW81miTOhOa9gbY=
 logging:
   level:
     root: WARN

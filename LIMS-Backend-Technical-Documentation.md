@@ -79,7 +79,7 @@ The CDC (`CAHIER DES CHARGES LOGICIEL DE GESTION DU LABORATOIRE.docx.pdf`) is th
 | `cashbox` (registers, journal, expenses, home-collection fees) (1.7.a) | §VIII Comptes et caisses; Gestion comptable §2 Dépenses, §3 Caisses, §4 Journal des caisses, §5 Frais de Prélèvement à domicile |
 
 > Note on the home-collection fee overlap: Gestion comptable §5 places the recording action inside cashbox (`HomeCollectionFeeRecord` aggregate, journal row, audit trail), while §I/§II keep the *displayed* fee on the lab file and billing's `BillingSnapshot.homeCollectionFee` reads it from there at invoice issuance. Cashbox owns the act of recording; billing owns the snapshot. The two are kept in sync by the cashbox-side single-transaction write (`HomeCollectionFeeService` → `LabFileWriteApi.setHomeCollectionFee` + journal row), so an invoice issued after the fee is recorded always sees the same number.
-| `delivery` (print / mail / online) | §IV mode de diffusion (Mail, en ligne) |
+| `delivery` (online channel + publish implemented, SP2 — patient portal under `/api/v1/portal`, staff `POST /lab-files/{id}:publish`; print / mail pending) | §I Identifiants de connexion pour consulter les résultats (portal login); §IV mode de diffusion "publier le résultat online" / diffusion en ligne; §IX dossier "publié" (PUBLISHED state) |
 | `stats` (implemented — live SQL, six JSON endpoints under `/api/v1/stats`) | Onglet Statistiques |
 | `notification` (Mail, WhatsApp) | §III Devis (envoi par Mail / WhatsApp), §IV Résultats (envoi par Mail) |
 | `attachment` (scan direct) | §IV "Joindre des fichiers par scan direct (détection des scanners dans le réseau)" |
@@ -642,7 +642,7 @@ Example: `LTA24-1710-005` = Togo lab, 17 Oct 2024 (day 17, month 10), 5th invoic
 | `POST` | `/lab-files/{id}/results:enter` | enter results (technical) |
 | `POST` | `/lab-files/{id}/results:validate-tech` | technical validation |
 | `POST` | `/lab-files/{id}/results:validate-bio` | biological validation, locks the file |
-| `POST` | `/lab-files/{id}:publish` | publish online + email |
+| `POST` | `/lab-files/{id}:publish` | publish a fully bio-validated dossier (`dossier.publish`); transitions to `PUBLISHED`, emits `ResultPublished` (online channel — SP2). Manual only |
 
 #### Quotes
 | `POST` `/quotes` · `GET` `/quotes/{id}` · `POST` `/quotes/{id}:lock` · `POST` `/quotes/{id}:send` |
@@ -681,6 +681,15 @@ All endpoints `GET`, base `/api/v1/stats`, require `stats.read`, accept required
 | `GET` | `/api/v1/stats/analyses` | disciplineId |
 | `GET` | `/api/v1/stats/antibiograms` | disciplineId |
 | `GET` | `/api/v1/stats/patients` | insuranceId, partnerId |
+
+#### Patient Portal (online delivery channel, SP2)
+A second, stateless authentication realm under `/api/v1/portal/**` (RS256 portal JWT, `aud=lims-portal`, 30-min TTL, signed with the existing RSA keys). These paths are listed in `secured-x.security.public-paths` so the staff RBAC chain ignores them; a path-scoped servlet filter is the actual gate. Patients see only their own `PUBLISHED` dossiers; cross-patient and unpublished requests return 404 (enumeration-safe).
+
+| Method | Path | Notes |
+|---|---|---|
+| `POST` | `/api/v1/portal/login` | public; verifies portal credentials via `patient::api`, returns a portal JWT |
+| `GET` | `/api/v1/portal/dossiers` | portal JWT; the authenticated patient's own `PUBLISHED` dossiers |
+| `GET` | `/api/v1/portal/dossiers/{id}/pdf` | portal JWT; compte-rendu PDF for one of the patient's own published dossiers (404 if not theirs / not published) |
 
 ### 7.4 Versioning
 Major version in URL (`/v1`). Breaking changes ship as `/v2`; old versions stay alive for at least one release cycle.
@@ -789,10 +798,14 @@ Insurance and partner reference dictionaries live in `catalog` (`InsuranceApi`, 
 **Permissions.** 9 new permissions catalogued in §9.5: read/manage on expense categories, read/record on expenses and home-collection fees, read on journal, close/reopen on sessions.
 
 ### 8.7 `delivery` Module
-Three channels: print, email, online portal.
-- **Print** generates the PDF report on demand and streams it back; a copy is archived in object storage.
-- **Email** sends the PDF as an attachment, password-protected with a per-file random password delivered via SMS or WhatsApp.
-- **Online** publishes the PDF behind a per-file token. The patient logs in with the credentials issued at registration.
+Three channels: print, email, online portal. The **online channel** and the staff publish use-case are **implemented** (SP2 / roadmap 1.8); print, email, and the intermediate dossier states are deferred.
+
+- **Publish use-case (implemented).** `POST /api/v1/lab-files/{id}:publish` (`dossier.publish`) transitions a fully bio-validated dossier to `PUBLISHED` and emits a `ResultPublished` application event (consumed downstream by SP4 notifications). Publication is **manual only** — there is no auto-publish on biological validation. Eligibility ("all results biologically validated") is checked in `delivery`'s `PublishService` via `result::api`'s `CompteRenduApi`; `order::api`'s `LabFileWriteApi.publish` owns the lifecycle transition.
+- **Online (implemented).** A second, stateless authentication realm for patients (RS256 portal JWT, `aud=lims-portal`, 30-min TTL, reusing the existing RSA keys). `POST /api/v1/portal/login` verifies the credentials issued at registration via `patient::api`; `GET /api/v1/portal/dossiers` and `GET /api/v1/portal/dossiers/{id}/pdf` serve the patient's own `PUBLISHED` dossiers and compte-rendu PDFs (404 otherwise — enumeration-safe). The realm is self-contained: encoder/decoder live inside `PortalTokenService` (never exposed as beans), `/api/v1/portal/**` is a `secured-x` public path, and a path-scoped servlet filter is the gate. Uses `spring-security-oauth2-jose` (Nimbus) for RS256.
+- **Print** generates the PDF report on demand and streams it back; a copy is archived in object storage. *(Pending.)*
+- **Email** sends the PDF as an attachment, password-protected with a per-file random password delivered via SMS or WhatsApp. *(Pending — SP4.)*
+- **Electronic signature** of the dossier (CDC §IV "signer électroniquement") is **pending — SP3**.
+- The intermediate `PRINTED` / `SENT` dossier states and the full intermediate LabFile status machine are **deferred** (only the `PUBLISHED` transition exists today).
 
 ### 8.8 `pdf` Module (1.5.c)
 Shared HTML → PDF rendering infrastructure. Consumers declare their reports as Spring beans implementing the typed SPI `PdfDocumentType<T>` — `templatePath()` points to a classpath Thymeleaf template, `buildModel(T)` builds the view model, `pageSize()` selects the page geometry. Implementers live under `<consumer>/infra/pdf/` (e.g. `result/infra/pdf/ResultReportPdfDocument`); the rule is enforced by `PdfModuleStructureTest`.

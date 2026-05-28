@@ -27,4 +27,9 @@ public interface LabFileWriteApi {
      *     matches the given id
      */
     void setHomeCollectionFee(LabFileId labFileId, BigDecimal amount, UserId recordedBy);
+
+    /**
+     * Transitions the lab file to PUBLISHED (idempotent). Eligibility is enforced by the caller.
+     */
+    void publish(LabFileId labFileId);
 }

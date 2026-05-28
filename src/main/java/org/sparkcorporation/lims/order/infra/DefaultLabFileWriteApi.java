@@ -31,4 +31,14 @@ class DefaultLabFileWriteApi implements LabFileWriteApi {
         labFile.update(
                 new UpdateLabFile(null, null, null, null, null, amount, null, null, null), clock);
     }
+
+    @Override
+    @Transactional
+    public void publish(LabFileId labFileId) {
+        LabFile labFile =
+                labFileRepository
+                        .findActiveById(labFileId.value())
+                        .orElseThrow(() -> new LabFileNotFoundException(labFileId));
+        labFile.publish();
+    }
 }

@@ -1,0 +1,31 @@
+databaseChangeLog:
+  - changeSet:
+      id: 202605281400-create-user-key-pairs
+      author: samuel
+      preConditions:
+        - onFail: HALT
+        - not:
+            - tableExists: { tableName: user_key_pairs }
+      changes:
+        - createTable:
+            tableName: user_key_pairs
+            columns:
+              - column: { name: key_id,                type: varchar(36),  constraints: { primaryKey: true, nullable: false } }
+              - column: { name: subject,               type: varchar(26),  constraints: { nullable: false } }
+              - column: { name: public_key,            type: bytea,        constraints: { nullable: false } }
+              - column: { name: private_key_encrypted, type: bytea,        constraints: { nullable: false } }
+              - column: { name: private_key_iv,        type: bytea,        constraints: { nullable: false } }
+              - column: { name: created_at,            type: timestamptz,  constraints: { nullable: false } }
+              - column: { name: expires_at,            type: timestamptz }
+              - column: { name: active,                type: boolean,      constraints: { nullable: false } }
+        - addForeignKeyConstraint:
+            baseTableName: user_key_pairs
+            baseColumnNames: subject
+            referencedTableName: users
+            referencedColumnNames: id
+            constraintName: fk_user_key_pairs_subject
+        - createIndex:
+            tableName: user_key_pairs
+            indexName: ix_user_key_pairs_subject_active
+            columns: [{ column: { name: subject } }, { column: { name: active } }]
+      # rollback: AUTHORED BY USER  (proposed: dropTable user_key_pairs)

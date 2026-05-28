@@ -255,6 +255,10 @@ public class Patient {
         return portalLogin;
     }
 
+    public @Nullable String portalPasswordHash() {
+        return portalPasswordHash;
+    }
+
     public @Nullable String mergedIntoId() {
         return mergedIntoId;
     }
