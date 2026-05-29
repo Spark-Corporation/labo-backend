@@ -84,6 +84,17 @@ lims:
   signing:
     # Dev/test default ONLY (env-overridable). NOT a production key — prod sets LIMS_SIGNING_KEK.
     key-encryption-key: ${LIMS_SIGNING_KEK:JWXambyHFFJDRYinx8ctOXiJhU9fTZo0s9hqmfWXTa0=}
+  notification:
+    poll-interval: 30s
+    max-attempts: 5
+    batch-size: 50
+    backoff-base: 1m
+    email:
+      # Stub adapter logs delivery intent (no real send). Production toggles this off once a real
+      # SMTP adapter lands behind the ChannelAdapter SPI.
+      stub: true
+    whatsapp:
+      stub: true
 
 server:
   port: ${SERVER_PORT:8080}

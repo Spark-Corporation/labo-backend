@@ -50,10 +50,23 @@ abstract class StatsIntegrationTestBase extends IntegrationTestBase {
         // (e.g. disciplines.code) that would otherwise collide across tests. analyses and
         // prescribers carry no Liquibase seed rows, so they are emptied wholesale; disciplines and
         // antibiotics preserve their reference-seed rows by predicate.
+        //
+        // lab_files is wiped wholesale, so EVERY table that FK-references lab_files must be cleared
+        // first, or a sibling IT's leftover rows in the shared container DB block the delete. The
+        // full child set is: antibiogram_readings/result_lines → results → analysis_requests;
+        // payments/invoice_lines → invoices; quote_lines → quotes; plus samples and
+        // dossier_comments (payments also references lab_files directly).
         jdbc.update("DELETE FROM antibiogram_readings");
         jdbc.update("DELETE FROM result_lines");
+        jdbc.update("DELETE FROM payments");
+        jdbc.update("DELETE FROM invoice_lines");
+        jdbc.update("DELETE FROM invoices");
         jdbc.update("DELETE FROM results");
         jdbc.update("DELETE FROM analysis_requests");
+        jdbc.update("DELETE FROM samples");
+        jdbc.update("DELETE FROM dossier_comments");
+        jdbc.update("DELETE FROM quote_lines");
+        jdbc.update("DELETE FROM quotes");
         jdbc.update("DELETE FROM lab_files");
         jdbc.update("DELETE FROM patients WHERE last_name = 'DOE'");
         jdbc.update(

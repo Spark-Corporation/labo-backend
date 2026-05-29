@@ -1,0 +1,37 @@
+# Seed the dossier.send permission introduced in SP4 chunk 5 (CDC §IX result delivery).
+# Granted to ADMIN and BIOLOGIST — the same roles that hold dossier.publish.
+#
+# ULID assignments (captured from a throwaway Ulid.generate() call, deleted before commit):
+#   dossier.send = 01KST51N4QHV183717SZJMQQZC
+databaseChangeLog:
+  - changeSet:
+      id: 202605290910-grant-dossier-send
+      author: samuel
+      contextFilter: dev,test,prod
+      labels: sp4-notifications
+      preConditions:
+        - onFail: MARK_RAN
+        - sqlCheck:
+            expectedResult: 0
+            sql: SELECT COUNT(*) FROM permissions WHERE name = 'dossier.send'
+      changes:
+        - insert:
+            tableName: permissions
+            columns:
+              - column: { name: id, value: "01KST51N4QHV183717SZJMQQZC" }
+              - column: { name: name, value: "dossier.send" }
+              - column: { name: description, value: "Send a published dossier to the patient by email" }
+              - column: { name: cdc_clause, value: "IV" }
+        # ADMIN → dossier.send
+        - insert:
+            tableName: role_permissions
+            columns:
+              - column: { name: role_id, value: "01KQZ0WPVNGGWQ1HKC18A0ABSX" }
+              - column: { name: permission_id, value: "01KST51N4QHV183717SZJMQQZC" }
+        # BIOLOGIST → dossier.send
+        - insert:
+            tableName: role_permissions
+            columns:
+              - column: { name: role_id, value: "01KQZ0WPVPH1378BY4T3Y8QBB1" }
+              - column: { name: permission_id, value: "01KST51N4QHV183717SZJMQQZC" }
+      # rollback: AUTHORED BY USER

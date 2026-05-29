@@ -24,6 +24,7 @@ import org.sparkcorporation.lims.patient.api.PatientId;
 import org.sparkcorporation.lims.patient.api.PatientSummary;
 import org.sparkcorporation.lims.patient.api.PatientSummary.InsuranceSnapshot;
 import org.sparkcorporation.lims.patient.api.PatientSummary.PartnerSnapshot;
+import org.sparkcorporation.lims.patient.api.RecipientContact;
 import org.sparkcorporation.lims.patient.domain.Patient;
 import org.sparkcorporation.lims.patient.domain.PatientNotFoundException;
 
@@ -59,6 +60,20 @@ public class DefaultPatientApi implements PatientApi {
     public boolean existsById(PatientId id) {
         // Patient uses @SQLRestriction("deleted_at IS NULL") — findById auto-filters soft-deleted.
         return repo.findById(id.value()).isPresent();
+    }
+
+    @Override
+    public RecipientContact contactFor(PatientId id) {
+        return repo.findById(id.value())
+                .map(DefaultPatientApi::toContact)
+                .orElseThrow(() -> new PatientNotFoundException(id));
+    }
+
+    private static RecipientContact toContact(Patient p) {
+        var contact = p.contact();
+        var guardian = p.guardian();
+        return new RecipientContact(
+                contact.email(), contact.phone(), guardian == null ? null : guardian.phone());
     }
 
     @Override

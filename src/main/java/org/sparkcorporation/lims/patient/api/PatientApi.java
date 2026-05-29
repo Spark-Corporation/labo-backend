@@ -38,4 +38,17 @@ public interface PatientApi {
      * {@code false} when the id is unknown or the patient row has been soft-deleted.
      */
     boolean existsById(PatientId id);
+
+    /**
+     * Read-only contact projection for {@code notification} recipient resolution. Maps the
+     * patient's {@code ContactInfo} (email, phone) and {@code Guardian} (guardian phone) into a
+     * flat {@link RecipientContact}; absent fields are preserved as {@code null}.
+     *
+     * <p><strong>The returned record carries PII — callers MUST NOT log it</strong> (no email,
+     * phone, or guardian phone in log bodies; log the patient ULID instead).
+     *
+     * @throws org.sparkcorporation.lims.patient.domain.PatientNotFoundException if no patient
+     *     matches {@code id}
+     */
+    RecipientContact contactFor(PatientId id);
 }

@@ -1,6 +1,7 @@
 package org.sparkcorporation.lims.order.api;
 
 import java.math.BigDecimal;
+import java.time.Instant;
 
 import org.jspecify.annotations.Nullable;
 
@@ -41,4 +42,15 @@ public interface LabFileWriteApi {
      * are enforced by the caller ({@code delivery} module).
      */
     void markSigned(LabFileId labFileId, @Nullable String signedBy);
+
+    /**
+     * Stamps {@code emailed_at} on the lab file (idempotent — the latest delivery instant wins),
+     * recording that the published dossier was successfully emailed to the patient (CDC §IV). The
+     * only consumer is {@code delivery}'s {@code NotificationDelivered} listener, which runs after
+     * the EMAIL notification has actually been dispatched.
+     *
+     * @throws org.sparkcorporation.lims.order.domain.LabFileNotFoundException if no lab file
+     *     matches the given id
+     */
+    void markEmailed(LabFileId labFileId, Instant emailedAt);
 }

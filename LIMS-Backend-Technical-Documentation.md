@@ -81,7 +81,7 @@ The CDC (`CAHIER DES CHARGES LOGICIEL DE GESTION DU LABORATOIRE.docx.pdf`) is th
 > Note on the home-collection fee overlap: Gestion comptable §5 places the recording action inside cashbox (`HomeCollectionFeeRecord` aggregate, journal row, audit trail), while §I/§II keep the *displayed* fee on the lab file and billing's `BillingSnapshot.homeCollectionFee` reads it from there at invoice issuance. Cashbox owns the act of recording; billing owns the snapshot. The two are kept in sync by the cashbox-side single-transaction write (`HomeCollectionFeeService` → `LabFileWriteApi.setHomeCollectionFee` + journal row), so an invoice issued after the fee is recorded always sees the same number.
 | `delivery` (online channel + publish implemented, SP2 — patient portal under `/api/v1/portal`, staff `POST /lab-files/{id}:publish`; print / mail pending) | §I Identifiants de connexion pour consulter les résultats (portal login); §IV mode de diffusion "publier le résultat online" / diffusion en ligne; §IX dossier "publié" (PUBLISHED state) |
 | `stats` (implemented — live SQL, six JSON endpoints under `/api/v1/stats`) | Onglet Statistiques |
-| `notification` (Mail, WhatsApp) | §III Devis (envoi par Mail / WhatsApp), §IV Résultats (envoi par Mail) |
+| `notification` (Mail, WhatsApp) **— implemented, SP4: leaf module, `notification_outbox` ledger, `@Scheduled` retry poller, `ChannelAdapter` SPI + config-toggled stub adapters; quote `:send` in `order`, result `:send` in `delivery`** | §III Devis (envoi par Mail / WhatsApp), §IV Résultats (envoi par Mail avec mot de passe sur le fichier), §IX dossier "envoyé par Mail" (`lab_files.emailed_at` marker) |
 | `attachment` (scan direct) | §IV "Joindre des fichiers par scan direct (détection des scanners dans le réseau)" |
 | Quotes (`quote`) | §III Devis |
 | `pdf` (shared HTML → PDF rendering, 1.5.c) | §IV Impression; §X Édition compte-rendu |
@@ -371,7 +371,10 @@ CREATE TABLE lab_files (
     -- SP3 dossier e-signature (changeset 202605281410-add-lab-files-signature, CDC §IV).
     -- Set when the dossier transitions to SIGNED; publication is gated on SIGNED.
     signed_by VARCHAR(26),                  -- users.id (ULID) of the signing biologist, null until signed
-    signed_at TIMESTAMPTZ                    -- when the dossier was electronically signed
+    signed_at TIMESTAMPTZ,                   -- when the dossier was electronically signed
+    -- SP4 outbound mail delivery (changeset 202605290905-add-lab-files-emailed-at, CDC §IX).
+    -- Stamped by delivery's EmailedAtStampingListener on NotificationDelivered for an EMAIL/LAB_FILE.
+    emailed_at TIMESTAMPTZ                    -- when the dossier was sent to the patient by Mail, null until sent
 );
 ```
 
@@ -432,6 +435,31 @@ CREATE INDEX ix_signed_actions_resource    ON signed_actions(resource);
 CREATE RULE no_update_signed_actions AS ON UPDATE TO signed_actions DO INSTEAD NOTHING;
 CREATE RULE no_delete_signed_actions AS ON DELETE TO signed_actions DO INSTEAD NOTHING;
 -- AuditCheckpoint persistence is deferred to SP8 (no checkpoint table shipped in SP3).
+```
+
+```sql
+-- SP4 notification outbox — the authoritative per-delivery ledger (§12.3).
+-- changeset 202605290900-create-notification-outbox.
+CREATE TABLE notification_outbox (
+    id                      VARCHAR(26) PRIMARY KEY,        -- ULID
+    channel                 VARCHAR(16) NOT NULL,           -- EMAIL | WHATSAPP
+    recipient               VARCHAR(255) NOT NULL,          -- email or phone — PII, never logged
+    subject                 VARCHAR(255),                   -- nullable (WhatsApp has none)
+    body                    TEXT NOT NULL,
+    attachment_filename     VARCHAR(255),
+    attachment_content_type VARCHAR(100),
+    attachment_bytes        BYTEA,                          -- e.g. the encrypted CR PDF for result email
+    status                  VARCHAR(16) NOT NULL,           -- PENDING | SENT | FAILED | ABANDONED
+    attempts                INT NOT NULL DEFAULT 0,
+    next_attempt_at         TIMESTAMPTZ NOT NULL,           -- when the poller may next try this entry
+    last_error              TEXT,                           -- truncated message, no PII
+    context_type            VARCHAR(16),                    -- QUOTE | LAB_FILE
+    context_id              VARCHAR(26),                    -- quote id / lab file id
+    created_at              TIMESTAMPTZ NOT NULL,
+    sent_at                 TIMESTAMPTZ
+);
+CREATE INDEX idx_notification_outbox_due     ON notification_outbox (status, next_attempt_at);
+CREATE INDEX idx_notification_outbox_context ON notification_outbox (context_type, context_id);
 ```
 
 ### 6.3 Reference Intervals
@@ -990,29 +1018,43 @@ Label printing is delegated to the frontend or a dedicated print service. The ba
 ### 11.4 Network Scanner Discovery
 Out of scope for the backend. The frontend is responsible for SANE/TWAIN discovery; it uploads the resulting image/PDF via `POST /attachments`.
 
+### 11.5 Outbound document delivery (SP4)
+Two staff-initiated `:send` actions hand documents to the `notification` outbox (§12); both are manual (no auto-send on publish).
+
+**Quote — `POST /api/v1/quotes/{id}:send`** (in `order`, beside `:lock` / `:convert` on `QuoteAdminController`, guarded by the existing `quote.send`). Body `{ "channels": ["EMAIL", "WHATSAPP"] }`. Requires a sendable quote (`LOCKED` or `CONVERTED`, else `409`); renders the quote PDF (`QuoteReportPdfDocument`); resolves recipient via `PatientApi.contactFor` (`422` if a requested channel has no address); enqueues one outbox entry per distinct channel (EMAIL carries the quote PDF, WHATSAPP a short templated body); returns `202` with the notification ids.
+
+**Result — `POST /api/v1/lab-files/{id}:send`** (in `delivery`, beside `:publish` / `:sign`, guarded by the new `dossier.send` permission granted to ADMIN + BIOLOGIST). **Mail only.** `SendDossierService` requires `status == PUBLISHED` (else `NotSendableException` → `409`; re-sending is allowed, each send is a fresh ledger + action record), renders the CR PDF via `CompteRenduApi.renderCompteRendu`, generates a random per-file password and **PDFBox-encrypts** the PDF bytes (`StandardProtectionPolicy`, read-only `AccessPermission`), resolves the patient email (`MissingPatientEmailException` → `422` if absent), and enqueues an EMAIL carrying the encrypted PDF. The **password is delivered out-of-band**: via WhatsApp when a patient/guardian phone is on file, otherwise returned to the calling staff member in the `:send` response body for manual relay (the password is excluded from response-body logging per the `/lab-files/*` redaction rule). The action is recorded in the SP3 action-history ledger (`actionSigner.sign("dossier.send", labFileId, …)`).
+
+**`emailed_at` marker (CDC §IX).** On the `NotificationDelivered` event for an EMAIL with `context_type = LAB_FILE`, an `@TransactionalEventListener(AFTER_COMMIT)` in `delivery` (`EmailedAtStampingListener`) calls `LabFileWriteApi.markEmailed(labFileId, instant)`, stamping the new nullable `lab_files.emailed_at` column (§6.2). This produces the data CDC §IX needs to show / sort **« Dossiers envoyés »** / **« envoyé par Mail »**; the §IX list/sort endpoint itself is out of SP4 scope.
+
 ---
 
 ## 12. Notifications (Mail / WhatsApp / SMS)
 
 ### 12.1 Architecture
-A `notification` module exposes a single API:
+The `notification` leaf module (implemented in **SP4**) exposes a single API:
 ```java
 public interface NotificationService {
-    void send(NotificationRequest request);
+    NotificationId send(NotificationRequest request);   // returns the outbox ledger id
 }
 public sealed interface NotificationRequest
     permits EmailRequest, WhatsAppRequest { }
 ```
-Implementations behind the same interface plug in different providers.
+`notification` depends only on `shared` and knows nothing about quotes or results; callers hand it fully-formed requests. `EmailRequest(recipient, subject, body, @Nullable Attachment, ContextRef)` carries exactly one optional attachment (a quote PDF or an encrypted CR PDF); `WhatsAppRequest(recipient, body, ContextRef)` carries none. `send` runs in the caller's transaction, persists a `PENDING` `notification_outbox` row (§6.2), and returns its `NotificationId` — no send happens inline, so the staff action commits fast and a provider outage never fails it. The two trigger endpoints live in their owning modules (quote `:send` in `order`, result `:send` in `delivery`, §11.5).
 
 ### 12.2 Providers
-- **Email** — SMTP (Spring Mail) or SendGrid / Amazon SES
-- **WhatsApp** — Meta Cloud API (templated messages for transactional content)
+Both channel adapters currently ship as **config-toggled stubs** (`StubEmailAdapter` / `StubWhatsAppAdapter`, gated by `@ConditionalOnProperty(lims.notification.<channel>.stub = true)`, on by default in dev/test) that record the delivery intent and simulate success — they do **not** perform a real send. Real adapters slot in behind the same `ChannelAdapter` SPI (`boolean supports(Channel)` / `void dispatch(NotificationOutboxEntry)`) with no change to the outbox/poller:
+- **Email** — SMTP (Spring Mail) or SendGrid / Amazon SES — *deferred behind the SPI* (awaits SMTP credentials).
+- **WhatsApp** — Meta Cloud API (templated messages for transactional content) — *deferred behind the SPI* (awaits Meta business verification / approved templates).
 
 (SMS is not in CDC scope; the sealed type stays open to a future `SmsRequest` permit if required.)
 
 ### 12.3 Reliability
-All sends go through an outbox table. A scheduled job retries failures with exponential backoff. The audit log records every successful or failed delivery against the lab file.
+All sends go through the `notification_outbox` table (§6.2) — the authoritative per-delivery ledger (status, attempts, last_error, timestamps). A `@Scheduled` `NotificationRetryPoller` runs every **30 s** (`fixedDelayString = "${lims.notification.poll-interval:30s}"`): it claims up to `batch-size` (default 50) due entries where `status IN (PENDING, FAILED) AND next_attempt_at <= now` (ordered by `next_attempt_at`, `FOR UPDATE SKIP LOCKED`), finds the `ChannelAdapter` that `supports(channel)`, and dispatches:
+- **success** → `status = SENT`, `sent_at = now`, publishes a `NotificationDelivered(NotificationId, Channel, ContextRef, Instant)` application event.
+- **failure (adapter throws)** → `attempts++`; if `attempts >= max-attempts` (default **5**) → `status = ABANDONED` + structured error log; else → `status = FAILED`, `next_attempt_at = now + backoff(attempts)` with exponential backoff **1 → 2 → 4 → 8 → 16 min** (`backoff-base` 1 min, doubled per attempt), truncated `last_error` stored (no PII).
+
+Defaults are config-overridable via `NotificationProperties` (`lims.notification.*`). `NotificationDelivered` is consumed by `delivery` to stamp `lab_files.emailed_at` for the EMAIL + `LAB_FILE` case (§6.2, §11.5); `notification` itself never calls back into the domain. Recipient addresses, message bodies, the file-password, and attachment bytes are **never** logged — log lines carry only the ledger id / `context_id` (ULID).
 
 ---
 

@@ -32,6 +32,7 @@ import org.sparkcorporation.lims.order.domain.ImmutablePatientException;
 import org.sparkcorporation.lims.order.domain.ImmutableQuoteNumberException;
 import org.sparkcorporation.lims.order.domain.ImmutableStatusException;
 import org.sparkcorporation.lims.order.domain.UpdateQuote;
+import org.sparkcorporation.lims.order.infra.QuoteSendService;
 
 /**
  * Admin REST controller for {@link org.sparkcorporation.lims.order.domain.Quote} per spec §7.1.
@@ -56,6 +57,7 @@ import org.sparkcorporation.lims.order.domain.UpdateQuote;
 public class QuoteAdminController {
 
     private final QuoteService service;
+    private final QuoteSendService quoteSendService;
 
     @PostMapping
     @RequiresPermission("quote.create")
@@ -131,6 +133,14 @@ public class QuoteAdminController {
     @RequiresPermission("quote.lock")
     public QuoteResponse lock(@PathVariable String id) {
         return service.lock(new QuoteId(id));
+    }
+
+    @PostMapping("/{id}:send")
+    @RequiresPermission("quote.send")
+    public ResponseEntity<QuoteSendResponse> send(
+            @PathVariable String id, @Valid @RequestBody SendQuoteRequest req) {
+        var ids = quoteSendService.send(new QuoteId(id), req.channels());
+        return ResponseEntity.accepted().body(new QuoteSendResponse(ids));
     }
 
     @PostMapping("/{id}:convert")

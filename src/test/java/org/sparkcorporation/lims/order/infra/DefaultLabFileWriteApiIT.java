@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 
@@ -54,6 +55,21 @@ class DefaultLabFileWriteApiIT extends IntegrationTestBase {
                                 labFileWriteApi.setHomeCollectionFee(
                                         issuedLabFile, new BigDecimal("2500.00"), RECORDED_BY))
                 .isInstanceOf(LabFileNotEditableException.class);
+    }
+
+    @Test
+    void markEmailedStampsEmailedAt() {
+        LabFileId publishedLabFile = seedLabFile(jdbcTemplate, "PUBLISHED");
+        var stamp = Instant.parse("2026-05-29T10:00:00Z");
+
+        labFileWriteApi.markEmailed(publishedLabFile, stamp);
+
+        Instant stored =
+                jdbcTemplate.queryForObject(
+                        "SELECT emailed_at FROM lab_files WHERE id = ?",
+                        Instant.class,
+                        publishedLabFile.value());
+        assertThat(stored).isEqualTo(stamp);
     }
 
     private LabFileId seedLabFile(JdbcTemplate jdbc, String status) {

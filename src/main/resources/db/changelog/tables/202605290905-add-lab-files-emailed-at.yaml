@@ -1,0 +1,16 @@
+databaseChangeLog:
+  - changeSet:
+      id: 202605290905-add-lab-files-emailed-at
+      author: samuel
+      contextFilter: dev,test,prod
+      labels: sp4-notifications
+      preconditions:
+        - onFail: HALT
+        - tableExists: { tableName: lab_files }
+      changes:
+        - addColumn:
+            tableName: lab_files
+            columns:
+              - column: { name: emailed_at, type: timestamptz }
+      # rollback: AUTHORED BY USER
+      #   (proposed: dropColumn lab_files.emailed_at)

@@ -65,6 +65,7 @@ class QuoteAdminControllerTest {
 
     @Autowired private MockMvc mvc;
     @MockitoBean private QuoteService service;
+    @MockitoBean private org.sparkcorporation.lims.order.infra.QuoteSendService quoteSendService;
 
     private final ObjectMapper json = new ObjectMapper().findAndRegisterModules();
 

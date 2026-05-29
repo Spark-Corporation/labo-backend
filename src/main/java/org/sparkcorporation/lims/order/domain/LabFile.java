@@ -85,6 +85,9 @@ public class LabFile {
     @Column(name = "signed_at")
     private @Nullable Instant signedAt;
 
+    @Column(name = "emailed_at")
+    private @Nullable Instant emailedAt;
+
     @Column(name = "insurance_id", length = 26)
     private @Nullable String insuranceId;
 
@@ -211,6 +214,15 @@ public class LabFile {
         this.signedBy = signedBy;
         this.signedAt = clock.instant();
         this.updatedAt = clock.instant();
+    }
+
+    /**
+     * Records the instant the published dossier was successfully emailed to the patient (CDC §IV).
+     * Stamped from the {@code delivery} module's {@code NotificationDelivered} listener once the
+     * EMAIL notification has actually been dispatched; the latest delivery instant wins.
+     */
+    public void markEmailed(Instant emailedAt) {
+        this.emailedAt = emailedAt;
     }
 
     /**

@@ -9,7 +9,8 @@
             "catalog::api",
             "iam::api",
             "labsettings::api",
-            "pdf::api"
+            "pdf::api",
+            "notification::api"
         })
 package org.sparkcorporation.lims.order;
 

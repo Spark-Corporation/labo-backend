@@ -20,6 +20,8 @@ import org.sparkcorporation.lims.catalog.api.PartnerKind;
 import org.sparkcorporation.lims.catalog.api.PartnerSummary;
 import org.sparkcorporation.lims.patient.api.PatientId;
 import org.sparkcorporation.lims.patient.domain.ContactInfo;
+import org.sparkcorporation.lims.patient.domain.Guardian;
+import org.sparkcorporation.lims.patient.domain.GuardianRelationship;
 import org.sparkcorporation.lims.patient.domain.LabCode;
 import org.sparkcorporation.lims.patient.domain.NewPatient;
 import org.sparkcorporation.lims.patient.domain.Patient;
@@ -152,6 +154,78 @@ class DefaultPatientApiTest {
 
         var summary = api.findById(p.id()).orElseThrow();
         assertThat(summary.insurance()).isNull();
+    }
+
+    private static Patient sampleWithContact(ContactInfo contact) {
+        return Patient.create(
+                new NewPatient(
+                        new PersonName("DOE", "Jane", null),
+                        Civility.MADAME,
+                        Sex.F,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        contact,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null),
+                new LabCode("LAB-260505-003"));
+    }
+
+    private static Patient sampleWithContactAndGuardian(ContactInfo contact, Guardian guardian) {
+        return Patient.create(
+                new NewPatient(
+                        new PersonName("DOE", "Jane", null),
+                        Civility.MADAME,
+                        Sex.F,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        contact,
+                        guardian,
+                        null,
+                        null,
+                        null,
+                        null),
+                new LabCode("LAB-260505-004"));
+    }
+
+    @Test
+    void contactFor_maps_email_and_phone_and_guardian_phone() {
+        Patient p =
+                sampleWithContactAndGuardian(
+                        new ContactInfo("+22890000000", "jane@doe.test"),
+                        new Guardian("Tutor", "+22899999999", GuardianRelationship.PARENT));
+        when(repo.findById(p.id().value())).thenReturn(Optional.of(p));
+
+        var contact = api.contactFor(p.id());
+        assertThat(contact.email()).isEqualTo("jane@doe.test");
+        assertThat(contact.phone()).isEqualTo("+22890000000");
+        assertThat(contact.guardianPhone()).isEqualTo("+22899999999");
+    }
+
+    @Test
+    void contactFor_preserves_nulls_when_fields_absent() {
+        Patient p = sampleWithContact(new ContactInfo(null, null));
+        when(repo.findById(p.id().value())).thenReturn(Optional.of(p));
+
+        var contact = api.contactFor(p.id());
+        assertThat(contact.email()).isNull();
+        assertThat(contact.phone()).isNull();
+        assertThat(contact.guardianPhone()).isNull();
+    }
+
+    @Test
+    void contactFor_throws_when_missing() {
+        when(repo.findById(org.mockito.ArgumentMatchers.anyString())).thenReturn(Optional.empty());
+        assertThatThrownBy(() -> api.contactFor(PatientId.next()))
+                .isInstanceOf(PatientNotFoundException.class);
     }
 
     @Test

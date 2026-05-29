@@ -13,7 +13,9 @@ import org.springframework.http.ProblemDetail;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
+import org.sparkcorporation.lims.delivery.domain.MissingPatientEmailException;
 import org.sparkcorporation.lims.delivery.domain.NotPublishableException;
+import org.sparkcorporation.lims.delivery.domain.NotSendableException;
 import org.sparkcorporation.lims.delivery.domain.NotSignableException;
 
 /**
@@ -41,6 +43,29 @@ public class DeliveryProblemDetailAdvice {
         var pd = ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT, ex.getMessage());
         pd.setType(URI.create("/problems/delivery/not-signable"));
         pd.setTitle("Dossier not signable");
+        pd.setInstance(URI.create(req.getRequestURI()));
+        pd.setProperty("labFileId", ex.labFileId().value());
+        pd.setProperty("traceId", traceId());
+        return pd;
+    }
+
+    @ExceptionHandler(NotSendableException.class)
+    public ProblemDetail handleNotSendable(NotSendableException ex, HttpServletRequest req) {
+        var pd = ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT, ex.getMessage());
+        pd.setType(URI.create("/problems/delivery/not-sendable"));
+        pd.setTitle("Dossier not sendable");
+        pd.setInstance(URI.create(req.getRequestURI()));
+        pd.setProperty("labFileId", ex.labFileId().value());
+        pd.setProperty("traceId", traceId());
+        return pd;
+    }
+
+    @ExceptionHandler(MissingPatientEmailException.class)
+    public ProblemDetail handleMissingPatientEmail(
+            MissingPatientEmailException ex, HttpServletRequest req) {
+        var pd = ProblemDetail.forStatusAndDetail(HttpStatus.UNPROCESSABLE_ENTITY, ex.getMessage());
+        pd.setType(URI.create("/problems/delivery/missing-patient-email"));
+        pd.setTitle("Patient has no email");
         pd.setInstance(URI.create(req.getRequestURI()));
         pd.setProperty("labFileId", ex.labFileId().value());
         pd.setProperty("traceId", traceId());

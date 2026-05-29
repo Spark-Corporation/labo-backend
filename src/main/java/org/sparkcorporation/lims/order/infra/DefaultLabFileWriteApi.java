@@ -2,6 +2,7 @@ package org.sparkcorporation.lims.order.infra;
 
 import java.math.BigDecimal;
 import java.time.Clock;
+import java.time.Instant;
 
 import lombok.RequiredArgsConstructor;
 import org.jspecify.annotations.Nullable;
@@ -51,5 +52,15 @@ class DefaultLabFileWriteApi implements LabFileWriteApi {
                         .findActiveById(labFileId.value())
                         .orElseThrow(() -> new LabFileNotFoundException(labFileId));
         labFile.markSigned(signedBy, clock);
+    }
+
+    @Override
+    @Transactional
+    public void markEmailed(LabFileId labFileId, Instant emailedAt) {
+        LabFile labFile =
+                labFileRepository
+                        .findActiveById(labFileId.value())
+                        .orElseThrow(() -> new LabFileNotFoundException(labFileId));
+        labFile.markEmailed(emailedAt);
     }
 }

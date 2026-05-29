@@ -25,11 +25,13 @@ import org.sparkcorporation.lims.order.domain.InvalidCollectionWindowException;
 import org.sparkcorporation.lims.order.domain.InvalidDistanceException;
 import org.sparkcorporation.lims.order.domain.InvalidReceivedAtException;
 import org.sparkcorporation.lims.order.domain.LabFileNotEditableException;
+import org.sparkcorporation.lims.order.domain.MissingRecipientContactException;
 import org.sparkcorporation.lims.order.domain.OrderInvalidInsuranceReferenceException;
 import org.sparkcorporation.lims.order.domain.OrderInvalidPartnerReferenceException;
 import org.sparkcorporation.lims.order.domain.OrderInvalidReferenceException;
 import org.sparkcorporation.lims.order.domain.QuoteAlreadyConvertedException;
 import org.sparkcorporation.lims.order.domain.QuoteNotEditableException;
+import org.sparkcorporation.lims.order.domain.QuoteNotSendableException;
 
 /**
  * Order-specific RFC 7807 {@link ProblemDetail} mapper. Lives outside {@code shared.web} so {@code
@@ -232,6 +234,29 @@ public class OrderProblemDetailAdvice {
                 "Immutable field",
                 req,
                 "quoteNumber");
+    }
+
+    // --- 2 quote :send handlers ----------------------------------------------------------------
+
+    @ExceptionHandler(MissingRecipientContactException.class)
+    public ProblemDetail missingRecipientContact(
+            MissingRecipientContactException ex, HttpServletRequest req) {
+        return problem(
+                ex.getMessage(),
+                "/errors/missing-recipient-contact",
+                "Missing recipient contact",
+                req,
+                null);
+    }
+
+    @ExceptionHandler(QuoteNotSendableException.class)
+    public ProblemDetail quoteNotSendable(QuoteNotSendableException ex, HttpServletRequest req) {
+        var pd = ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT, ex.getMessage());
+        pd.setType(URI.create("/errors/quote-not-sendable"));
+        pd.setTitle("Quote not sendable");
+        pd.setInstance(URI.create(req.getRequestURI()));
+        pd.setProperty("traceId", traceId());
+        return pd;
     }
 
     private static ProblemDetail problem(
