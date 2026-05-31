@@ -80,7 +80,7 @@ The CDC (`CAHIER DES CHARGES LOGICIEL DE GESTION DU LABORATOIRE.docx.pdf`) is th
 
 > Note on the home-collection fee overlap: Gestion comptable §5 places the recording action inside cashbox (`HomeCollectionFeeRecord` aggregate, journal row, audit trail), while §I/§II keep the *displayed* fee on the lab file and billing's `BillingSnapshot.homeCollectionFee` reads it from there at invoice issuance. Cashbox owns the act of recording; billing owns the snapshot. The two are kept in sync by the cashbox-side single-transaction write (`HomeCollectionFeeService` → `LabFileWriteApi.setHomeCollectionFee` + journal row), so an invoice issued after the fee is recorded always sees the same number.
 | `delivery` (online channel + publish implemented, SP2 — patient portal under `/api/v1/portal`, staff `POST /lab-files/{id}:publish`; print / mail pending) | §I Identifiants de connexion pour consulter les résultats (portal login); §IV mode de diffusion "publier le résultat online" / diffusion en ligne; §IX dossier "publié" (PUBLISHED state) |
-| `stats` (implemented — live SQL, six JSON endpoints under `/api/v1/stats`) | Onglet Statistiques |
+| `stats` (implemented — live SQL, six JSON endpoints under `/api/v1/stats`; **XLSX workbook export `GET /api/v1/stats/export`, SP5**) | Onglet Statistiques **(export ships per the 2026-05-29 project decision; CDC amendment pending to add an explicit statistics-export clause)** |
 | `notification` (Mail, WhatsApp) **— implemented, SP4: leaf module, `notification_outbox` ledger, `@Scheduled` retry poller, `ChannelAdapter` SPI + config-toggled stub adapters; quote `:send` in `order`, result `:send` in `delivery`** | §III Devis (envoi par Mail / WhatsApp), §IV Résultats (envoi par Mail avec mot de passe sur le fichier), §IX dossier "envoyé par Mail" (`lab_files.emailed_at` marker) |
 | `attachment` (scan direct) | §IV "Joindre des fichiers par scan direct (détection des scanners dans le réseau)" |
 | Quotes (`quote`) | §III Devis |
@@ -88,6 +88,7 @@ The CDC (`CAHIER DES CHARGES LOGICIEL DE GESTION DU LABORATOIRE.docx.pdf`) is th
 | `labsettings` (Lab settings, 1.5.e) | §I informations générales du laboratoire (nom, adresse, accréditation, responsable); DB-backed singleton; admin updates via `PUT /api/v1/lab-settings` |
 | Payment receipt PDF (1.5.g) | §VIII (caisse / reçus) + §IV (impression); rendered by `billing/infra/pdf/` as a 1.5.c `PdfDocumentType` consumer; endpoint `GET /api/v1/payments/{id}/receipt.pdf` |
 | Quote PDF (1.5.h) | §III (devis) + §IV (impression); rendered by `order/infra/pdf/` as a 1.5.c `PdfDocumentType` consumer; endpoint `GET /api/v1/quotes/{id}/pdf` |
+| `export` (shared DOCX/XLSX rendering + OOXML password, **SP5**) — `OfficeDocumentType` SPI + registry, POI XWPF/XSSF, agile-AES `OfficePasswordProtector`; per-document renderers under `<module>.infra.export` reuse the existing report models | §III (devis → Word, `GET /api/v1/quotes/{id}/export`), §IV (dossier → Word/Excel **protégé par mot de passe**, `GET /api/v1/lab-files/{id}/export`, password in `X-Export-Password` header), §X (édition / exportation du compte-rendu en format électronique) |
 
 Anything not traceable to a CDC clause is **out of scope** and requires a CDC amendment before it can be added to this project.
 
@@ -133,10 +134,9 @@ Anything not traceable to a CDC clause is **out of scope** and requires a CDC am
 - **Java 25 Virtual Threads** for I/O-bound work; pinned platform threads for JNI/file scans
 
 ### 2.7 Document & Reporting
-- **Apache POI** — XLSX export
+- **Apache POI** — DOCX **and** XLSX export and OOXML password (agile/AES) encryption, via the shared `export` module (SP5): the devis Word export, the result-dossier Word/Excel exports (password-protected), and the statistics XLSX workbook. (Replaces the originally-planned docx4j — POI covers DOCX, XLSX, and the encryption uniformly, so docx4j was dropped.)
 - **OpenHTMLtoPDF** — primary HTML → PDF engine (Thymeleaf templates → PDF bytes), used by the shared `pdf` module (§8.8) for the result compte-rendu and all subsequent consumer reports
 - **OpenPDF** — reserved for post-processing (PDF merge, password protection, watermarking) when the delivery module lands in 1.8
-- **docx4j** — DOCX export of result files
 - **JasperReports** (optional) — complex statistics reports
 
 ---
@@ -645,11 +645,12 @@ Example: `LTA24-1710-005` = Togo lab, 17 Oct 2024 (day 17, month 10), 5th invoic
 
 ### 7.1 Conventions
 - Base path: `/api/v1`
-- JSON only (`application/json`)
+- JSON only (`application/json`) — except the binary document endpoints (`pdf`/`export`), which return the file bytes with `Content-Disposition: attachment`
 - Cursor-based pagination for large lists; offset for admin lists
 - Filtering: `?status=VALIDATED&from=2026-04-01&to=2026-04-30`
 - Sorting: `?sort=createdAt,desc`
 - All write endpoints require `Idempotency-Key` header for safe retries
+- **Office exports (SP5):** office-document endpoints take a required `?format=` query parameter (`docx`/`xlsx`) and respond with the matching OOXML MIME type. The password-protected dossier export returns its generated password in the **`X-Export-Password`** response header — that header value, like patient PII and the SP4 file-password, is on the **never-log** list (the `/lab-files/*` / `/quotes/*` redaction rules cover the request/response bodies; the `X-Export-Password` header is redacted alongside them).
 
 ### 7.2 Standard Error Body (RFC 7807)
 ```json
@@ -1067,7 +1068,12 @@ The six focused endpoints under `/api/v1/stats` (§7.3, §8.9) accept a `from`/`
 None. Aggregates are computed live per request; no materialized views and no nightly refresh (modest pilot volume; the day-oriented views must be current). Revisited only if production volume proves live SQL insufficient.
 
 ### 13.3 Exports
-Deferred to **SP5 (Document exports)** — `stats` ships JSON only for now. XLSX (Apache POI) / PDF report files for accountants and the lab manager arrive with the export sub-project.
+Implemented in **SP5 (Document exports)** via the shared `export` module (Apache POI). Three office exports ship:
+- **Devis → Word** — `GET /api/v1/quotes/{id}/export?format=docx` (CDC §III); reuses the quote PDF model.
+- **Result dossier → Word/Excel, password-protected** — `GET /api/v1/lab-files/{id}/export?format=docx|xlsx` (CDC §IV); the staff caller picks the format, a random per-export password encrypts the file (POI agile/AES), and the password is returned in the **`X-Export-Password`** response header for out-of-band relay (never logged).
+- **Statistics → XLSX** — `GET /api/v1/stats/export?format=xlsx&from=&to=`; one sheet per dataset, date-range only (unfiltered). The `stats` JSON endpoints are unchanged.
+
+The statistics export ships per a project decision (2026-05-29) that resolved a CDC-vs-tech-doc scope conflict: the CDC « Onglet statistiques » section has no export clause, so it warrants an amendment formalizing the statistics export this section now documents.
 
 ---
 
@@ -1572,7 +1578,7 @@ Goal: deployable to a real lab for pilot with manual billing.
 - `delivery` (print + email + online portal).
 
 ### Phase 3 — Analytics & Notifications (3–4 weeks)
-- `stats` — live SQL + JSON (file export deferred to SP5).
+- `stats` — live SQL + JSON; XLSX file export added in SP5.
 - `notification` (email + WhatsApp + SMS) with outbox.
 - Antibiogram automation polish.
 

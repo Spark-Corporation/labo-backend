@@ -38,6 +38,7 @@
     <postgresql.version>42.7.11</postgresql.version>
     <openhtmltopdf.version>1.0.10</openhtmltopdf.version>
     <openpdf.version>2.0.3</openpdf.version>
+    <poi.version>5.4.1</poi.version>
 
     <jacoco.version>0.8.13</jacoco.version>
     <jacoco.coverage.line.minimum>0.80</jacoco.coverage.line.minimum>
@@ -204,6 +205,11 @@
       <groupId>com.github.librepdf</groupId>
       <artifactId>openpdf</artifactId>
       <version>${openpdf.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>org.apache.poi</groupId>
+      <artifactId>poi-ooxml</artifactId>
+      <version>${poi.version}</version>
     </dependency>
 
     <dependency>
