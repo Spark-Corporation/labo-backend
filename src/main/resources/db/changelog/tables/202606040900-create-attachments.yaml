@@ -1,0 +1,36 @@
+databaseChangeLog:
+  - changeSet:
+      id: 202606040900-create-attachments
+      author: samuel
+      changes:
+        - createTable:
+            tableName: attachments
+            columns:
+              - column: { name: id, type: VARCHAR(26), constraints: { primaryKey: true, nullable: false } }
+              - column: { name: attachable_type, type: VARCHAR(32), constraints: { nullable: false } }
+              - column: { name: attachable_id, type: VARCHAR(26), constraints: { nullable: false } }
+              - column: { name: filename, type: VARCHAR(255), constraints: { nullable: false } }
+              - column: { name: content_type, type: VARCHAR(255), constraints: { nullable: false } }
+              - column: { name: size_bytes, type: BIGINT, constraints: { nullable: false } }
+              - column: { name: sha256, type: VARCHAR(64), constraints: { nullable: false } }
+              - column: { name: storage_backend, type: VARCHAR(16), constraints: { nullable: false } }
+              - column: { name: storage_key, type: VARCHAR(512), constraints: { nullable: false } }
+              - column: { name: uploaded_by_user_id, type: VARCHAR(26), constraints: { nullable: false } }
+              - column: { name: uploaded_at, type: TIMESTAMP(6), constraints: { nullable: false } }
+              - column: { name: deleted_at, type: TIMESTAMP(6) }
+        - sql:
+            sql: |
+              ALTER TABLE attachments
+                ADD CONSTRAINT ck_attachments_type
+                CHECK (attachable_type IN ('LAB_FILE','EXPENSE','HOME_COLLECTION_FEE'));
+              ALTER TABLE attachments
+                ADD CONSTRAINT ck_attachments_size
+                CHECK (size_bytes > 0 AND size_bytes <= 26214400);
+              ALTER TABLE attachments
+                ADD CONSTRAINT ck_attachments_backend
+                CHECK (storage_backend IN ('FILESYSTEM','S3'));
+              CREATE INDEX idx_attachments_target
+                ON attachments (attachable_type, attachable_id)
+                WHERE deleted_at IS NULL;
+              CREATE INDEX idx_attachments_sha256 ON attachments (sha256);
+      # rollback: AUTHORED BY USER (per CLAUDE.md § Database changes via Liquibase)

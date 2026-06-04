@@ -39,6 +39,8 @@
     <openhtmltopdf.version>1.0.10</openhtmltopdf.version>
     <openpdf.version>2.0.3</openpdf.version>
     <poi.version>5.4.1</poi.version>
+    <tika.version>3.2.2</tika.version>
+    <awssdk.version>2.32.4</awssdk.version>
 
     <jacoco.version>0.8.13</jacoco.version>
     <jacoco.coverage.line.minimum>0.80</jacoco.coverage.line.minimum>
@@ -83,6 +85,13 @@
         <groupId>org.testcontainers</groupId>
         <artifactId>testcontainers-bom</artifactId>
         <version>${testcontainers.version}</version>
+        <type>pom</type>
+        <scope>import</scope>
+      </dependency>
+      <dependency>
+        <groupId>software.amazon.awssdk</groupId>
+        <artifactId>bom</artifactId>
+        <version>${awssdk.version}</version>
         <type>pom</type>
         <scope>import</scope>
       </dependency>
@@ -211,6 +220,18 @@
       <artifactId>poi-ooxml</artifactId>
       <version>${poi.version}</version>
     </dependency>
+    <!-- SP6 attachments: magic-byte content-type detection (spec §5 step 3). tika-core only —
+         the parsers module is NOT needed for detection and would drag in 100+ transitive deps. -->
+    <dependency>
+      <groupId>org.apache.tika</groupId>
+      <artifactId>tika-core</artifactId>
+      <version>${tika.version}</version>
+    </dependency>
+    <!-- SP6 attachments: S3-compatible BlobStore backend (spec §6; prod target per tech-doc §11.1). -->
+    <dependency>
+      <groupId>software.amazon.awssdk</groupId>
+      <artifactId>s3</artifactId>
+    </dependency>
 
     <dependency>
       <groupId>org.springframework.boot</groupId>
@@ -255,6 +276,11 @@
     <dependency>
       <groupId>org.testcontainers</groupId>
       <artifactId>postgresql</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.testcontainers</groupId>
+      <artifactId>minio</artifactId>
       <scope>test</scope>
     </dependency>
     <dependency>

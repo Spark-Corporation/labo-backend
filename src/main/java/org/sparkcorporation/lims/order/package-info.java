@@ -11,7 +11,8 @@
             "labsettings::api",
             "pdf::api",
             "notification::api",
-            "export::api"
+            "export::api",
+            "attachment::api"
         })
 package org.sparkcorporation.lims.order;
 

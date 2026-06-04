@@ -26,6 +26,11 @@ spring:
   thymeleaf:
     # Programmatic-only via SpringTemplateEngine in pdf/infra; no MVC view resolution.
     enabled: false
+  servlet:
+    multipart:
+      # Spec §8: 25 MiB attachment cap. Boot's default (1MB) would 413 every real scan.
+      max-file-size: 25MB
+      max-request-size: 26MB
 
 management:
   endpoints:
@@ -95,10 +100,32 @@ lims:
       stub: true
     whatsapp:
       stub: true
+  attachment:
+    storage:
+      # filesystem | s3 (S3BlobStore lands in chunk 4; selection via this key)
+      backend: ${LIMS_ATTACHMENT_STORAGE_BACKEND:filesystem}
+      fs:
+        root: ${LIMS_ATTACHMENT_FS_ROOT:var/attachments}
+      s3:
+        bucket: ${LIMS_ATTACHMENT_S3_BUCKET:lims-attachments}
+        region: ${LIMS_ATTACHMENT_S3_REGION:us-east-1}
+        # endpoint override is for S3-compatible stores (MinIO); empty = real AWS
+        endpoint: ${LIMS_ATTACHMENT_S3_ENDPOINT:}
+        access-key: ${LIMS_ATTACHMENT_S3_ACCESS_KEY:}
+        secret-key: ${LIMS_ATTACHMENT_S3_SECRET_KEY:}
+        path-style: ${LIMS_ATTACHMENT_S3_PATH_STYLE:true}
 
 server:
   port: ${SERVER_PORT:8080}
   shutdown: graceful
+  tomcat:
+    # SP6 spec §8: when a multipart upload exceeds max-request-size Tomcat raises 413, but by
+    # default only swallows 2 MiB of the unread body before resetting the connection — a 26 MiB
+    # over-size upload then reaches the client as an opaque connection reset, not the 413
+    # ProblemDetail. 30 MiB: above max-request-size (26 MB) so a real over-size multipart drains
+    # cleanly to a 413, but bounded so a rejected request can't make the server drain an
+    # unbounded body (-1 would be a cheap DoS lever).
+    max-swallow-size: 31457280
 
 logging:
   level:

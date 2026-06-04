@@ -8,7 +8,8 @@
             "billing::api",
             "order::api",
             "patient::api",
-            "iam::api"
+            "iam::api",
+            "attachment::api"
         })
 package org.sparkcorporation.lims.cashbox;
 

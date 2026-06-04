@@ -104,4 +104,15 @@ public class Expense {
     public ExpenseId expenseId() {
         return new ExpenseId(id);
     }
+
+    /**
+     * SP6 (spec §5): points this expense at its uploaded justification scan. Overwrite-allowed —
+     * re-uploading replaces the pointer; the prior attachment row survives independently. The
+     * {@code @Version} field bumps on flush.
+     */
+    public void attachJustificationScan(String storageUri, UserId by, Instant now) {
+        this.justificationScanUri = storageUri;
+        this.updatedAt = now;
+        this.updatedBy = by.value();
+    }
 }

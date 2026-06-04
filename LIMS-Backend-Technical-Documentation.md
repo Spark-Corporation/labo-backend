@@ -82,7 +82,7 @@ The CDC (`CAHIER DES CHARGES LOGICIEL DE GESTION DU LABORATOIRE.docx.pdf`) is th
 | `delivery` (online channel + publish implemented, SP2 — patient portal under `/api/v1/portal`, staff `POST /lab-files/{id}:publish`; print / mail pending) | §I Identifiants de connexion pour consulter les résultats (portal login); §IV mode de diffusion "publier le résultat online" / diffusion en ligne; §IX dossier "publié" (PUBLISHED state) |
 | `stats` (implemented — live SQL, six JSON endpoints under `/api/v1/stats`; **XLSX workbook export `GET /api/v1/stats/export`, SP5**) | Onglet Statistiques **(export ships per the 2026-05-29 project decision; CDC amendment pending to add an explicit statistics-export clause)** |
 | `notification` (Mail, WhatsApp) **— implemented, SP4: leaf module, `notification_outbox` ledger, `@Scheduled` retry poller, `ChannelAdapter` SPI + config-toggled stub adapters; quote `:send` in `order`, result `:send` in `delivery`** | §III Devis (envoi par Mail / WhatsApp), §IV Résultats (envoi par Mail avec mot de passe sur le fichier), §IX dossier "envoyé par Mail" (`lab_files.emailed_at` marker) |
-| `attachment` (scan direct) | §IV "Joindre des fichiers par scan direct (détection des scanners dans le réseau)" |
+| `attachment` (scan direct) **— implemented, SP6: generic upload/store/retrieve/soft-delete API behind a `BlobStore` SPI (filesystem default, S3/MinIO for prod); nested-resource controllers in `order` + `cashbox` delegate to it. Scanner discovery stays a frontend responsibility (§11.4).** | §IV "Joindre des fichiers par scan direct (détection des scanners dans le réseau)" |
 | Quotes (`quote`) | §III Devis |
 | `pdf` (shared HTML → PDF rendering, 1.5.c) | §IV Impression; §X Édition compte-rendu |
 | `labsettings` (Lab settings, 1.5.e) | §I informations générales du laboratoire (nom, adresse, accréditation, responsable); DB-backed singleton; admin updates via `PUT /api/v1/lab-settings` |
@@ -138,6 +138,8 @@ Anything not traceable to a CDC clause is **out of scope** and requires a CDC am
 - **OpenHTMLtoPDF** — primary HTML → PDF engine (Thymeleaf templates → PDF bytes), used by the shared `pdf` module (§8.8) for the result compte-rendu and all subsequent consumer reports
 - **OpenPDF** — reserved for post-processing (PDF merge, password protection, watermarking) when the delivery module lands in 1.8
 - **JasperReports** (optional) — complex statistics reports
+- **Apache Tika** (`tika-core`) — magic-byte content-type detection for uploaded scans, used by the `attachment` module (SP6). `tika-core` only; the parsers module is deliberately excluded (it would drag in 100+ transitive deps and is unneeded for detection).
+- **AWS SDK v2** (`software.amazon.awssdk:s3`) — the S3/MinIO `BlobStore` backend for the `attachment` module (SP6); the filesystem backend has no extra dependency. Tests add `org.testcontainers:minio` (test-only).
 
 ---
 
@@ -717,6 +719,25 @@ Example: `LTA24-1710-005` = Togo lab, 17 Oct 2024 (day 17, month 10), 5th invoic
 | `POST` | `/api/v1/cashbox/sessions/{cashRegisterId}/{sessionDate}:close` | soft close-out |
 | `POST` | `/api/v1/cashbox/sessions/{cashRegisterId}/{sessionDate}:reopen` | LAB_MANAGER reopen with reason |
 
+#### Attachments (scan storage, SP6, 12 endpoints — 3 owners × 4 verbs)
+
+Generic file attachments behind the `attachment` module: each endpoint is a nested resource on its owner and is gated by that owner's existing permission (read = the owner's `*.read`; write upload/delete = the owner's create/record). `POST` is `multipart/form-data` with one `file` part → `201` + `AttachmentSummary`; `DELETE` soft-deletes → `204`. The cashbox `POST` endpoints also set the owner's `*_scan_uri` column to the stored URI in the same transaction (overwrite-allowed). There is no generic `POST /attachments` (§11.4).
+
+| Method | Path | Permission |
+|---|---|---|
+| `POST` | `/api/v1/lab-files/{id}/attachments` | `lab-file.create` |
+| `GET` | `/api/v1/lab-files/{id}/attachments` | `lab-file.read` |
+| `GET` | `/api/v1/lab-files/{id}/attachments/{attachmentId}` | `lab-file.read` |
+| `DELETE` | `/api/v1/lab-files/{id}/attachments/{attachmentId}` | `lab-file.create` |
+| `POST` | `/api/v1/cashbox/expenses/{id}/attachments` | `cashbox.expense.record` |
+| `GET` | `/api/v1/cashbox/expenses/{id}/attachments` | `cashbox.expense.read` |
+| `GET` | `/api/v1/cashbox/expenses/{id}/attachments/{attachmentId}` | `cashbox.expense.read` |
+| `DELETE` | `/api/v1/cashbox/expenses/{id}/attachments/{attachmentId}` | `cashbox.expense.record` |
+| `POST` | `/api/v1/cashbox/home-collection-fees/{id}/attachments` | `cashbox.home-collection.record` |
+| `GET` | `/api/v1/cashbox/home-collection-fees/{id}/attachments` | `cashbox.home-collection.read` |
+| `GET` | `/api/v1/cashbox/home-collection-fees/{id}/attachments/{attachmentId}` | `cashbox.home-collection.read` |
+| `DELETE` | `/api/v1/cashbox/home-collection-fees/{id}/attachments/{attachmentId}` | `cashbox.home-collection.record` |
+
 #### Statistics
 All endpoints `GET`, base `/api/v1/stats`, require `stats.read`, accept required `from`/`to` (ISO `LocalDate`); `from > to` → 400. Computed live with native SQL (no `groupBy` engine — six focused endpoints).
 
@@ -782,7 +803,7 @@ Every controller is annotated; the schema is generated at `/v3/api-docs` and ren
 
 **Out-of-range detection** runs on save by comparing the stored `ResultValue` to the matched `ReferenceRange` for the patient's category/age/sex. The `is_out_of_range` flag is denormalized for fast filtering.
 
-**File attachments.** Scanned PDFs are uploaded to object storage (S3-compatible: MinIO or AWS S3); only the URI is kept in the database.
+**File attachments (SP6).** Scans are uploaded through the generic `attachment` module: a `BlobStore` SPI stores the bytes (filesystem default, S3/MinIO behind `lims.attachment.storage.backend`), and a row in the `attachments` table keeps the detected content type, size, SHA-256, storage backend, and key. The DB never holds the bytes; the storage URI is exposed on `AttachmentSummary` for consumers that pin it (e.g. cashbox `*_scan_uri` columns). Attachments are immutable + soft-deleted.
 
 **State machine (sub-project 1.5.a).** Four states linearly: `DRAFT → ENTERED → TECHNICAL_VALIDATED → BIOLOGICAL_VALIDATED`. `DRAFT ↔ ENTERED` flips automatically based on line-completeness; the two `*_VALIDATED` transitions require an explicit `:validate-technical` / `:validate-biological` call and are guarded by `result.validate-tech` / `result.validate-bio` permissions.
 
@@ -837,7 +858,7 @@ Insurance and partner reference dictionaries live in `catalog` (`InsuranceApi`, 
 
 **Aggregates (5).**
 - `ExpenseCategory` — soft-deletable reference data (`active` flag), unique-by-name. CRUD by `LAB_MANAGER`.
-- `Expense` — recorded outflow with `category_id`, `amount`, `recorded_by`, `recorded_at`, optional `scan_uri`, optional justification text. Posts a journal row in the same transaction.
+- `Expense` — recorded outflow with `category_id`, `amount`, `recorded_by`, `recorded_at`, optional `justification_scan_uri`, optional justification text. Posts a journal row in the same transaction.
 - `HomeCollectionFeeRecord` — per-lab-file home-collection fee. Posts a journal row AND updates `lab_files.home_collection_fee` (via `order::api.LabFileWriteApi`) in the same JPA transaction so billing's `BillingSnapshot.homeCollectionFee` and the cashbox journal stay consistent.
 - `JournalEntry` — denormalized row in `cashbox_journal_entries`. The single source of truth for §4 Journal des caisses: payments (sign +), expenses (sign −), home-collection fees (sign +). One row per source event.
 - `CashSession` — composite primary key `(cash_register_id, session_date)`. Soft close-out (`OPEN → CLOSED`), `LAB_MANAGER` may reopen with a typed reason (`CLOSED → OPEN` carries `reopened_at`, `reopened_by`, `reopen_reason`). Per-mode totals (CASH, CHEQUE, TPE, FLOOZ, MIXX_BY_YAS) are recomputed from the journal at close time, not denormalized eagerly.
@@ -848,7 +869,7 @@ Insurance and partner reference dictionaries live in `catalog` (`InsuranceApi`, 
 
 **Domain events emitted (4).** `ExpenseRecorded`, `HomeCollectionFeeRecorded`, `CashSessionClosed`, `CashSessionReopened`. The first two are consumed internally to write journal rows in the same transaction. The session events are observable by `stats` (sub-project 1.9) without coupling.
 
-**Scan URIs.** `Expense.scan_uri` and `HomeCollectionFeeRecord.scan_uri` are nullable. Per CDC §2 the recording action is independent from the scan upload, which is handled by the `attachment` module (deferred to a later sub-project). When `attachment` lands the column starts being populated; until then it stays null without breaking the recording path.
+**Scan URIs (SP6).** `cashbox_expenses.justification_scan_uri` and `cashbox_home_collection_fees.receipt_scan_uri` are nullable and remain so until a scan is attached. Per CDC §2 the recording action is independent from the scan upload, so the columns are populated *after* recording, by the cashbox attachment controllers (`POST /api/v1/cashbox/expenses/{id}/attachments`, `…/home-collection-fees/{id}/attachments`): an in-module `@Transactional` service calls `AttachmentApi.upload` then sets the column to the returned storage URI in the same transaction. Re-uploading is allowed and simply overwrites the column with the newest URI; earlier attachment rows remain (immutable + soft-delete), so the column always points at the latest scan.
 
 **Permissions.** 9 new permissions catalogued in §9.5: read/manage on expense categories, read/record on expenses and home-collection fees, read on journal, close/reopen on sessions.
 
@@ -1002,9 +1023,9 @@ User-facing free-text (clinical notes, comments, descriptions) goes through `Mes
 ## 11. File & Document Handling
 
 ### 11.1 Storage
-- **Object store** (MinIO on-premise; S3-compatible) for: scanned attachments, generated PDFs (invoices, lab reports), expense receipts
-- **Database** holds only the URI, content type, size, and SHA-256 hash
-- Scans uploaded via multipart; max size 25 MB, type-checked by magic bytes (Apache Tika)
+- Attachment bytes live behind a pluggable `BlobStore` SPI (`attachment` module, SP6) selected by `lims.attachment.storage.backend`: **filesystem** (default, sharded `ab/cd/<ulid>` under `lims.attachment.storage.fs.root`) or **S3/MinIO** for production. Generated PDFs / expense receipts reuse the same module.
+- **Database** holds only the storage backend + key (and the storage URI exposed on `AttachmentSummary`), content type, size, and SHA-256 hash — never the bytes.
+- Scans uploaded via multipart; max size 25 MB (`spring.servlet.multipart`; `server.tomcat.max-swallow-size: 30 MiB` — above `max-request-size` so an over-size upload drains to a clean `413`, but bounded so a rejected request cannot make the server drain an unbounded body). Content type is detected from magic bytes (Apache Tika) and **stored, never used to reject** — detection is permissive (spec decision #4): any detected type is accepted.
 
 ### 11.2 PDF Reports
 Reports are HTML files in `templates/<consumer-module>/*.html`, rendered by Thymeleaf and converted to PDF by OpenHTMLtoPDF. The shared engine lives in the `pdf` module (§8.8); each consumer module declares its document type as a Spring bean implementing `PdfDocumentType<T>`. Synchronous calls return the bytes inline (used today by the result CR). For reports expected to exceed 5 pages, the async pipeline serialises the model into `pdf_render_jobs.model_json`, renders in a background worker, and exposes the result via `GET /pdf-jobs/{id}` for polling. Generated PDFs are short-lived (1 h TTL); long-term archival of CRs is `delivery`'s responsibility.
@@ -1017,7 +1038,7 @@ Reports are HTML files in `templates/<consumer-module>/*.html`, rendered by Thym
 Label printing is delegated to the frontend or a dedicated print service. The backend exposes `GET /lab-files/{id}/labels` which returns label records (patient name, dob, age, sex, daily ID barcode, first 5 analyses) — the printer driver renders them to 4 cm × 2.5 cm thermal labels.
 
 ### 11.4 Network Scanner Discovery
-Out of scope for the backend. The frontend is responsible for SANE/TWAIN discovery; it uploads the resulting image/PDF via `POST /attachments`.
+Out of scope for the backend. The frontend is responsible for SANE/TWAIN discovery; it uploads the resulting image/PDF as a multipart `file` part to whichever owner's nested-resource endpoint applies (SP6): `…/lab-files/{id}/attachments`, `…/cashbox/expenses/{id}/attachments`, or `…/cashbox/home-collection-fees/{id}/attachments`. There is no generic `POST /attachments` — every attachment hangs off a typed owner so the existing owner permission gates it (§7.3).
 
 ### 11.5 Outbound document delivery (SP4)
 Two staff-initiated `:send` actions hand documents to the `notification` outbox (§12); both are manual (no auto-send on publish).

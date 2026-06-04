@@ -105,4 +105,14 @@ public class HomeCollectionFeeRecord {
     public HomeCollectionFeeId homeCollectionFeeId() {
         return new HomeCollectionFeeId(id);
     }
+
+    /**
+     * SP6 (spec §5): points this fee record at its uploaded receipt scan. No lab-file editability
+     * guard — the scan touches only this row, and §8.6 keeps scan upload independent of recording.
+     */
+    public void attachReceiptScan(String storageUri, UserId by, Instant now) {
+        this.receiptScanUri = storageUri;
+        this.updatedAt = now;
+        this.updatedBy = by.value();
+    }
 }
