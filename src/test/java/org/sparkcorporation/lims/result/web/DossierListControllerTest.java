@@ -1,11 +1,14 @@
 package org.sparkcorporation.lims.result.web;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Import;
@@ -56,6 +59,22 @@ class DossierListControllerTest {
     @Test
     void oversized_page_size_returns_400() throws Exception {
         mvc.perform(get("/api/v1/dossiers").param("size", "201"))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void printed_true_reaches_service_filter_bag() throws Exception {
+        when(service.list(any(), any())).thenReturn(Page.empty());
+        mvc.perform(get("/api/v1/dossiers").param("printed", "true")).andExpect(status().isOk());
+
+        var captor = ArgumentCaptor.forClass(DossierFilters.class);
+        verify(service).list(captor.capture(), any());
+        assertThat(captor.getValue().printed()).isTrue();
+    }
+
+    @Test
+    void bad_printed_boolean_returns_400() throws Exception {
+        mvc.perform(get("/api/v1/dossiers").param("printed", "banana"))
                 .andExpect(status().isBadRequest());
     }
 }

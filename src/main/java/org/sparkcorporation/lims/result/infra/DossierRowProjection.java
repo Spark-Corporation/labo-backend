@@ -1,5 +1,9 @@
 package org.sparkcorporation.lims.result.infra;
 
+import java.time.Instant;
+
+import org.jspecify.annotations.Nullable;
+
 /**
  * Spring Data interface projection for the §X / §IX dossier queries. The native SQL in {@link
  * DossierRepository} returns columns matching these accessors; cross-module rehydration (LabFile +
@@ -19,4 +23,8 @@ public interface DossierRowProjection {
     String getPatientId();
 
     String getMarker();
+
+    @Nullable Instant getPrintedAt();
+
+    @Nullable Instant getEmailedAt();
 }

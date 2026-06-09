@@ -1,5 +1,7 @@
 package org.sparkcorporation.lims.result.web;
 
+import java.time.Instant;
+
 import org.jspecify.annotations.Nullable;
 
 import org.sparkcorporation.lims.order.api.LabFileSummary;
@@ -31,7 +33,9 @@ public final class DossierMapper {
                 patient == null ? null : patient.lastName(),
                 patient == null ? null : patient.firstNames(),
                 patient != null && patient.insurance() != null,
-                DossierMarker.valueOf(projection.getMarker()));
+                DossierMarker.valueOf(projection.getMarker()),
+                projection.getPrintedAt(),
+                projection.getEmailedAt());
     }
 
     public static OverdueDossierRow toOverdueRow(
@@ -53,6 +57,16 @@ public final class DossierMapper {
                     @Override
                     public String getMarker() {
                         return projection.getMarker();
+                    }
+
+                    @Override
+                    public @Nullable Instant getPrintedAt() {
+                        return null;
+                    }
+
+                    @Override
+                    public @Nullable Instant getEmailedAt() {
+                        return null;
                     }
                 };
         var inner = toRow(adapter, labFile, patient);

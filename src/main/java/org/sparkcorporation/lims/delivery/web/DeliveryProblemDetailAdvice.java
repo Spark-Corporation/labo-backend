@@ -14,6 +14,7 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
 import org.sparkcorporation.lims.delivery.domain.MissingPatientEmailException;
+import org.sparkcorporation.lims.delivery.domain.NotPrintableException;
 import org.sparkcorporation.lims.delivery.domain.NotPublishableException;
 import org.sparkcorporation.lims.delivery.domain.NotSendableException;
 import org.sparkcorporation.lims.delivery.domain.NotSignableException;
@@ -54,6 +55,17 @@ public class DeliveryProblemDetailAdvice {
         var pd = ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT, ex.getMessage());
         pd.setType(URI.create("/problems/delivery/not-sendable"));
         pd.setTitle("Dossier not sendable");
+        pd.setInstance(URI.create(req.getRequestURI()));
+        pd.setProperty("labFileId", ex.labFileId().value());
+        pd.setProperty("traceId", traceId());
+        return pd;
+    }
+
+    @ExceptionHandler(NotPrintableException.class)
+    public ProblemDetail handleNotPrintable(NotPrintableException ex, HttpServletRequest req) {
+        var pd = ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT, ex.getMessage());
+        pd.setType(URI.create("/problems/delivery/not-printable"));
+        pd.setTitle("Dossier not printable");
         pd.setInstance(URI.create(req.getRequestURI()));
         pd.setProperty("labFileId", ex.labFileId().value());
         pd.setProperty("traceId", traceId());

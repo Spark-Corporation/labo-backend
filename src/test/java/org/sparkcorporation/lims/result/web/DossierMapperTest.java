@@ -33,6 +33,8 @@ class DossierMapperTest {
         assertThat(row.registrationNumber()).isEqualTo("LF-260511-0001");
         assertThat(row.patientInsured()).isTrue();
         assertThat(row.urgent()).isTrue();
+        assertThat(row.printedAt()).isEqualTo(Instant.parse("2026-05-11T09:00:00Z"));
+        assertThat(row.emailedAt()).isEqualTo(Instant.parse("2026-05-11T10:00:00Z"));
     }
 
     @Test
@@ -71,6 +73,8 @@ class DossierMapperTest {
         assertThat(row.dossier().registrationNumber()).isEqualTo("LF-260511-0001");
         assertThat(row.dossier().patientInsured()).isTrue();
         assertThat(row.dossier().marker()).isEqualTo(DossierMarker.PEN);
+        assertThat(row.dossier().printedAt()).isNull();
+        assertThat(row.dossier().emailedAt()).isNull();
 
         assertThat(row.overdue().analysisCode()).isEqualTo("GLY");
         assertThat(row.overdue().analysisName()).isEqualTo("Glycemie a jeun");
@@ -138,6 +142,16 @@ class DossierMapperTest {
             @Override
             public String getMarker() {
                 return marker;
+            }
+
+            @Override
+            public Instant getPrintedAt() {
+                return Instant.parse("2026-05-11T09:00:00Z");
+            }
+
+            @Override
+            public Instant getEmailedAt() {
+                return Instant.parse("2026-05-11T10:00:00Z");
             }
         };
     }

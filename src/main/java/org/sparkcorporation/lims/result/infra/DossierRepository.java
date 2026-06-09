@@ -24,6 +24,8 @@ public interface DossierRepository extends Repository<Result, String> {
                     SELECT
                       lf.id          AS "labFileId",
                       lf.patient_id  AS "patientId",
+                      lf.printed_at  AS "printedAt",
+                      lf.emailed_at  AS "emailedAt",
                       CASE
                         WHEN EXISTS (SELECT 1 FROM results r2
                                      WHERE r2.lab_file_id = lf.id
@@ -147,6 +149,8 @@ public interface DossierRepository extends Repository<Result, String> {
                     SELECT
                       lf.id          AS "labFileId",
                       lf.patient_id  AS "patientId",
+                      lf.printed_at  AS "printedAt",
+                      lf.emailed_at  AS "emailedAt",
                       CASE
                         WHEN EXISTS (SELECT 1 FROM results r2
                                      WHERE r2.lab_file_id = lf.id
@@ -195,6 +199,15 @@ public interface DossierRepository extends Repository<Result, String> {
                                 WHERE ri.lab_file_id = lf.id
                                   AND ri.deleted_at IS NULL
                                   AND ri.state IN ('ENTERED', 'TECHNICAL_VALIDATED'))))
+                      AND (CAST(:printed AS boolean) IS NULL
+                           OR (:printed = true  AND lf.printed_at IS NOT NULL)
+                           OR (:printed = false AND lf.printed_at IS NULL))
+                      AND (CAST(:signed AS boolean) IS NULL
+                           OR (:signed = true  AND lf.status IN ('SIGNED', 'PUBLISHED'))
+                           OR (:signed = false AND lf.status NOT IN ('SIGNED', 'PUBLISHED')))
+                      AND (CAST(:emailed AS boolean) IS NULL
+                           OR (:emailed = true  AND lf.emailed_at IS NOT NULL)
+                           OR (:emailed = false AND lf.emailed_at IS NULL))
                       AND (CAST(:patientId AS text) IS NULL OR lf.patient_id = :patientId)
                       AND (CAST(:dateFrom  AS timestamp) IS NULL OR lf.created_at >= :dateFrom)
                       AND (CAST(:dateTo    AS timestamp) IS NULL OR lf.created_at <  :dateTo)
@@ -239,6 +252,15 @@ public interface DossierRepository extends Repository<Result, String> {
                                 WHERE ri.lab_file_id = lf.id
                                   AND ri.deleted_at IS NULL
                                   AND ri.state IN ('ENTERED', 'TECHNICAL_VALIDATED'))))
+                      AND (CAST(:printed AS boolean) IS NULL
+                           OR (:printed = true  AND lf.printed_at IS NOT NULL)
+                           OR (:printed = false AND lf.printed_at IS NULL))
+                      AND (CAST(:signed AS boolean) IS NULL
+                           OR (:signed = true  AND lf.status IN ('SIGNED', 'PUBLISHED'))
+                           OR (:signed = false AND lf.status NOT IN ('SIGNED', 'PUBLISHED')))
+                      AND (CAST(:emailed AS boolean) IS NULL
+                           OR (:emailed = true  AND lf.emailed_at IS NOT NULL)
+                           OR (:emailed = false AND lf.emailed_at IS NULL))
                       AND (CAST(:patientId AS text) IS NULL OR lf.patient_id = :patientId)
                       AND (CAST(:dateFrom  AS timestamp) IS NULL OR lf.created_at >= :dateFrom)
                       AND (CAST(:dateTo    AS timestamp) IS NULL OR lf.created_at <  :dateTo)
@@ -252,6 +274,9 @@ public interface DossierRepository extends Repository<Result, String> {
             @Nullable @Param("validatedOnly") Boolean validatedOnly,
             @Nullable @Param("notValidated") Boolean notValidated,
             @Nullable @Param("inProgress") Boolean inProgress,
+            @Nullable @Param("printed") Boolean printed,
+            @Nullable @Param("signed") Boolean signed,
+            @Nullable @Param("emailed") Boolean emailed,
             @Nullable @Param("patientId") String patientId,
             @Nullable @Param("dateFrom") Instant dateFrom,
             @Nullable @Param("dateTo") Instant dateTo,

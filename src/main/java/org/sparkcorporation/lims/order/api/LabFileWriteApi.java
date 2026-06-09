@@ -53,4 +53,15 @@ public interface LabFileWriteApi {
      *     matches the given id
      */
     void markEmailed(LabFileId labFileId, Instant emailedAt);
+
+    /**
+     * Stamps {@code printed_at} on the lab file (idempotent — the latest print instant wins),
+     * recording that the published dossier was physically printed for the patient (CDC §IX «
+     * Dossiers imprimés »). The only consumer is {@code delivery}'s {@code :mark-printed} staff
+     * confirmation surface, which gates on {@code PUBLISHED} status before stamping.
+     *
+     * @throws org.sparkcorporation.lims.order.domain.LabFileNotFoundException if no lab file
+     *     matches the given id
+     */
+    void markPrinted(LabFileId labFileId, Instant printedAt);
 }

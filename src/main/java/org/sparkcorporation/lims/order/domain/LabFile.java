@@ -88,6 +88,9 @@ public class LabFile {
     @Column(name = "emailed_at")
     private @Nullable Instant emailedAt;
 
+    @Column(name = "printed_at")
+    private @Nullable Instant printedAt;
+
     @Column(name = "insurance_id", length = 26)
     private @Nullable String insuranceId;
 
@@ -223,6 +226,11 @@ public class LabFile {
      */
     public void markEmailed(Instant emailedAt) {
         this.emailedAt = emailedAt;
+    }
+
+    /** Print-channel stamp (CDC §IX « Dossiers imprimés »). Re-prints overwrite. */
+    public void markPrinted(Instant printedAt) {
+        this.printedAt = printedAt;
     }
 
     /**

@@ -119,6 +119,110 @@ class DossierListIT extends IntegrationTestBase {
         assertThat(resp.getStatusCode().value()).isEqualTo(400);
     }
 
+    @Test
+    void printed_true_returnsOnlyPrintedDossiers() {
+        var patientId = seedPatient();
+        var printed = seedLabFile(patientId, false, false, "OPEN", true, false);
+        var notPrinted = seedLabFile(patientId, false, false, "OPEN", false, false);
+
+        var ids = listIds("/api/v1/dossiers?printed=true&size=200");
+
+        assertThat(ids).contains(printed).doesNotContain(notPrinted);
+    }
+
+    @Test
+    void printed_false_excludesPrinted() {
+        var patientId = seedPatient();
+        var printed = seedLabFile(patientId, false, false, "OPEN", true, false);
+        var notPrinted = seedLabFile(patientId, false, false, "OPEN", false, false);
+
+        var ids = listIds("/api/v1/dossiers?printed=false&size=200");
+
+        assertThat(ids).contains(notPrinted).doesNotContain(printed);
+    }
+
+    @Test
+    void emailed_true_returnsOnlyEmailedDossiers() {
+        var patientId = seedPatient();
+        var emailed = seedLabFile(patientId, false, false, "OPEN", false, true);
+        var notEmailed = seedLabFile(patientId, false, false, "OPEN", false, false);
+
+        var ids = listIds("/api/v1/dossiers?emailed=true&size=200");
+
+        assertThat(ids).contains(emailed).doesNotContain(notEmailed);
+    }
+
+    @Test
+    void signed_true_returnsSignedAndPublished() {
+        var patientId = seedPatient();
+        var signed = seedLabFile(patientId, false, false, "SIGNED", false, false);
+        var published = seedLabFile(patientId, false, false, "PUBLISHED", false, false);
+        var open = seedLabFile(patientId, false, false, "OPEN", false, false);
+
+        var ids = listIds("/api/v1/dossiers?signed=true&size=200");
+
+        assertThat(ids).contains(signed, published).doesNotContain(open);
+    }
+
+    @Test
+    void signed_false_returnsTheOpenOne() {
+        var patientId = seedPatient();
+        var signed = seedLabFile(patientId, false, false, "SIGNED", false, false);
+        var open = seedLabFile(patientId, false, false, "OPEN", false, false);
+
+        var ids = listIds("/api/v1/dossiers?signed=false&size=200");
+
+        assertThat(ids).contains(open).doesNotContain(signed);
+    }
+
+    @Test
+    void filtersCombine_printedAndUrgent() {
+        var patientId = seedPatient();
+        var printedUrgent = seedLabFile(patientId, true, false, "OPEN", true, false);
+        var printedNotUrgent = seedLabFile(patientId, false, false, "OPEN", true, false);
+        var urgentNotPrinted = seedLabFile(patientId, true, false, "OPEN", false, false);
+
+        var ids = listIds("/api/v1/dossiers?printed=true&urgent=true&size=200");
+
+        assertThat(ids).contains(printedUrgent).doesNotContain(printedNotUrgent, urgentNotPrinted);
+    }
+
+    @Test
+    void rows_carryPrintedAtAndEmailedAt() {
+        var patientId = seedPatient();
+        var stamped = seedLabFile(patientId, false, false, "OPEN", true, true);
+        var virgin = seedLabFile(patientId, false, false, "OPEN", false, false);
+
+        @SuppressWarnings("rawtypes")
+        var resp = http.get().uri("/api/v1/dossiers?size=200").retrieve().toEntity(Map.class);
+        @SuppressWarnings("unchecked")
+        var content = (List<Map<?, ?>>) resp.getBody().get("content");
+
+        var stampedRow =
+                content.stream()
+                        .filter(r -> stamped.equals(r.get("labFileId")))
+                        .findFirst()
+                        .orElseThrow();
+        var virginRow =
+                content.stream()
+                        .filter(r -> virgin.equals(r.get("labFileId")))
+                        .findFirst()
+                        .orElseThrow();
+        assertThat(stampedRow.get("printedAt")).isNotNull();
+        assertThat(stampedRow.get("emailedAt")).isNotNull();
+        assertThat(virginRow.get("printedAt")).isNull();
+        assertThat(virginRow.get("emailedAt")).isNull();
+    }
+
+    private List<String> listIds(String uri) {
+        @SuppressWarnings("rawtypes")
+        var resp = http.get().uri(uri).retrieve().toEntity(Map.class);
+        assertThat(resp.getStatusCode()).isEqualTo(HttpStatus.OK);
+        @SuppressWarnings("unchecked")
+        var content = (List<Map<?, ?>>) resp.getBody().get("content");
+        return content.stream().map(r -> (String) r.get("labFileId")).toList();
+    }
+
     private void seedFixture() {
         var patientId = seedPatient();
         var disciplineId = seedDiscipline();
@@ -175,20 +279,37 @@ class DossierListIT extends IntegrationTestBase {
     }
 
     private String seedLabFile(String patientId, boolean urgent, boolean deleted) {
+        return seedLabFile(patientId, urgent, deleted, "OPEN", false, false);
+    }
+
+    private String seedLabFile(
+            String patientId,
+            boolean urgent,
+            boolean deleted,
+            String status,
+            boolean printed,
+            boolean emailed) {
         var id = Ulid.generate();
         var seq = String.format("%04d", REG_SEQ.getAndIncrement());
         var rn = "LF-" + LocalDate.now().format(DATE_FMT) + "-" + seq;
         var deletedAt = deleted ? "now()" : "NULL";
+        var printedAt = printed ? "now()" : "NULL";
+        var emailedAt = emailed ? "now()" : "NULL";
         jdbc.update(
                 "INSERT INTO lab_files (id, registration_number, patient_id, urgent, status,"
-                        + " created_at, updated_at, deleted_at, version) VALUES (?, ?, ?, ?,"
-                        + " 'OPEN', now(), now(), "
+                        + " created_at, updated_at, deleted_at, printed_at, emailed_at, version)"
+                        + " VALUES (?, ?, ?, ?, ?, now(), now(), "
                         + deletedAt
+                        + ", "
+                        + printedAt
+                        + ", "
+                        + emailedAt
                         + ", 0)",
                 id,
                 rn,
                 patientId,
-                urgent);
+                urgent,
+                status);
         return id;
     }
 

@@ -9,6 +9,9 @@ public record DossierFilters(
         @Nullable DossierState state,
         @Nullable Boolean urgent,
         @Nullable Boolean empty,
+        @Nullable Boolean printed,
+        @Nullable Boolean signed,
+        @Nullable Boolean emailed,
         @Nullable String patientId,
         @Nullable LocalDate dateFrom,
         @Nullable LocalDate dateTo) {}

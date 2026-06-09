@@ -88,6 +88,9 @@ The CDC (`CAHIER DES CHARGES LOGICIEL DE GESTION DU LABORATOIRE.docx.pdf`) is th
 | `labsettings` (Lab settings, 1.5.e) | §I informations générales du laboratoire (nom, adresse, accréditation, responsable); DB-backed singleton; admin updates via `PUT /api/v1/lab-settings` |
 | Payment receipt PDF (1.5.g) | §VIII (caisse / reçus) + §IV (impression); rendered by `billing/infra/pdf/` as a 1.5.c `PdfDocumentType` consumer; endpoint `GET /api/v1/payments/{id}/receipt.pdf` |
 | Quote PDF (1.5.h) | §III (devis) + §IV (impression); rendered by `order/infra/pdf/` as a 1.5.c `PdfDocumentType` consumer; endpoint `GET /api/v1/quotes/{id}/pdf` |
+| Étiquettes (labels) **— implemented, SP7** (`GET /api/v1/lab-files/{id}/labels`, JSON label records assembled in `order/web/`; frontend / printer driver renders the 4 cm × 2.5 cm thermal label) | §IV Configuration des étiquettes; §II Impression des étiquettes |
+| Feuilles de paillasse (worksheets) **— implemented, SP7**: per-dossier bench sheet (`GET /api/v1/lab-files/{id}/worksheet.pdf`, `order/infra/pdf/`, A4 portrait) and per-paillasse worklist (`GET /api/v1/paillasses/{disciplineId}/worksheet.pdf?from=&to=`, `result/infra/pdf/`, A4 landscape); both are 1.5.c `PdfDocumentType` consumers | §II Feuille de paillasse; §VII Gestion des disciplines |
+| §IX printed / signed / emailed dossier filters **— implemented, SP7**: `printed` / `signed` / `emailed` query params on `GET /api/v1/dossiers`; print channel = `lab_files.printed_at` stamped by `POST /api/v1/lab-files/{id}:mark-printed` (in `delivery`, `dossier.print` permission) | §IX Dossiers imprimés / signés / envoyés |
 | `export` (shared DOCX/XLSX rendering + OOXML password, **SP5**) — `OfficeDocumentType` SPI + registry, POI XWPF/XSSF, agile-AES `OfficePasswordProtector`; per-document renderers under `<module>.infra.export` reuse the existing report models | §III (devis → Word, `GET /api/v1/quotes/{id}/export`), §IV (dossier → Word/Excel **protégé par mot de passe**, `GET /api/v1/lab-files/{id}/export`, password in `X-Export-Password` header), §X (édition / exportation du compte-rendu en format électronique) |
 
 Anything not traceable to a CDC clause is **out of scope** and requires a CDC amendment before it can be added to this project.
@@ -376,7 +379,10 @@ CREATE TABLE lab_files (
     signed_at TIMESTAMPTZ,                   -- when the dossier was electronically signed
     -- SP4 outbound mail delivery (changeset 202605290905-add-lab-files-emailed-at, CDC §IX).
     -- Stamped by delivery's EmailedAtStampingListener on NotificationDelivered for an EMAIL/LAB_FILE.
-    emailed_at TIMESTAMPTZ                    -- when the dossier was sent to the patient by Mail, null until sent
+    emailed_at TIMESTAMPTZ,                   -- when the dossier was sent to the patient by Mail, null until sent
+    -- SP7 print channel (changeset 202606051000-add-lab-files-printed-at, CDC §IX).
+    -- Stamped by delivery's MarkPrintedService on POST :mark-printed; re-print overwrites.
+    printed_at TIMESTAMPTZ                    -- when the dossier was confirmed printed, null until printed
 );
 ```
 
@@ -692,6 +698,14 @@ Example: `LTA24-1710-005` = Togo lab, 17 Oct 2024 (day 17, month 10), 5th invoic
 | `POST` | `/lab-files/{id}/results:validate-bio` | biological validation, locks the file |
 | `POST` | `/lab-files/{id}:sign` | electronically sign a bio-validated dossier (`dossier.sign-electronically`, BIOLOGIST; CDC §IV). Binds a digest of the dossier into the signing biologist's Ed25519 action chain (explicit `ActionSigner.sign`), sets `signed_by`/`signed_at`, transitions to `SIGNED`, emits `DossierSigned`. Prerequisite for `:publish` (SP3) |
 | `POST` | `/lab-files/{id}:publish` | publish a dossier (`dossier.publish`); **now requires the dossier to be `SIGNED`** (SP3). Transitions to `PUBLISHED`, emits `ResultPublished` (online channel — SP2). Manual only |
+| `GET` | `/lab-files/{id}/labels` | label records (`lab-file.read`; SP7). One record per sample: patient nom/prénom/dateNaissance/âge/sexe, daily-ID barcode payload, first 5 analyses, `copies` from `Analysis.labelCount` |
+| `GET` | `/lab-files/{id}/worksheet.pdf` | per-dossier « feuille de paillasse » (`lab-file.read`; SP7). A4 portrait, analyses grouped by paillasse, blank handwritten-result column |
+| `POST` | `/lab-files/{id}:mark-printed` | confirm a printed dossier (`dossier.print`; SP7). `204`; stamps `lab_files.printed_at`; requires `PUBLISHED` (else `409`); re-print overwrites |
+
+#### Paillasses
+| Method | Path | Notes |
+|---|---|---|
+| `GET` | `/paillasses/{disciplineId}/worksheet.pdf?from=&to=` | per-paillasse worklist PDF (`lab-file.read`; SP7). A4 landscape, one block per dossier; `from`/`to` default to today (UTC, registration date); `from > to` → `400` |
 
 #### Quotes
 | `POST` `/quotes` · `GET` `/quotes/{id}` · `POST` `/quotes/{id}:lock` · `POST` `/quotes/{id}:send` |
@@ -799,7 +813,7 @@ Every controller is annotated; the schema is generated at `/v3/api-docs` and ren
 **Write-side cross-module port (sub-project 1.7.a).** `order::api.LabFileWriteApi` is a new write-side companion to the read-only `LabFileApi`. It exposes a single method, `setHomeCollectionFee(LabFileId, BigDecimal, UserId)`, intended for use by the cashbox module when recording a home-collection fee. The implementation wraps `LabFile.update(...)` inside the caller's transaction, so the lab-file row and the corresponding `cashbox_journal_entries` row commit together. Only `OPEN` lab files accept fee updates (otherwise `LabFileNotEditableException`). The `recordedBy` parameter is accepted now for future audit-trail use; until the audit module lands, only `updated_at` is persisted. The read-side `LabFileApi` stays strictly read-only.
 
 ### 8.4 `result` Module
-**Two-step validation.** A result becomes available for biological validation only after technical validation. The API enforces ordering with state-machine guards. The biological validation event triggers invoice finalization, label printing, and result delivery.
+**Two-step validation.** A result becomes available for biological validation only after technical validation. The API enforces ordering with state-machine guards. The biological validation event triggers invoice finalization and result-delivery readiness. (Labels print at sample collection, on demand — CDC §II — not as a bio-validation side-effect.)
 
 **Out-of-range detection** runs on save by comparing the stored `ResultValue` to the matched `ReferenceRange` for the patient's category/age/sex. The `is_out_of_range` flag is denormalized for fast filtering.
 
@@ -878,7 +892,7 @@ Three channels: print, email, online portal. The **online channel** and the staf
 
 - **Publish use-case (implemented).** `POST /api/v1/lab-files/{id}:publish` (`dossier.publish`) transitions a dossier to `PUBLISHED` and emits a `ResultPublished` application event (consumed downstream by SP4 notifications). Since SP3 the dossier must be `SIGNED` before it can be published — `PublishService` rejects an unsigned dossier. Publication is **manual only** — there is no auto-publish on biological validation. Eligibility ("all results biologically validated") is checked in `delivery`'s `PublishService` via `result::api`'s `CompteRenduApi`; `order::api`'s `LabFileWriteApi.publish` owns the lifecycle transition.
 - **Online (implemented).** A second, stateless authentication realm for patients (RS256 portal JWT, `aud=lims-portal`, 30-min TTL, reusing the existing RSA keys). `POST /api/v1/portal/login` verifies the credentials issued at registration via `patient::api`; `GET /api/v1/portal/dossiers` and `GET /api/v1/portal/dossiers/{id}/pdf` serve the patient's own `PUBLISHED` dossiers and compte-rendu PDFs (404 otherwise — enumeration-safe). The realm is self-contained: encoder/decoder live inside `PortalTokenService` (never exposed as beans), `/api/v1/portal/**` is a `secured-x` public path, and a path-scoped servlet filter is the gate. Uses `spring-security-oauth2-jose` (Nimbus) for RS256.
-- **Print** generates the PDF report on demand and streams it back; a copy is archived in object storage. *(Pending.)*
+- **Print (implemented, SP7).** No server-side archival: the CR PDF is deterministically re-renderable (SP3's signature guarantees integrity), so the print channel is the **frontend printing the existing CR PDF**, then confirming via `POST /api/v1/lab-files/{id}:mark-printed`. That endpoint (`dossier.print`, ADMIN + BIOLOGIST + RECEPTIONIST) requires the dossier to be `PUBLISHED` (else `409` `NotPrintableException`), stamps `lab_files.printed_at` (re-print overwrites), and records a `dossier.print` action in the SP3 ledger. Fetching the CR PDF never auto-stamps — printing is an explicit confirmation.
 - **Email** sends the PDF as an attachment, password-protected with a per-file random password delivered via SMS or WhatsApp. *(Pending — SP4.)*
 - **Electronic signature** of the dossier (CDC §IV "signer électroniquement") is **implemented (SP3)**. `POST /api/v1/lab-files/{id}:sign` (`dossier.sign-electronically`, BIOLOGIST) binds a digest of the bio-validated dossier into the signing biologist's Ed25519 action chain, sets `lab_files.signed_by`/`signed_at`, transitions the dossier to `SIGNED`, and emits `DossierSigned`. Signing is the mandatory prerequisite for `:publish`. The signing infrastructure (key-pair store, append-only audit chain) lives in `iam` (see §9.1, §9.4); `delivery` owns the dossier-level `:sign`/`:publish` lifecycle.
 - The intermediate `PRINTED` / `SENT` dossier states and the full intermediate LabFile status machine are **deferred** (only the `PUBLISHED` transition exists today).
@@ -962,6 +976,7 @@ The permission strings used in `@RequiresPermission(…)` (from `secured-x-rbac`
 | `result.validate-bio` | §X Validation biologique | BIOLOGIST |
 | `dossier.sign-electronically` | §IV "signer électroniquement le dossier" | BIOLOGIST |
 | `dossier.publish` | §IV "publier le résultat online", "envoyer par Mail" | BIOLOGIST |
+| `dossier.print` (SP7) | §IX "Dossiers imprimés" — confirm a dossier was printed (`POST :mark-printed`) | ADMIN, BIOLOGIST, RECEPTIONIST |
 | `quote.create`, `quote.send`, `quote.lock` | §III Devis | RECEPTIONIST |
 | `invoice.create`, `invoice.read` | §II Facturation, Gestion comptable §1 | RECEPTIONIST (create), CASHIER, ACCOUNTANT |
 | `payment.collect` | §II Facturation, §VIII | RECEPTIONIST, CASHIER |
@@ -1028,14 +1043,14 @@ User-facing free-text (clinical notes, comments, descriptions) goes through `Mes
 - Scans uploaded via multipart; max size 25 MB (`spring.servlet.multipart`; `server.tomcat.max-swallow-size: 30 MiB` — above `max-request-size` so an over-size upload drains to a clean `413`, but bounded so a rejected request cannot make the server drain an unbounded body). Content type is detected from magic bytes (Apache Tika) and **stored, never used to reject** — detection is permissive (spec decision #4): any detected type is accepted.
 
 ### 11.2 PDF Reports
-Reports are HTML files in `templates/<consumer-module>/*.html`, rendered by Thymeleaf and converted to PDF by OpenHTMLtoPDF. The shared engine lives in the `pdf` module (§8.8); each consumer module declares its document type as a Spring bean implementing `PdfDocumentType<T>`. Synchronous calls return the bytes inline (used today by the result CR). For reports expected to exceed 5 pages, the async pipeline serialises the model into `pdf_render_jobs.model_json`, renders in a background worker, and exposes the result via `GET /pdf-jobs/{id}` for polling. Generated PDFs are short-lived (1 h TTL); long-term archival of CRs is `delivery`'s responsibility.
+Reports are HTML files in `templates/<consumer-module>/*.html`, rendered by Thymeleaf and converted to PDF by OpenHTMLtoPDF. The shared engine lives in the `pdf` module (§8.8); each consumer module declares its document type as a Spring bean implementing `PdfDocumentType<T>`. Synchronous calls return the bytes inline (used today by the result CR). For reports expected to exceed 5 pages, the async pipeline serialises the model into `pdf_render_jobs.model_json`, renders in a background worker, and exposes the result via `GET /pdf-jobs/{id}` for polling. Generated PDFs are short-lived (1 h TTL). CRs are **not** archived in object storage: they are deterministically re-renderable from the signed dossier (SP3 signature guarantees integrity), so the print/email channels re-render on demand rather than archive (§8.7, SP7).
 
 **Payment receipt (1.5.g).** A second `PdfDocumentType` registered at id `billing.payment-receipt`, rendered A5 portrait by `PaymentReceiptPdfDocument` (lives in `billing/infra/pdf/` alongside its `PaymentReceiptModel` and `PaymentReceiptModelAssembler`). Synchronous; endpoint `GET /api/v1/payments/{id}/receipt.pdf` guarded by `invoice.read`. Reads via `PaymentRepository` directly (same module) and the cross-module `LabFileApi` / `PatientApi` / `CashRegisterApi` / `UserApi` / `LabSettingsApi` for header data. Mode labels are French (Espèces / Chèque / Carte TPE / Flooz / Mixx by Yas); amounts formatted with `NumberFormat.getInstance(Locale.FRENCH)` + ` F CFA` suffix. Unknown / malformed payment ids surface as RFC 7807 problem details via `BillingProblemDetailAdvice`.
 
 **Quote / devis (1.5.h).** Third `PdfDocumentType` registered at id `order.quote-report`, rendered A4 portrait by `QuoteReportPdfDocument`. Synchronous; endpoint `GET /api/v1/quotes/{id}/pdf` with `quote.read`. Reads via `QuoteApi.requireById` (404 propagated via shared advice since `QuoteNotFoundException` extends `EntityNotFoundException`) plus `LabSettingsApi.get()` — patient + prescriber blocks come from `QuoteSummary`'s denormalized snapshots. All four `QuoteStatus` values render with a status banner (DRAFT → "BROUILLON — non contractuel"; LOCKED → "DEVIS"; CONVERTED → "DEVIS — converti en dossier"; EXPIRED → "DEVIS — expiré"). On DRAFT every pricing string is `"À déterminer"`; otherwise b-rates render via `NumberFormat` with grouping disabled (avoids `"1E+3"`) and amounts via `NumberFormat.getInstance(Locale.FRENCH)` + ` F CFA` suffix.
 
 ### 11.3 Labels
-Label printing is delegated to the frontend or a dedicated print service. The backend exposes `GET /lab-files/{id}/labels` which returns label records (patient name, dob, age, sex, daily ID barcode, first 5 analyses) — the printer driver renders them to 4 cm × 2.5 cm thermal labels.
+Label printing is delegated to the frontend or a dedicated print service. The backend exposes `GET /api/v1/lab-files/{id}/labels` (**implemented, SP7**; `lab-file.read`, assembled in `order/web/LabelService`) which returns one label record **per sample**: a `patient` block (`nom`, `prenom`, `dateNaissance` ISO or null, `age`, `sexe` = `Sex` enum `M`/`F`), the sample's `dailyId` (the barcode payload), the sample discipline, the lab file's **first 5** analysis codes (request order), and `copies` (from the sample analysis's `Analysis.labelCount`, defaulting to 1). A lab file with zero samples returns `200` with an empty `labels` array. The printer driver renders each record to a 4 cm × 2.5 cm thermal label and encodes `dailyId` as the barcode; the backend never draws the label. The response carries patient PII — never logged (`/lab-files/*` redaction rule).
 
 ### 11.4 Network Scanner Discovery
 Out of scope for the backend. The frontend is responsible for SANE/TWAIN discovery; it uploads the resulting image/PDF as a multipart `file` part to whichever owner's nested-resource endpoint applies (SP6): `…/lab-files/{id}/attachments`, `…/cashbox/expenses/{id}/attachments`, or `…/cashbox/home-collection-fees/{id}/attachments`. There is no generic `POST /attachments` — every attachment hangs off a typed owner so the existing owner permission gates it (§7.3).

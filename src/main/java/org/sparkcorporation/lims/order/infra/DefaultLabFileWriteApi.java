@@ -63,4 +63,14 @@ class DefaultLabFileWriteApi implements LabFileWriteApi {
                         .orElseThrow(() -> new LabFileNotFoundException(labFileId));
         labFile.markEmailed(emailedAt);
     }
+
+    @Override
+    @Transactional
+    public void markPrinted(LabFileId labFileId, Instant printedAt) {
+        LabFile labFile =
+                labFileRepository
+                        .findActiveById(labFileId.value())
+                        .orElseThrow(() -> new LabFileNotFoundException(labFileId));
+        labFile.markPrinted(printedAt);
+    }
 }

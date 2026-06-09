@@ -25,4 +25,6 @@ public record DossierRow(
         @Nullable String patientLastName,
         @Nullable String patientFirstNames,
         boolean patientInsured,
-        DossierMarker marker) {}
+        DossierMarker marker,
+        @Nullable Instant printedAt,
+        @Nullable Instant emailedAt) {}

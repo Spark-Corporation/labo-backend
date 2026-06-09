@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="fr" xmlns:th="http://www.thymeleaf.org">
+<head>
+  <meta charset="UTF-8"/>
+  <title>Feuille de paillasse</title>
+  <style>
+    @page { size: A4 landscape; margin: 14mm 12mm 16mm 12mm; }
+    body  { font-family: 'DejaVu Sans', sans-serif; font-size: 9.5pt; color: #111; }
+    h3    { font-size: 10.5pt; margin: 5mm 0 1.5mm 0;
+            border-bottom: 0.4pt solid #999; padding-bottom: 1mm; }
+    .lab-header { display: flex; justify-content: space-between; margin-bottom: 4mm; }
+    .lab-name   { font-size: 13pt; font-weight: bold; }
+    .meta       { font-size: 9pt; color: #555; }
+    .doc-title  { font-size: 12pt; font-weight: bold; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { text-align: left; vertical-align: top; padding: 1.2mm 2mm;
+             border-bottom: 0.3pt solid #ddd; font-size: 9pt; }
+    th    { font-weight: bold; background: #f4f4f4; }
+    .out-of-range { font-weight: bold; }
+    .comment { font-size: 8.5pt; color: #444; margin: 1mm 0 2mm 0; font-style: italic; }
+    .footer { position: fixed; bottom: 0; left: 0; right: 0;
+              font-size: 8pt; color: #888; text-align: center; }
+  </style>
+</head>
+<body>
+
+  <div class="lab-header">
+    <div>
+      <div class="lab-name" th:text="${labIdentity.name}">Laboratoire</div>
+      <div class="meta"     th:text="${labIdentity.address}">Adresse</div>
+      <div class="meta" th:text="'Accréditation : ' + ${labIdentity.accreditationNumber}">Accr.</div>
+    </div>
+    <div class="meta" style="text-align: right;">
+      <div class="doc-title">Feuille de paillasse</div>
+      <div th:text="'Paillasse : ' + ${paillasseName}">Paillasse</div>
+      <div th:text="${periodDisplay}">Période</div>
+    </div>
+  </div>
+
+  <div th:each="d : ${dossiers}">
+    <h3>
+      <span th:text="${d.registrationNumber} + ' — ' + ${d.patientDisplay}">Dossier</span>
+      <span th:if="${d.patientType != ''}" th:text="' [' + ${d.patientType} + ']'"> [type]</span>
+    </h3>
+    <table>
+      <thead>
+        <tr>
+          <th style="width:14%;">Échantillon</th>
+          <th style="width:9%;">Code</th>
+          <th style="width:18%;">Analyse</th>
+          <th style="width:14%;">Résultat</th>
+          <th style="width:9%;">Unité</th>
+          <th style="width:30%;">Valeurs usuelles</th>
+          <th style="width:6%;">VT</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr th:each="row : ${d.rows}">
+          <td th:text="${row.dailyId}">échantillon</td>
+          <td th:text="${row.code}">CODE</td>
+          <td th:text="${row.componentCode}">Analyse</td>
+          <td th:text="${row.valueDisplay}"
+              th:classappend="${row.outOfRange} ? 'out-of-range' : ''">Résultat</td>
+          <td th:text="${row.unit}">Unité</td>
+          <td th:text="${row.referenceDisplay}">Valeurs usuelles</td>
+          <td th:text="${row.techValidated} ? '☑' : '☐'">VT</td>
+        </tr>
+      </tbody>
+    </table>
+    <div th:if="${d.dossierComment != null}" class="comment"
+         th:text="'Obs. : ' + ${d.dossierComment}">Obs.</div>
+  </div>
+
+  <div class="footer">
+    <span th:text="'Imprimée le ' + ${printedAtDisplay}">Imprimée le …</span>
+  </div>
+
+</body>
+</html>

@@ -91,7 +91,9 @@ class LabFileQueueControllerTest {
                         "Doe",
                         "Jane",
                         true,
-                        DossierMarker.PEN),
+                        DossierMarker.PEN,
+                        null,
+                        null),
                 new OverdueDossierRow.OverdueInfo(
                         "GLY", "Glycemie a jeun", Instant.parse("2026-05-13T08:14:00Z"), 47, 3));
     }

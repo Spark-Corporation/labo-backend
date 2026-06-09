@@ -3,7 +3,7 @@ package org.sparkcorporation.lims.iam.domain;
 import java.util.Set;
 
 /**
- * Tech doc §9.5 permission catalog. Static set of 47 strings. Used as the source of truth for
+ * Tech doc §9.5 permission catalog. Static set of 48 strings. Used as the source of truth for
  * {@code @RequiresPermission(...)} keys; an integrity test at startup verifies this set matches the
  * DB-seeded {@code permissions.name} column set.
  *
@@ -33,6 +33,9 @@ import java.util.Set;
  * /api/v1/lab-files/{id}:send} result-delivery surface (CDC §IV); seeded via {@code
  * 202605290910-grant-dossier-send} and granted to the {@code ADMIN} and {@code BIOLOGIST} roles
  * (the same roles that hold {@code dossier.publish}).
+ *
+ * <p>{@code dossier.print} added in SP7, seeded via 202606051005-grant-dossier-print, granted to
+ * ADMIN + BIOLOGIST + RECEPTIONIST (front desk hands out printed results).
  */
 public final class PermissionCatalog {
 
@@ -53,6 +56,7 @@ public final class PermissionCatalog {
                     "dossier.sign-electronically",
                     "dossier.publish",
                     "dossier.send",
+                    "dossier.print",
                     "quote.create",
                     "quote.send",
                     "quote.lock",

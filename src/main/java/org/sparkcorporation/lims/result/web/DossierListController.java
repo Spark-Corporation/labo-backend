@@ -35,6 +35,9 @@ public class DossierListController {
             @RequestParam(required = false) @Nullable DossierState state,
             @RequestParam(required = false) @Nullable Boolean urgent,
             @RequestParam(required = false) @Nullable Boolean empty,
+            @RequestParam(required = false) @Nullable Boolean printed,
+            @RequestParam(required = false) @Nullable Boolean signed,
+            @RequestParam(required = false) @Nullable Boolean emailed,
             @RequestParam(required = false)
                     @Pattern(
                             regexp = "^[0-9A-HJKMNP-TV-Z]{26}$",
@@ -49,7 +52,9 @@ public class DossierListController {
         var pageable = PageRequest.of(page, size);
         return DossierListResponse.from(
                 service.list(
-                        new DossierFilters(state, urgent, empty, patientId, dateFrom, dateTo),
+                        new DossierFilters(
+                                state, urgent, empty, printed, signed, emailed, patientId, dateFrom,
+                                dateTo),
                         pageable));
     }
 }

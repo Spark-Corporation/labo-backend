@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="fr" xmlns:th="http://www.thymeleaf.org">
+<head>
+  <meta charset="UTF-8"/>
+  <title>Feuille de paillasse</title>
+  <style>
+    @page { size: A4 portrait; margin: 18mm 15mm 18mm 15mm; }
+    body  { font-family: 'DejaVu Sans', sans-serif; font-size: 10pt; color: #111; }
+    h3    { font-size: 11pt; margin: 6mm 0 2mm 0;
+            border-bottom: 0.4pt solid #999; padding-bottom: 1mm; }
+    .lab-header { display: flex; justify-content: space-between; margin-bottom: 5mm; }
+    .lab-name   { font-size: 13pt; font-weight: bold; }
+    .meta       { font-size: 9pt; color: #555; }
+    .doc-title  { font-size: 12pt; font-weight: bold; }
+    .urgent     { color: #c0392b; font-weight: bold; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { text-align: left; vertical-align: top; padding: 1.5mm 2mm;
+             border-bottom: 0.3pt solid #ddd; font-size: 9.5pt; }
+    th    { font-weight: bold; background: #f4f4f4; }
+    td.result-box { min-width: 45mm; border-bottom: 0.3mm solid #999; }
+    .patient { margin-bottom: 4mm; }
+    .footer { position: fixed; bottom: 0; left: 0; right: 0;
+              font-size: 8pt; color: #888; text-align: center; }
+  </style>
+</head>
+<body>
+
+  <div class="lab-header">
+    <div>
+      <div class="lab-name" th:text="${labIdentity.name}">Laboratoire</div>
+      <div class="meta"     th:text="${labIdentity.address}">Adresse</div>
+      <div class="meta" th:text="'Accréditation : ' + ${labIdentity.accreditationNumber}">Accr.</div>
+    </div>
+    <div class="meta" style="text-align: right;">
+      <div class="doc-title">Feuille de paillasse</div>
+      <div th:text="'Dossier N° ' + ${header.registrationNumber}">Dossier N°</div>
+      <div th:text="'Enregistré le ' + ${header.createdAtDisplay}">Enregistré le</div>
+      <div th:if="${header.urgent}"><span class="urgent">URGENT</span></div>
+    </div>
+  </div>
+
+  <table class="patient">
+    <tr>
+      <th>Patient</th>
+      <td th:text="${patient.nom} + ' ' + ${patient.prenom}">Nom Prénom</td>
+      <th>Âge</th><td th:text="${patient.age}">Âge</td>
+      <th>Sexe</th><td th:text="${patient.sexe}">M/F</td>
+    </tr>
+  </table>
+
+  <div th:each="block : ${paillasses}">
+    <h3 th:text="${block.paillasseName}">Paillasse</h3>
+    <table>
+      <thead>
+        <tr>
+          <th style="width:18%;">Échantillon</th>
+          <th style="width:12%;">Code</th>
+          <th style="width:30%;">Analyse</th>
+          <th style="width:15%;">Récipient</th>
+          <th style="width:25%;">Résultat</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr th:each="row : ${block.rows}">
+          <td th:text="${row.dailyId}">échantillon</td>
+          <td th:text="${row.code}">CODE</td>
+          <td th:text="${row.analysisName}">Analyse</td>
+          <td th:text="${row.recipientName}">Récipient</td>
+          <td class="result-box">&#160;</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="footer">
+    <span th:text="'Imprimée le ' + ${footer.printedAtDisplay}">Imprimée le …</span>
+    <span th:if="${footer.preleveurName != null}"
+          th:text="' — Préleveur : ' + ${footer.preleveurName}"> — Préleveur : …</span>
+  </div>
+
+</body>
+</html>

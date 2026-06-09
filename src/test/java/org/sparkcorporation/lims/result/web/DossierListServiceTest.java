@@ -36,7 +36,7 @@ class DossierListServiceTest {
         Mockito.when(
                         repository.list(
                                 any(), any(), any(), any(), any(), any(), any(), any(), any(),
-                                any(), any()))
+                                any(), any(), any(), any(), any()))
                 .thenReturn(new PageImpl<>(java.util.List.of()));
         Mockito.when(labFileApi.findAllByIds(any())).thenReturn(Map.of());
         Mockito.when(patientApi.findAllByIds(any())).thenReturn(Map.of());
@@ -44,7 +44,9 @@ class DossierListServiceTest {
 
     @Test
     void state_validated_includes_only_fully_bio_validated_dossiers() {
-        var filters = new DossierFilters(DossierState.VALIDATED, null, null, null, null, null);
+        var filters =
+                new DossierFilters(
+                        DossierState.VALIDATED, null, null, null, null, null, null, null, null);
         service.list(filters, Pageable.unpaged());
 
         Mockito.verify(repository)
@@ -56,9 +58,68 @@ class DossierListServiceTest {
                         eq(Boolean.TRUE), // validatedOnly
                         isNull(), // notValidated
                         isNull(), // inProgress
+                        isNull(), // printed
+                        isNull(), // signed
+                        isNull(), // emailed
                         isNull(), // patientId
                         isNull(),
                         isNull(), // dates
+                        eq(Pageable.unpaged()));
+    }
+
+    @Test
+    void printed_signed_emailed_flags_pass_through() {
+        var filters =
+                new DossierFilters(
+                        null,
+                        null,
+                        null,
+                        Boolean.TRUE,
+                        Boolean.FALSE,
+                        Boolean.TRUE,
+                        null,
+                        null,
+                        null);
+        service.list(filters, Pageable.unpaged());
+
+        Mockito.verify(repository)
+                .list(
+                        isNull(), // includeDeleted
+                        isNull(), // deletedOnly
+                        isNull(), // urgent
+                        isNull(), // empty
+                        isNull(), // validatedOnly
+                        isNull(), // notValidated
+                        isNull(), // inProgress
+                        eq(Boolean.TRUE), // printed
+                        eq(Boolean.FALSE), // signed
+                        eq(Boolean.TRUE), // emailed
+                        isNull(), // patientId
+                        isNull(),
+                        isNull(), // dates
+                        eq(Pageable.unpaged()));
+    }
+
+    @Test
+    void printed_signed_emailed_default_to_null() {
+        var filters = new DossierFilters(null, null, null, null, null, null, null, null, null);
+        service.list(filters, Pageable.unpaged());
+
+        Mockito.verify(repository)
+                .list(
+                        isNull(),
+                        isNull(),
+                        isNull(),
+                        isNull(),
+                        isNull(),
+                        isNull(),
+                        isNull(),
+                        isNull(), // printed
+                        isNull(), // signed
+                        isNull(), // emailed
+                        isNull(),
+                        isNull(),
+                        isNull(),
                         eq(Pageable.unpaged()));
     }
 
@@ -72,7 +133,7 @@ class DossierListServiceTest {
             Boolean expectedNotValidated,
             Boolean expectedInProgress,
             Boolean expectedDeletedOnly) {
-        var filters = new DossierFilters(state, urgent, empty, null, null, null);
+        var filters = new DossierFilters(state, urgent, empty, null, null, null, null, null, null);
         service.list(filters, Pageable.unpaged());
 
         var expectedIncludeDeleted = state == DossierState.DELETED ? Boolean.TRUE : null;
@@ -85,6 +146,9 @@ class DossierListServiceTest {
                         expectedValidatedOnly == null ? isNull() : eq(expectedValidatedOnly),
                         expectedNotValidated == null ? isNull() : eq(expectedNotValidated),
                         expectedInProgress == null ? isNull() : eq(expectedInProgress),
+                        isNull(), // printed
+                        isNull(), // signed
+                        isNull(), // emailed
                         isNull(),
                         isNull(),
                         isNull(),

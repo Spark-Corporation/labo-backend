@@ -1,0 +1,15 @@
+databaseChangeLog:
+  - changeSet:
+      id: 202606051000-add-lab-files-printed-at
+      author: samuel
+      contextFilter: dev,test,prod
+      labels: sp7-printing
+      preconditions:
+        - onFail: HALT
+        - tableExists: { tableName: lab_files }
+      changes:
+        - addColumn:
+            tableName: lab_files
+            columns:
+              - column: { name: printed_at, type: timestamptz }
+      # rollback: AUTHORED BY USER
