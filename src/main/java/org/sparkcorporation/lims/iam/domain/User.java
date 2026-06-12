@@ -16,6 +16,8 @@ import jakarta.persistence.Version;
 
 import org.hibernate.annotations.SQLDelete;
 import org.hibernate.annotations.SQLRestriction;
+import org.hibernate.envers.Audited;
+import org.hibernate.envers.NotAudited;
 import org.jspecify.annotations.Nullable;
 import org.springframework.data.annotation.CreatedBy;
 import org.springframework.data.annotation.CreatedDate;
@@ -29,8 +31,14 @@ import org.sparkcorporation.lims.shared.id.Ulid;
 /**
  * User aggregate. JPA entity with soft delete via Hibernate {@link SQLDelete} + {@link
  * SQLRestriction}.
+ *
+ * <p>Row-level history (SP8): {@code @Audited} — every insert/update/soft-delete writes a {@code
+ * users_aud} row. The {@code roles} many-to-many is {@code @NotAudited}: {@code RoleEntity} is not
+ * an audited entity (role membership history is out of SP8 scope), so the association must be
+ * excluded or Envers fails to bootstrap.
  */
 @Entity
+@Audited
 @Table(name = "users")
 @EntityListeners(AuditingEntityListener.class)
 @SQLDelete(
@@ -85,6 +93,7 @@ public class User {
     @Version private int version;
 
     @ManyToMany
+    @NotAudited
     @JoinTable(
             name = "user_roles",
             joinColumns = @JoinColumn(name = "user_id"),

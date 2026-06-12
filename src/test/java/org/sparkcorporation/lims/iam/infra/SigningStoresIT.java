@@ -21,6 +21,8 @@ class SigningStoresIT extends IntegrationTestBase {
     @Autowired UserKeyPairManager keyPairManager; // auto-wired because the two stores exist
     @Autowired ActionSigner actionSigner;
 
+    @Autowired LimsAuditChainStore chainStore;
+
     @Autowired(required = false)
     org.springframework.jdbc.core.JdbcTemplate jdbc;
 
@@ -51,6 +53,31 @@ class SigningStoresIT extends IntegrationTestBase {
                         subject);
         byte[] plain = keyPairStore.getActive(subject).orElseThrow().privateKey();
         assertThat(stored).isNotEqualTo(plain);
+    }
+
+    @Test
+    void store_and_get_latest_checkpoint_round_trips() {
+        // getLatestCheckpoint() is a GLOBAL high-water query and the IT suite shares one Postgres
+        // container with no per-test reset, so sibling checkpoint ITs may already have persisted
+        // higher-sequence checkpoints. Store strictly above the current head so ours is
+        // unambiguously the latest, and assert the round-trip by its own id (pollution-proof).
+        long sequence =
+                chainStore.getLatestCheckpoint().map(c -> c.globalSequence()).orElse(0L) + 1;
+        var cp =
+                new dev.sparksam.securedx.core.signing.AuditCheckpoint(
+                        java.util.UUID.randomUUID().toString(),
+                        sequence,
+                        java.time.Instant.now(),
+                        java.util.Map.of("s1", "h1"),
+                        "root-hex",
+                        "sig-b64");
+        chainStore.storeCheckpoint(cp);
+
+        var latest = chainStore.getLatestCheckpoint();
+        assertThat(latest).isPresent();
+        assertThat(latest.get().checkpointId()).isEqualTo(cp.checkpointId());
+        assertThat(latest.get().globalSequence()).isEqualTo(sequence);
+        assertThat(latest.get().chainHeads()).containsEntry("s1", "h1");
     }
 
     // Helper: SecuredXSecurityContext.getCurrentSubject() reads

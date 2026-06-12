@@ -70,7 +70,7 @@ The CDC (`CAHIER DES CHARGES LOGICIEL DE GESTION DU LABORATOIRE.docx.pdf`) is th
 
 | LIMS module / feature | CDC section(s) |
 |---|---|
-| `iam` (auth, habilitations, signing chain) | §I (identifiants de connexion), §II (historique des actions, comptes) **— action audit chain implemented, SP3**, §IV (signer électroniquement le dossier) **— dossier e-signature implemented, SP3**, §VIII (caisse ↔ compte réceptionniste) |
+| `iam` (auth, habilitations, signing chain) | §I (identifiants de connexion), §II (historique des actions, comptes) **— action audit chain implemented, SP3; audit-chain checkpointing + advanced reporting implemented, SP8**, §IV (signer électroniquement le dossier) **— dossier e-signature implemented, SP3**, §VIII (caisse ↔ compte réceptionniste). **Hibernate Envers row-level history (persist-only, SP8) has no distinct CDC clause — CDC amendment pending (approved 2026-06-10), mirroring the stats-export note below.** |
 | `patient` | §I Accueil et enregistrement des patients |
 | `order` (lab files, samples, urgency) | §II Dossier Analyse, §VI Prélèvements à réaliser, §IX Gestion des dossiers |
 | `catalog` (configurations) | §VII Gestion des disciplines; Onglet Configurations (matrices, disciplines, récap, bilan société, préleveurs, antibiotiques, spécialités prescripteurs, analyses simples / groupées) |
@@ -442,7 +442,34 @@ CREATE INDEX ix_signed_actions_resource    ON signed_actions(resource);
 -- enforce append-only at DB level (RULE blocks UPDATE / DELETE)
 CREATE RULE no_update_signed_actions AS ON UPDATE TO signed_actions DO INSTEAD NOTHING;
 CREATE RULE no_delete_signed_actions AS ON DELETE TO signed_actions DO INSTEAD NOTHING;
--- AuditCheckpoint persistence is deferred to SP8 (no checkpoint table shipped in SP3).
+
+-- SP8 audit-chain checkpoints — append-only Merkle snapshot of every chain head,
+-- signed by the SYSTEM_AUDIT identity. changeset 202606101000-create-audit-checkpoints.
+CREATE TABLE audit_checkpoints (
+    checkpoint_id   VARCHAR(36) PRIMARY KEY,
+    global_sequence BIGINT NOT NULL,
+    timestamp       TEXT NOT NULL,                 -- ISO-8601, same fidelity rationale as signed_actions.timestamp
+    chain_heads     JSONB NOT NULL,                -- subject → SHA-256(latest signature)
+    merkle_root     VARCHAR(64) NOT NULL,          -- SHA-256 Merkle root over the chain heads
+    signature       TEXT NOT NULL,                 -- Ed25519 signature of the canonical |-delimited payload
+    key_id          VARCHAR(36) NOT NULL REFERENCES user_key_pairs(key_id)  -- the SYSTEM_AUDIT identity's key
+);
+CREATE INDEX ix_audit_checkpoints_seq_ts ON audit_checkpoints (global_sequence, timestamp);
+CREATE RULE no_update_audit_checkpoints AS ON UPDATE TO audit_checkpoints DO INSTEAD NOTHING;
+CREATE RULE no_delete_audit_checkpoints AS ON DELETE TO audit_checkpoints DO INSTEAD NOTHING;
+```
+
+```sql
+-- SP8 Hibernate Envers row-level history (persist-only, §9.4). The revision table
+-- plus six *_aud tables are hand-authored to match Envers under ddl-auto=validate.
+-- changesets 202606101010-create-envers-revinfo, 202606101011-create-envers-aud-tables.
+CREATE TABLE revinfo (
+    rev      INT PRIMARY KEY,
+    revtstmp BIGINT NOT NULL,
+    user_id  VARCHAR(26)        -- acting-user ULID stamped by LimsRevisionListener (null for anonymous/system)
+);
+-- one *_aud table per @Audited entity, each FK-referencing revinfo(rev):
+--   patients_aud, lab_files_aud, results_aud, result_lines_aud, invoices_aud, users_aud
 ```
 
 ```sql
@@ -773,13 +800,16 @@ A second, stateless authentication realm under `/api/v1/portal/**` (RS256 portal
 | `GET` | `/api/v1/portal/dossiers` | portal JWT; the authenticated patient's own `PUBLISHED` dossiers |
 | `GET` | `/api/v1/portal/dossiers/{id}/pdf` | portal JWT; compte-rendu PDF for one of the patient's own published dossiers (404 if not theirs / not published) |
 
-#### Audit (action history, SP3)
-ADMIN-only read access to the per-user signed-action chain (CDC §II). Both endpoints require `audit.read`.
+#### Audit (action history + checkpointing, SP3 / SP8)
+ADMIN-only access to the per-user signed-action chain (CDC §II). The read endpoints require `audit.read`; the checkpoint-creation endpoint requires `audit.checkpoint` (both ADMIN-only).
 
 | Method | Path | Notes |
 |---|---|---|
-| `GET` | `/api/v1/audit/actions` | `audit.read` (ADMIN); list signed actions from the per-user chain (filter / paginate by subject + sequence range) |
+| `GET` | `/api/v1/audit/actions` | `audit.read` (ADMIN); list signed actions from the ledger. Legacy filters `subject` / `resource` paginate the per-user chain; SP8 adds optional `action` (exact), `from` / `to` (inclusive ISO-8601 instant bounds) routed through a JPA `Specification` (`SignedActionSpecifications`). A malformed `from` / `to` → `400` |
+| `GET` | `/api/v1/audit/lab-files/{labFileId}/actions` (SP8) | `audit.read` (ADMIN); per-dossier action history, newest first. **URI-derived**: matches actions whose signed `resource` contains the lab-file ULID (LIKE substring) — cross-referenced actions whose URI does not embed the ULID are out of scope |
 | `POST` | `/api/v1/audit/verify` | `audit.read` (ADMIN); re-verify a subject's chain (`ActionSignatureVerifier.verifyChain`) and report tamper-evidence status |
+| `POST` | `/api/v1/audit/checkpoints` (SP8) | `audit.checkpoint` (ADMIN); build + persist a new audit-chain checkpoint (Merkle root over chain heads, signed by the `SYSTEM_AUDIT` identity). `201` with the checkpoint summary |
+| `GET` | `/api/v1/audit/checkpoints/latest` (SP8) | `audit.read` (ADMIN); re-verify the most recent checkpoint against the live ledger (`{checkpoint summary, signatureValid, headsMatch, actionsAppendedSince}`); `404` when no checkpoint exists |
 
 ### 7.4 Versioning
 Major version in URL (`/v1`). Breaking changes ship as `/v2`; old versions stay alive for at least one release cycle.
@@ -955,10 +985,14 @@ Method-level enforcement via `@PreAuthorize("hasAuthority('result.validate-bio')
 ### 9.4 Audit Trail
 Two complementary layers:
 
-- **Row-level history** — Hibernate Envers on the critical tables (`patients`, `lab_files`, `result_entries`, `invoices`, `users`). Captures *what* changed, when, and by whom on each row. Used for forensic queries and write reconstruction.
+- **Row-level history (Hibernate Envers) — wired persist-only (SP8).** `@Audited` on `Patient`, `LabFile`, `Result`, `ResultLine`, `Invoice`, `User`; non-audited associations are `@NotAudited` (`User.roles`, `Result.antibiogramReadings`, `Invoice.lines`, `LabFile.samples`, `LabFile.analyses`). Captures *what* changed, when, and by whom on each row, into six hand-authored `*_aud` tables plus a `revinfo` revision table (§6.2); `LimsRevisionEntity` / `LimsRevisionListener` stamp the acting user id (same null/anonymous rule as `LimsAuditorAware`). There is **no REST surface** for Envers — it persists history for forensic queries / write reconstruction only. The `hibernate-envers` dependency is BOM-managed (resolves 7.2.x). The Envers layer has **no distinct CDC clause**; it is a deliberate tech-doc-driven inclusion recorded as a **pending CDC-amendment item** (mirroring the SP5 stats-export note in §1.4), approved by the user on 2026-06-10, until the amendment lands.
 - **Action history (secured-x signing chain) — implemented (SP3).** Every authenticated HTTP request is signed with the user's Ed25519 key pair and stored in `signed_actions`, linked into a per-user tamper-evident hash chain (`previous_hash = SHA-256(prev.signature)`, genesis link `sequence_number = 1` / `previous_hash = null`). Satisfies CDC §II "Historique des actions effectuées sur le dossier (lié aux droits d'accès suivant les comptes)". Key pairs are provisioned on first login and persisted in `user_key_pairs` with the private key AES-256-GCM-encrypted at rest (KEK `lims.signing.key-encryption-key` / `LIMS_SIGNING_KEK`). The per-request `ActionSigningFilter` is fail-open (logs on signing error, request proceeds) and matches exclusions by bare-prefix `startsWith`. The dossier e-signature (`dossier.sign-electronically` per CDC §IV) binds a digest via an explicit `ActionSigner.sign(...)` call rather than the metadata-free `@Signed` aspect, so the digest is carried in the signed `metadata`. ADMIN-only read access is exposed via `GET /api/v1/audit/actions` and `POST /api/v1/audit/verify` (both `audit.read`, see §7.3).
 
-The signing chain is append-only at the database level (PostgreSQL `RULE` blocks `UPDATE` and `DELETE` on `signed_actions`), giving the audit trail tamper-evidence on top of cryptographic integrity. The legacy `audit_event` table from earlier drafts is removed in favour of `signed_actions`. **SP8 is reduced** by SP3: with the per-request audit chain + dossier e-signature now shipped, SP8 retains only the audit-chain **checkpointing** (`AuditCheckpoint` persistence — deferred, no checkpoint table shipped in SP3) and **advanced audit reporting**.
+The signing chain is append-only at the database level (PostgreSQL `RULE` blocks `UPDATE` and `DELETE` on `signed_actions`), giving the audit trail tamper-evidence on top of cryptographic integrity. The legacy `audit_event` table from earlier drafts is removed in favour of `signed_actions`.
+
+**Checkpointing (SP8).** Periodically a checkpoint freezes the whole ledger's state so later tampering can be detected even across the per-user chains. The pinned secured-x `DefaultAuditChainManager.createCheckpoint()` is a non-functional stub, so **LIMS builds checkpoints itself**: `AuditCheckpointService` gathers each subject's chain head (`SHA-256(latest signed-action signature)`), computes a SHA-256 Merkle root (`AuditMerkle`) over the heads, signs a canonical `|`-delimited payload with a dedicated `SYSTEM_AUDIT` Ed25519 identity, and persists an immutable row to `audit_checkpoints` (DB `RULE` blocks `UPDATE` / `DELETE`, §6.2). The system identity (`SystemAuditIdentity`) is provisioned through the existing `user_key_pairs` store, FK-backed by a seeded `users` row (`id = 01KSYS0AD1T000000000000000`, `enabled = false`). Checkpoints are produced nightly by an `@Scheduled` job (cron `lims.audit.checkpoint-cron` / `LIMS_AUDIT_CHECKPOINT_CRON`, default `0 0 2 * * *`) and on demand via ADMIN-only `POST /api/v1/audit/checkpoints` (`audit.checkpoint`, §7.3). `GET /api/v1/audit/checkpoints/latest` re-verifies the most recent checkpoint against the live ledger (signature valid, Merkle heads match, count of actions appended since).
+
+**Advanced audit reporting (SP8)** rounds out the read side under the existing `audit.read`: per-dossier history (`GET /audit/lab-files/{labFileId}/actions`, URI-substring scoped) and richer `GET /audit/actions` filters (`action`, `from`, `to`) — see §7.3.
 
 ---
 
@@ -988,6 +1022,7 @@ The permission strings used in `@RequiresPermission(…)` (from `secured-x-rbac`
 | `users.manage` | implied (admin labo) | LAB_MANAGER, ADMIN |
 | `stats.read` | Onglet Statistiques | ADMIN, ACCOUNTANT, BIOLOGIST, LAB_MANAGER |
 | `audit.read` | implied | ADMIN |
+| `audit.checkpoint` (SP8) | implied — create an audit-chain checkpoint (`POST /audit/checkpoints`) | ADMIN |
 | `cashbox.expense-category.read` (1.7.a) | Gestion comptable §2 | RECEPTIONIST, LAB_MANAGER, BIOLOGIST, ACCOUNTANT, CASHIER |
 | `cashbox.expense-category.manage` (1.7.a) | Gestion comptable §2 | LAB_MANAGER |
 | `cashbox.expense.read` (1.7.a) | Gestion comptable §2, §4 | RECEPTIONIST, LAB_MANAGER, ACCOUNTANT, CASHIER |

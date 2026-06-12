@@ -1,0 +1,26 @@
+# audit.checkpoint = 01KSP8CHKP01NT0000000000AA
+databaseChangeLog:
+  - changeSet:
+      id: 202606101005-seed-audit-checkpoint-permission
+      author: samuel
+      contextFilter: dev,test,prod
+      labels: sp8-audit
+      preConditions:
+        - onFail: MARK_RAN
+        - sqlCheck:
+            expectedResult: 0
+            sql: SELECT COUNT(*) FROM permissions WHERE name = 'audit.checkpoint'
+      changes:
+        - insert:
+            tableName: permissions
+            columns:
+              - column: { name: id, value: "01KSP8CHKP01NT0000000000AA" }
+              - column: { name: name, value: "audit.checkpoint" }
+              - column: { name: description, value: "Créer un point de contrôle d'audit" }
+              - column: { name: cdc_clause, value: "ADM" }
+        - insert: # ADMIN -> audit.checkpoint
+            tableName: role_permissions
+            columns:
+              - column: { name: role_id, value: "01KQZ0WPVNGGWQ1HKC18A0ABSX" }
+              - column: { name: permission_id, value: "01KSP8CHKP01NT0000000000AA" }
+      # rollback: AUTHORED BY USER

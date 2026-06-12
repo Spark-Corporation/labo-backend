@@ -1,0 +1,237 @@
+databaseChangeLog:
+  - changeSet:
+      id: 202606101011-create-envers-aud-tables
+      author: samuel
+      contextFilter: dev,test,prod
+      labels: sp8-envers
+      preConditions:
+        - onFail: HALT
+        - tableExists: { tableName: revinfo }
+        - not:
+            - tableExists: { tableName: patients_aud }
+      changes:
+        # Envers *_aud history tables. Column names / types / nullability / PK transcribed
+        # verbatim from the scaffolded hbm2ddl output (Hibernate 7.2.12.Final) so that
+        # ddl-auto=validate matches the runtime audit mapping exactly. Every table:
+        # base columns + rev (int, not null) + revtype (smallint), PK (rev, id),
+        # FK rev -> revinfo(rev). Enum CHECK constraints emitted by hbm2ddl are intentionally
+        # omitted (Hibernate validate ignores them, and the base tables do not carry them either).
+        # Some FK / embedded columns are varchar(255) here (not the base-table length) because
+        # Envers maps them without a length hint — validate compares against THIS, not the base.
+
+        # ---- patients_aud ----
+        - createTable:
+            tableName: patients_aud
+            columns:
+              - column: { name: id, type: varchar(26), constraints: { nullable: false } }
+              - column: { name: rev, type: int, constraints: { nullable: false } }
+              - column: { name: revtype, type: smallint }
+              - column: { name: lab_code, type: varchar(30) }
+              - column: { name: last_name, type: varchar(120) }
+              - column: { name: first_names, type: varchar(160) }
+              - column: { name: maiden_name, type: varchar(120) }
+              - column: { name: civility, type: varchar(20) }
+              - column: { name: sex, type: "char(1)" }
+              - column: { name: birth_date, type: date }
+              - column: { name: id_document_type, type: varchar(20) }
+              - column: { name: id_document_number, type: varchar(40) }
+              - column: { name: profession, type: varchar(80) }
+              - column: { name: address, type: varchar(255) }
+              - column: { name: clinical_notes, type: TEXT }
+              - column: { name: phone, type: varchar(255) }
+              - column: { name: email, type: varchar(255) }
+              - column: { name: guardian_name, type: varchar(120) }
+              - column: { name: guardian_phone, type: varchar(30) }
+              - column: { name: guardian_relationship, type: varchar(20) }
+              - column: { name: insurance_id, type: varchar(26) }
+              - column: { name: partner_id, type: varchar(26) }
+              - column: { name: portal_login, type: varchar(80) }
+              - column: { name: portal_password_hash, type: varchar(255) }
+              - column: { name: merged_into_id, type: varchar(26) }
+              - column: { name: deleted_at, type: "timestamp(6) with time zone" }
+              - column: { name: created_at, type: "timestamp(6) with time zone" }
+              - column: { name: updated_at, type: "timestamp(6) with time zone" }
+              - column: { name: created_by, type: varchar(26) }
+              - column: { name: updated_by, type: varchar(26) }
+        - addPrimaryKey:
+            tableName: patients_aud
+            columnNames: "rev, id"
+            constraintName: pk_patients_aud
+        - addForeignKeyConstraint:
+            baseTableName: patients_aud
+            baseColumnNames: rev
+            referencedTableName: revinfo
+            referencedColumnNames: rev
+            constraintName: fk_patients_aud_revinfo
+
+        # ---- lab_files_aud ----
+        - createTable:
+            tableName: lab_files_aud
+            columns:
+              - column: { name: id, type: varchar(26), constraints: { nullable: false } }
+              - column: { name: rev, type: int, constraints: { nullable: false } }
+              - column: { name: revtype, type: smallint }
+              - column: { name: registration_number, type: varchar(255) }
+              - column: { name: patient_id, type: varchar(255) }
+              - column: { name: prescriber_id, type: varchar(255) }
+              - column: { name: preleveur_id, type: varchar(255) }
+              - column: { name: urgent, type: boolean }
+              - column: { name: status, type: varchar(255) }
+              - column: { name: created_by_user_id, type: varchar(255) }
+              - column: { name: signed_by, type: varchar(255) }
+              - column: { name: signed_at, type: "timestamp(6) with time zone" }
+              - column: { name: emailed_at, type: "timestamp(6) with time zone" }
+              - column: { name: printed_at, type: "timestamp(6) with time zone" }
+              - column: { name: insurance_id, type: varchar(26) }
+              - column: { name: partner_id, type: varchar(26) }
+              - column: { name: home_collection_fee, type: "numeric(18,2)" }
+              - column: { name: additional_fees, type: "numeric(18,2)" }
+              - column: { name: discount_kind, type: varchar(10) }
+              - column: { name: discount_value, type: "numeric(18,4)" }
+              - column: { name: created_at, type: "timestamp(6) with time zone" }
+              - column: { name: updated_at, type: "timestamp(6) with time zone" }
+              - column: { name: deleted_at, type: "timestamp(6) with time zone" }
+        - addPrimaryKey:
+            tableName: lab_files_aud
+            columnNames: "rev, id"
+            constraintName: pk_lab_files_aud
+        - addForeignKeyConstraint:
+            baseTableName: lab_files_aud
+            baseColumnNames: rev
+            referencedTableName: revinfo
+            referencedColumnNames: rev
+            constraintName: fk_lab_files_aud_revinfo
+
+        # ---- results_aud ----
+        - createTable:
+            tableName: results_aud
+            columns:
+              - column: { name: id, type: varchar(26), constraints: { nullable: false } }
+              - column: { name: rev, type: int, constraints: { nullable: false } }
+              - column: { name: revtype, type: smallint }
+              - column: { name: lab_file_id, type: varchar(26) }
+              - column: { name: analysis_request_id, type: varchar(26) }
+              - column: { name: analysis_id, type: varchar(26) }
+              - column: { name: analysis_code_snapshot, type: varchar(30) }
+              - column: { name: patient_category_snapshot, type: varchar(32) }
+              - column: { name: patient_sex_snapshot, type: "char(1)" }
+              - column: { name: patient_age_in_days_snapshot, type: integer }
+              - column: { name: state, type: varchar(32) }
+              - column: { name: technical_validated_by, type: varchar(26) }
+              - column: { name: technical_validated_at, type: "timestamp(6) with time zone" }
+              - column: { name: biological_validated_by, type: varchar(26) }
+              - column: { name: biological_validated_at, type: "timestamp(6) with time zone" }
+              - column: { name: created_at, type: "timestamp(6) with time zone" }
+              - column: { name: updated_at, type: "timestamp(6) with time zone" }
+              - column: { name: created_by, type: varchar(26) }
+              - column: { name: updated_by, type: varchar(26) }
+              - column: { name: deleted_at, type: "timestamp(6) with time zone" }
+        - addPrimaryKey:
+            tableName: results_aud
+            columnNames: "rev, id"
+            constraintName: pk_results_aud
+        - addForeignKeyConstraint:
+            baseTableName: results_aud
+            baseColumnNames: rev
+            referencedTableName: revinfo
+            referencedColumnNames: rev
+            constraintName: fk_results_aud_revinfo
+
+        # ---- result_lines_aud ----
+        - createTable:
+            tableName: result_lines_aud
+            columns:
+              - column: { name: id, type: varchar(26), constraints: { nullable: false } }
+              - column: { name: rev, type: int, constraints: { nullable: false } }
+              - column: { name: revtype, type: smallint }
+              - column: { name: result_id, type: varchar(26) }
+              - column: { name: component_analysis_id, type: varchar(26) }
+              - column: { name: component_code_snapshot, type: varchar(30) }
+              - column: { name: position, type: integer }
+              - column: { name: result_type, type: varchar(15) }
+              - column: { name: value_integer, type: bigint }
+              - column: { name: value_real, type: "numeric(18,4)" }
+              - column: { name: value_text, type: varchar(2000) }
+              - column: { name: unit1_snapshot, type: varchar(20) }
+              - column: { name: unit1_decimals, type: integer }
+              - column: { name: unit2_snapshot, type: varchar(20) }
+              - column: { name: unit2_decimals, type: integer }
+              - column: { name: reference_interval_id, type: varchar(26) }
+              - column: { name: is_out_of_range, type: boolean }
+              - column: { name: comment_text, type: varchar(2000) }
+              - column: { name: created_at, type: "timestamp(6) with time zone" }
+              - column: { name: updated_at, type: "timestamp(6) with time zone" }
+              - column: { name: created_by, type: varchar(26) }
+              - column: { name: updated_by, type: varchar(26) }
+        - addPrimaryKey:
+            tableName: result_lines_aud
+            columnNames: "rev, id"
+            constraintName: pk_result_lines_aud
+        - addForeignKeyConstraint:
+            baseTableName: result_lines_aud
+            baseColumnNames: rev
+            referencedTableName: revinfo
+            referencedColumnNames: rev
+            constraintName: fk_result_lines_aud_revinfo
+
+        # ---- invoices_aud ----
+        - createTable:
+            tableName: invoices_aud
+            columns:
+              - column: { name: id, type: varchar(26), constraints: { nullable: false } }
+              - column: { name: rev, type: int, constraints: { nullable: false } }
+              - column: { name: revtype, type: smallint }
+              - column: { name: number, type: varchar(20) }
+              - column: { name: lab_file_id, type: varchar(26) }
+              - column: { name: issued_at, type: "timestamp(6) with time zone" }
+              - column: { name: customer_kind, type: varchar(10) }
+              - column: { name: customer_id, type: varchar(26) }
+              - column: { name: customer_name_snapshot, type: varchar(255) }
+              - column: { name: home_collection_fee_snapshot, type: "numeric(18,2)" }
+              - column: { name: additional_fees_snapshot, type: "numeric(18,2)" }
+              - column: { name: discount_kind_snapshot, type: varchar(10) }
+              - column: { name: discount_value_snapshot, type: "numeric(18,4)" }
+              - column: { name: total_amount, type: "numeric(18,2)" }
+              - column: { name: insurance_coverage_amount, type: "numeric(18,2)" }
+              - column: { name: discount_amount, type: "numeric(18,2)" }
+              - column: { name: net_amount, type: "numeric(18,2)" }
+              - column: { name: created_at, type: "timestamp(6) with time zone" }
+        - addPrimaryKey:
+            tableName: invoices_aud
+            columnNames: "rev, id"
+            constraintName: pk_invoices_aud
+        - addForeignKeyConstraint:
+            baseTableName: invoices_aud
+            baseColumnNames: rev
+            referencedTableName: revinfo
+            referencedColumnNames: rev
+            constraintName: fk_invoices_aud_revinfo
+
+        # ---- users_aud ----
+        - createTable:
+            tableName: users_aud
+            columns:
+              - column: { name: id, type: varchar(26), constraints: { nullable: false } }
+              - column: { name: rev, type: int, constraints: { nullable: false } }
+              - column: { name: revtype, type: smallint }
+              - column: { name: email, type: varchar(160) }
+              - column: { name: full_name, type: varchar(160) }
+              - column: { name: password_hash, type: varchar(255) }
+              - column: { name: enabled, type: boolean }
+              - column: { name: last_login_at, type: "timestamp(6) with time zone" }
+              - column: { name: deleted_at, type: "timestamp(6) with time zone" }
+              - column: { name: created_at, type: "timestamp(6) with time zone" }
+              - column: { name: updated_at, type: "timestamp(6) with time zone" }
+              - column: { name: created_by, type: varchar(26) }
+              - column: { name: updated_by, type: varchar(26) }
+        - addPrimaryKey:
+            tableName: users_aud
+            columnNames: "rev, id"
+            constraintName: pk_users_aud
+        - addForeignKeyConstraint:
+            baseTableName: users_aud
+            baseColumnNames: rev
+            referencedTableName: revinfo
+            referencedColumnNames: rev
+            constraintName: fk_users_aud_revinfo
+      # rollback: AUTHORED BY USER

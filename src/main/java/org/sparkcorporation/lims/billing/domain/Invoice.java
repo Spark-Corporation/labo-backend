@@ -22,6 +22,8 @@ import jakarta.persistence.Version;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import org.hibernate.envers.Audited;
+import org.hibernate.envers.NotAudited;
 import org.jspecify.annotations.Nullable;
 
 import org.sparkcorporation.lims.billing.api.InvoiceCustomerKind;
@@ -41,8 +43,14 @@ import org.sparkcorporation.lims.shared.id.Ulid;
  *
  * <p>Construction goes through {@link #issue} only; the protected no-args constructor is reserved
  * for Hibernate.
+ *
+ * <p>Row-level history (SP8): {@code @Audited} — every insert writes an {@code invoices_aud} row.
+ * The {@code lines} one-to-many is {@code @NotAudited}: the invoice is immutable post-issuance (no
+ * mutators), so line-level history adds nothing, and {@code InvoiceLine} is not an audited entity,
+ * so the association must be excluded or Envers fails to bootstrap.
  */
 @Entity
+@Audited
 @Table(name = "invoices")
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
@@ -105,6 +113,7 @@ public class Invoice {
             orphanRemoval = true,
             fetch = jakarta.persistence.FetchType.LAZY)
     @OrderBy("position ASC")
+    @NotAudited
     private List<InvoiceLine> lines = new ArrayList<>();
 
     @Version private long version;

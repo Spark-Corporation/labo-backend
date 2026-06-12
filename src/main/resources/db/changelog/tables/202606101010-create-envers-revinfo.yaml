@@ -1,0 +1,26 @@
+databaseChangeLog:
+  - changeSet:
+      id: 202606101010-create-envers-revinfo
+      author: samuel
+      contextFilter: dev,test,prod
+      labels: sp8-envers
+      preConditions:
+        - onFail: HALT
+        - not:
+            - tableExists: { tableName: revinfo }
+      changes:
+        # Envers revision table + sequence. Transcribed verbatim from the scaffolded
+        # hbm2ddl output (LimsRevisionEntity, Hibernate 7.2.12.Final) so that ddl-auto=validate
+        # matches the runtime mapping exactly. user_id is the acting-user ULID stamped by
+        # LimsRevisionListener (nullable: anonymous / system writes carry no actor).
+        - createSequence:
+            sequenceName: revinfo_seq
+            startValue: 1
+            incrementBy: 1
+        - createTable:
+            tableName: revinfo
+            columns:
+              - column: { name: rev, type: int, constraints: { primaryKey: true, nullable: false } }
+              - column: { name: revtstmp, type: bigint, constraints: { nullable: false } }
+              - column: { name: user_id, type: varchar(26) }
+      # rollback: AUTHORED BY USER

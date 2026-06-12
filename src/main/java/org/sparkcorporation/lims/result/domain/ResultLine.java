@@ -20,6 +20,7 @@ import jakarta.persistence.Version;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import org.hibernate.envers.Audited;
 import org.jspecify.annotations.Nullable;
 import org.springframework.data.annotation.CreatedBy;
 import org.springframework.data.annotation.CreatedDate;
@@ -40,8 +41,14 @@ import org.sparkcorporation.lims.shared.id.Ulid;
  *
  * <p>Per spec §4.2 / §9.1: a DB-level CHECK constraint ensures at most one of the three value
  * columns is populated at any time.
+ *
+ * <p>Row-level history (SP8): {@code @Audited} — every insert/update writes a {@code
+ * result_lines_aud} row, giving per-line result-value history under the {@code Result} aggregate.
+ * The {@code @ManyToOne result} association targets the audited {@code Result}, so its FK is
+ * audited inline (no exclusion needed).
  */
 @Entity
+@Audited
 @Table(name = "result_lines")
 @EntityListeners(AuditingEntityListener.class)
 @Getter

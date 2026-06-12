@@ -22,6 +22,8 @@ import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import org.hibernate.annotations.SQLDelete;
+import org.hibernate.envers.Audited;
+import org.hibernate.envers.NotAudited;
 import org.jspecify.annotations.Nullable;
 import org.springframework.data.annotation.CreatedBy;
 import org.springframework.data.annotation.CreatedDate;
@@ -48,8 +50,15 @@ import org.sparkcorporation.lims.shared.id.Ulid;
  *
  * <p>Per spec §9.3 / CLAUDE.md: NO {@code @SQLRestriction} on this aggregate. Repository methods
  * filter {@code deleted_at IS NULL} explicitly.
+ *
+ * <p>Row-level history (SP8): {@code @Audited} — every insert/update/soft-delete writes a {@code
+ * results_aud} row. The {@code lines} one-to-many IS audited ({@code ResultLine} is itself
+ * {@code @Audited}, giving per-line result-value history). The {@code antibiogramReadings}
+ * one-to-many is {@code @NotAudited}: {@code AntibiogramReading} is not an audited entity (out of
+ * SP8 scope), so the association must be excluded or Envers fails to bootstrap.
  */
 @Entity
+@Audited
 @Table(name = "results")
 @SQLDelete(
         sql =
@@ -117,6 +126,7 @@ public class Result {
             orphanRemoval = true,
             fetch = FetchType.LAZY)
     @OrderBy("position ASC")
+    @NotAudited
     private Set<AntibiogramReading> antibiogramReadings = new LinkedHashSet<>();
 
     @CreatedDate

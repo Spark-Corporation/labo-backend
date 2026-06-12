@@ -3,7 +3,7 @@ package org.sparkcorporation.lims.iam.domain;
 import java.util.Set;
 
 /**
- * Tech doc §9.5 permission catalog. Static set of 48 strings. Used as the source of truth for
+ * Tech doc §9.5 permission catalog. Static set of 49 strings. Used as the source of truth for
  * {@code @RequiresPermission(...)} keys; an integrity test at startup verifies this set matches the
  * DB-seeded {@code permissions.name} column set.
  *
@@ -36,6 +36,10 @@ import java.util.Set;
  *
  * <p>{@code dossier.print} added in SP7, seeded via 202606051005-grant-dossier-print, granted to
  * ADMIN + BIOLOGIST + RECEPTIONIST (front desk hands out printed results).
+ *
+ * <p>{@code audit.checkpoint} added in SP8 for the new {@code POST /api/v1/audit/checkpoints}
+ * checkpoint-creation surface (CDC §II); seeded via {@code
+ * 202606101005-seed-audit-checkpoint-permission} and granted to the {@code ADMIN} role only.
  */
 public final class PermissionCatalog {
 
@@ -76,6 +80,7 @@ public final class PermissionCatalog {
                     "users.manage",
                     "stats.read",
                     "audit.read",
+                    "audit.checkpoint",
                     "accounting.read",
                     "cashbox.expense-category.read",
                     "cashbox.expense-category.manage",

@@ -89,6 +89,9 @@ lims:
   signing:
     # Dev/test default ONLY (env-overridable). NOT a production key — prod sets LIMS_SIGNING_KEK.
     key-encryption-key: ${LIMS_SIGNING_KEK:JWXambyHFFJDRYinx8ctOXiJhU9fTZo0s9hqmfWXTa0=}
+  audit:
+    # Cron for the nightly AuditCheckpointScheduler (default 02:00 daily).
+    checkpoint-cron: ${LIMS_AUDIT_CHECKPOINT_CRON:0 0 2 * * *}
   notification:
     poll-interval: 30s
     max-attempts: 5

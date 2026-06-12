@@ -23,6 +23,8 @@ import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import org.hibernate.annotations.SQLDelete;
+import org.hibernate.envers.Audited;
+import org.hibernate.envers.NotAudited;
 import org.jspecify.annotations.Nullable;
 
 import org.sparkcorporation.lims.order.api.AnalysisRequestId;
@@ -41,8 +43,15 @@ import org.sparkcorporation.lims.shared.id.Ulid;
  *
  * <p>Mutators reject any operation when {@code status != OPEN}, raising {@link
  * LabFileNotEditableException}.
+ *
+ * <p>Row-level history (SP8): {@code @Audited} — every insert/update/soft-delete writes a {@code
+ * lab_files_aud} row. The {@code samples} and {@code analyses} one-to-many collections are
+ * {@code @NotAudited}: {@code Sample} / {@code AnalysisRequest} are not audited entities (their
+ * history is out of SP8 scope, which targets lab-file row history only), so the associations must
+ * be excluded or Envers fails to bootstrap.
  */
 @Entity
+@Audited
 @Table(name = "lab_files")
 @SQLDelete(
         sql =
@@ -111,9 +120,11 @@ public class LabFile {
     private @Nullable BigDecimal discountValue;
 
     @OneToMany(mappedBy = "labFile", cascade = CascadeType.ALL, orphanRemoval = true)
+    @NotAudited
     private final List<Sample> samples = new ArrayList<>();
 
     @OneToMany(mappedBy = "labFile", cascade = CascadeType.ALL, orphanRemoval = true)
+    @NotAudited
     private final List<AnalysisRequest> analyses = new ArrayList<>();
 
     @Column(name = "created_at", nullable = false)

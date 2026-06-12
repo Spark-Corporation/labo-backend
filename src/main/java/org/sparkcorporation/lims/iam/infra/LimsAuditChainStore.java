@@ -15,6 +15,8 @@ import org.springframework.transaction.annotation.Transactional;
 public class LimsAuditChainStore implements AuditChainStore {
 
     private final SignedActionRepository repo;
+    private final AuditCheckpointRepository checkpointRepo;
+    private final SystemAuditIdentity systemAuditIdentity;
 
     @Override
     @Transactional
@@ -56,14 +58,42 @@ public class LimsAuditChainStore implements AuditChainStore {
                 .toList();
     }
 
+    // NOTE: nothing in SP8 invokes storeCheckpoint — AuditCheckpointService is the sole production
+    // writer of audit_checkpoints (it persists the full entity, including key_id, directly via
+    // AuditCheckpointRepository). This override exists only to satisfy the AuditChainStore SPI
+    // contract and to back the store/get round-trip test; it sets key_id from the SYSTEM_AUDIT
+    // identity so the FK to user_key_pairs is satisfiable. Do not build a second persistence path.
     @Override
-    public void storeCheckpoint(AuditCheckpoint checkpoint) {
-        // Checkpointing deferred to SP8 — intentional no-op.
+    @Transactional
+    public void storeCheckpoint(AuditCheckpoint c) {
+        var e = new AuditCheckpointEntity();
+        e.setCheckpointId(c.checkpointId());
+        e.setGlobalSequence(c.globalSequence());
+        e.setTimestamp(c.timestamp());
+        e.setChainHeads(c.chainHeads());
+        e.setMerkleRoot(c.merkleRoot());
+        e.setSignature(c.signature());
+        e.setKeyId(systemAuditIdentity.keyId());
+        checkpointRepo.save(e);
     }
 
     @Override
+    @Transactional(readOnly = true)
     public Optional<AuditCheckpoint> getLatestCheckpoint() {
-        return Optional.empty();
+        return checkpointRepo
+                .findFirstByOrderByGlobalSequenceDescTimestampDesc()
+                .map(this::toCheckpoint);
+    }
+
+    // The AuditCheckpoint record carries no keyId, so the entity's key_id is dropped on mapping.
+    private AuditCheckpoint toCheckpoint(AuditCheckpointEntity e) {
+        return new AuditCheckpoint(
+                e.getCheckpointId(),
+                e.getGlobalSequence(),
+                e.getTimestamp(),
+                e.getChainHeads(),
+                e.getMerkleRoot(),
+                e.getSignature());
     }
 
     private SignedAction toDomain(SignedActionEntity e) {

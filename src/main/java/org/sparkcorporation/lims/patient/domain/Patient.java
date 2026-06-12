@@ -17,6 +17,7 @@ import jakarta.persistence.Version;
 
 import org.hibernate.annotations.SQLDelete;
 import org.hibernate.annotations.SQLRestriction;
+import org.hibernate.envers.Audited;
 import org.jspecify.annotations.Nullable;
 import org.springframework.data.annotation.CreatedBy;
 import org.springframework.data.annotation.CreatedDate;
@@ -33,8 +34,14 @@ import org.sparkcorporation.lims.shared.id.Ulid;
  * Patient aggregate. JPA entity with soft-delete via Hibernate {@link SQLDelete} + {@link
  * SQLRestriction}; the {@code @SQLDelete} statement includes the version check to preserve
  * optimistic-lock semantics on concurrent deletes.
+ *
+ * <p>Row-level history (SP8): {@code @Audited} — every insert/update/soft-delete writes a {@code
+ * patients_aud} row. All persisted state is either a scalar column or an {@code @Embedded} value
+ * object (name, id document, contact, guardian), which Envers audits inline; there are no entity
+ * associations to resolve.
  */
 @Entity
+@Audited
 @Table(name = "patients")
 @EntityListeners(AuditingEntityListener.class)
 @SQLDelete(
