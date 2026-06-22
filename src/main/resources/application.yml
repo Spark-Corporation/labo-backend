@@ -92,6 +92,11 @@ lims:
   audit:
     # Cron for the nightly AuditCheckpointScheduler (default 02:00 daily).
     checkpoint-cron: ${LIMS_AUDIT_CHECKPOINT_CRON:0 0 2 * * *}
+  conservation:
+    # Cron for the daily destruction-alert scan (default 07:00).
+    alert-cron: ${LIMS_CONSERVATION_ALERT_CRON:0 0 7 * * *}
+    # Ops email receiving the overdue-destruction digest; blank disables the push.
+    alert-recipient: ${LIMS_CONSERVATION_ALERT_RECIPIENT:}
   notification:
     poll-interval: 30s
     max-attempts: 5

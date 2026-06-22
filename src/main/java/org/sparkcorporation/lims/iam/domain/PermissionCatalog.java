@@ -3,7 +3,7 @@ package org.sparkcorporation.lims.iam.domain;
 import java.util.Set;
 
 /**
- * Tech doc §9.5 permission catalog. Static set of 49 strings. Used as the source of truth for
+ * Tech doc §9.5 permission catalog. Static set of 50 strings. Used as the source of truth for
  * {@code @RequiresPermission(...)} keys; an integrity test at startup verifies this set matches the
  * DB-seeded {@code permissions.name} column set.
  *
@@ -40,6 +40,11 @@ import java.util.Set;
  * <p>{@code audit.checkpoint} added in SP8 for the new {@code POST /api/v1/audit/checkpoints}
  * checkpoint-creation surface (CDC §II); seeded via {@code
  * 202606101005-seed-audit-checkpoint-permission} and granted to the {@code ADMIN} role only.
+ *
+ * <p>{@code sample.destroy} added in SP9 for the new {@code POST
+ * /api/v1/samples/{id}:mark-destroyed} disposal surface (CDC Onglet « Conservation »); seeded via
+ * {@code 202606181005-grant-sample-destroy} and granted to the {@code ADMIN}, {@code BIOLOGIST} and
+ * {@code TECHNICIAN} roles.
  */
 public final class PermissionCatalog {
 
@@ -54,6 +59,7 @@ public final class PermissionCatalog {
                     "sample.record-in-lab",
                     "sample.record-external",
                     "sample.record-home",
+                    "sample.destroy",
                     "result.enter",
                     "result.validate-tech",
                     "result.validate-bio",

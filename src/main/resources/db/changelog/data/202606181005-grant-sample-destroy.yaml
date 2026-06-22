@@ -1,0 +1,36 @@
+# sample.destroy = 01KCDTVTT26W4KZM6ZZF9KT9EG
+databaseChangeLog:
+  - changeSet:
+      id: 202606181005-grant-sample-destroy
+      author: samuel
+      contextFilter: dev,test,prod
+      labels: sp9-conservation
+      preConditions:
+        - onFail: MARK_RAN
+        - sqlCheck:
+            expectedResult: 0
+            sql: SELECT COUNT(*) FROM permissions WHERE name = 'sample.destroy'
+      changes:
+        - insert:
+            tableName: permissions
+            columns:
+              - column: { name: id, value: "01KCDTVTT26W4KZM6ZZF9KT9EG" }
+              - column: { name: name, value: "sample.destroy" }
+              - column: { name: description, value: "Marquer un échantillon comme détruit" }
+              - column: { name: cdc_clause, value: "II" }
+        - insert: # ADMIN -> sample.destroy
+            tableName: role_permissions
+            columns:
+              - column: { name: role_id, value: "01KQZ0WPVNGGWQ1HKC18A0ABSX" }
+              - column: { name: permission_id, value: "01KCDTVTT26W4KZM6ZZF9KT9EG" }
+        - insert: # BIOLOGIST -> sample.destroy
+            tableName: role_permissions
+            columns:
+              - column: { name: role_id, value: "01KQZ0WPVPH1378BY4T3Y8QBB1" }
+              - column: { name: permission_id, value: "01KCDTVTT26W4KZM6ZZF9KT9EG" }
+        - insert: # TECHNICIAN -> sample.destroy
+            tableName: role_permissions
+            columns:
+              - column: { name: role_id, value: "01KQZ0WPVPN6YX8WNVSCS08QB9" }
+              - column: { name: permission_id, value: "01KCDTVTT26W4KZM6ZZF9KT9EG" }
+      # rollback: AUTHORED BY USER

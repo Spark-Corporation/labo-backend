@@ -1,0 +1,26 @@
+databaseChangeLog:
+  - changeSet:
+      id: 202606181000-add-sample-conservation
+      author: samuel
+      contextFilter: dev,test,prod
+      labels: sp9-conservation
+      preconditions:
+        - onFail: HALT
+        - tableExists: { tableName: samples }
+      changes:
+        - addColumn:
+            tableName: samples
+            columns:
+              - column: { name: conservation_start, type: timestamptz }
+              - column: { name: conservation_days, type: int }
+              - column: { name: portoir, type: varchar(20) }
+              - column: { name: destruction_due_at, type: timestamptz }
+              - column: { name: destroyed_at, type: timestamptz }
+              - column: { name: destroyed_by_user_id, type: varchar(26) }
+              - column: { name: alerted_at, type: timestamptz }
+        - sql:
+            sql: |
+              CREATE INDEX idx_samples_destruction_due
+                ON samples (destruction_due_at)
+                WHERE destroyed_at IS NULL;
+      # rollback: AUTHORED BY USER (per CLAUDE.md § Database changes via Liquibase)

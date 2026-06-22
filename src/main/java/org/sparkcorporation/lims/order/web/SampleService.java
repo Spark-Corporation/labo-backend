@@ -55,6 +55,7 @@ public class SampleService {
                         prefix.prefix(), LocalDate.ofInstant(clock.instant(), ZoneOffset.UTC));
         var sample =
                 InLabSample.create(req.analysisId(), req.recipientId(), req.collectedAt(), userId);
+        sample.snapshotConservation(analysis.defaultPortoir(), analysis.defaultConservationDays());
         sample.attachToFile(file, dailyId);
         file.addSample(sample, clock);
         return resolveSampleResponse(fileId, sample.sampleId());
@@ -86,6 +87,7 @@ public class SampleService {
                         req.windowStart(),
                         req.windowEnd(),
                         req.preleveurId());
+        sample.snapshotConservation(analysis.defaultPortoir(), analysis.defaultConservationDays());
         sample.attachToFile(file, dailyId);
         file.addSample(sample, clock);
         return resolveSampleResponse(fileId, sample.sampleId());
@@ -114,6 +116,7 @@ public class SampleService {
                         req.receivedAt(),
                         req.receivedByUserId(),
                         req.origin());
+        sample.snapshotConservation(analysis.defaultPortoir(), analysis.defaultConservationDays());
         sample.attachToFile(file, dailyId);
         file.addSample(sample, clock);
         return resolveSampleResponse(fileId, sample.sampleId());
