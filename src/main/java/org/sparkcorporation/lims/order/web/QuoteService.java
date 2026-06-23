@@ -243,7 +243,8 @@ public class QuoteService {
                         /* homeCollectionFee */ null,
                         /* additionalFees */ null,
                         /* discountKind */ null,
-                        /* discountValue */ null);
+                        /* discountValue */ null,
+                        /* rendezVousAt */ null);
         // REQUIRED propagation — joins this @Transactional. Failure inside rolls back the whole
         // :convert flow atomically.
         var labFile = labFileService.create(createReq, userId);

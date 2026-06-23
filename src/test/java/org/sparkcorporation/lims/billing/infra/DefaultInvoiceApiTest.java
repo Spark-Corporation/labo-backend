@@ -90,6 +90,7 @@ class DefaultInvoiceApiTest {
                 ISSUED_AT,
                 null,
                 null,
+                null,
                 null);
     }
 

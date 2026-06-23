@@ -24,7 +24,8 @@ public record LabFileResponse(
         List<SampleResponse> samples,
         List<AnalysisRequestResponse> analyses,
         Instant createdAt,
-        @Nullable String createdByUserId) {
+        @Nullable String createdByUserId,
+        @Nullable Instant rendezVousAt) {
 
     public LabFileResponse {
         samples = List.copyOf(samples);

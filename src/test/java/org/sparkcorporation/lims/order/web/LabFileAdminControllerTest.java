@@ -79,6 +79,7 @@ class LabFileAdminControllerTest {
                 List.of(),
                 List.of(),
                 Instant.parse("2026-05-07T10:00:00Z"),
+                null,
                 null);
     }
 
@@ -93,6 +94,7 @@ class LabFileAdminControllerTest {
                         null,
                         false,
                         List.of("GLU", "CREA"),
+                        null,
                         null,
                         null,
                         null,
@@ -135,6 +137,7 @@ class LabFileAdminControllerTest {
                         null,
                         null,
                         null,
+                        null,
                         null);
         mvc.perform(
                         post("/api/v1/lab-files")
@@ -154,6 +157,7 @@ class LabFileAdminControllerTest {
                         null,
                         false,
                         List.of("GLU"),
+                        null,
                         null,
                         null,
                         null,
@@ -179,6 +183,7 @@ class LabFileAdminControllerTest {
                         null,
                         false,
                         List.of("GLU", "GLU"),
+                        null,
                         null,
                         null,
                         null,

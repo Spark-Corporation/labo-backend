@@ -164,6 +164,7 @@ class LabelServiceTest {
                 CREATED_AT,
                 null,
                 null,
+                null,
                 null);
     }
 

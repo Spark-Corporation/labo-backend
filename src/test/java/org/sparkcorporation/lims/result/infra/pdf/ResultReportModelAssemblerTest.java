@@ -454,6 +454,7 @@ class ResultReportModelAssemblerTest {
                 OPENED_AT,
                 null,
                 null,
+                null,
                 null);
     }
 
@@ -474,7 +475,8 @@ class ResultReportModelAssemblerTest {
                 OPENED_AT,
                 null,
                 signedBy,
-                signedAt);
+                signedAt,
+                null);
     }
 
     private static PatientSummary patientSummary() {

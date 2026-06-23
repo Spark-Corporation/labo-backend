@@ -1,6 +1,7 @@
 package org.sparkcorporation.lims.order.web;
 
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.util.List;
 
 import jakarta.validation.constraints.NotBlank;
@@ -36,4 +37,5 @@ public record CreateLabFileRequest(
         @Nullable BigDecimal homeCollectionFee,
         @Nullable BigDecimal additionalFees,
         @Nullable DiscountKind discountKind,
-        @Nullable BigDecimal discountValue) {}
+        @Nullable BigDecimal discountValue,
+        @Nullable Instant rendezVousAt) {}

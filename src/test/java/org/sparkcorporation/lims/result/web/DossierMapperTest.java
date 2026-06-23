@@ -175,6 +175,7 @@ class DossierMapperTest {
                 Instant.now(),
                 null,
                 null,
+                null,
                 null);
     }
 

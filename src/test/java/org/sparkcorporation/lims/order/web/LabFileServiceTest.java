@@ -182,6 +182,7 @@ class LabFileServiceTest {
                 FIXED_NOW,
                 null,
                 null,
+                null,
                 null);
     }
 
@@ -196,6 +197,7 @@ class LabFileServiceTest {
                         null,
                         false,
                         List.of("GLU"),
+                        null,
                         null,
                         null,
                         null,
@@ -226,6 +228,7 @@ class LabFileServiceTest {
                         null,
                         null,
                         null,
+                        null,
                         null);
 
         assertThatThrownBy(() -> service.create(req, "user-1"))
@@ -246,6 +249,7 @@ class LabFileServiceTest {
                         null,
                         false,
                         List.of("GLU", "GLU"),
+                        null,
                         null,
                         null,
                         null,
@@ -279,6 +283,7 @@ class LabFileServiceTest {
                         null,
                         null,
                         null,
+                        null,
                         null);
 
         var resp = service.create(req, "user-1");
@@ -303,6 +308,7 @@ class LabFileServiceTest {
                         false,
                         List.of("GLU"),
                         insuranceUlid,
+                        null,
                         null,
                         null,
                         null,
@@ -332,6 +338,7 @@ class LabFileServiceTest {
                         null,
                         null,
                         null,
+                        null,
                         null);
 
         assertThatThrownBy(() -> service.create(req, "user-1"))
@@ -357,6 +364,7 @@ class LabFileServiceTest {
                         null,
                         false,
                         List.of("GLU"),
+                        null,
                         null,
                         null,
                         null,
@@ -398,6 +406,7 @@ class LabFileServiceTest {
                         null,
                         null,
                         null,
+                        null,
                         null);
 
         service.create(req, "user-1");
@@ -430,6 +439,7 @@ class LabFileServiceTest {
                         false,
                         List.of("GLU"),
                         explicitInsuranceUlid,
+                        null,
                         null,
                         null,
                         null,
@@ -482,6 +492,7 @@ class LabFileServiceTest {
                         null,
                         null,
                         null,
+                        null,
                         null);
 
         assertThatThrownBy(() -> service.create(req, "user-1"))
@@ -505,6 +516,7 @@ class LabFileServiceTest {
                         preleveurUlid,
                         false,
                         List.of("GLU"),
+                        null,
                         null,
                         null,
                         null,
@@ -580,6 +592,7 @@ class LabFileServiceTest {
                                 null,
                                 BigDecimal.ZERO,
                                 BigDecimal.ZERO,
+                                null,
                                 null,
                                 null),
                         new LabFileRegistrationNumber("LF-260507-0001"),

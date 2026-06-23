@@ -54,6 +54,7 @@ class LabFileMarkEmailedTest {
                         BigDecimal.ZERO,
                         BigDecimal.ZERO,
                         null,
+                        null,
                         null);
         return LabFile.open(cmd, REG, "01CREATOR", FIXED);
     }

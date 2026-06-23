@@ -20,6 +20,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -107,6 +108,13 @@ public class LabFileAdminController {
                         asDiscountKind(body.get("discountKind")),
                         asBigDecimal(body.get("discountValue")));
         return service.update(new LabFileId(id), cmd);
+    }
+
+    @PutMapping("/{id}/rendezvous")
+    @RequiresPermission("lab-file.create")
+    public LabFileResponse scheduleRendezVous(
+            @PathVariable String id, @RequestBody RendezVousRequest req) {
+        return service.scheduleRendezVous(new LabFileId(id), req.rendezVousAt());
     }
 
     @DeleteMapping("/{id}")

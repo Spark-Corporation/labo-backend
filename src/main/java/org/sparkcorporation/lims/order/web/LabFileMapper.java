@@ -24,7 +24,8 @@ public final class LabFileMapper {
                 samples,
                 analyses,
                 s.createdAt(),
-                s.createdByUserId());
+                s.createdByUserId(),
+                s.rendezVousAt());
     }
 
     private static LabFileResponse.PatientSnapshotResponse toPatientSnapshot(

@@ -100,6 +100,7 @@ class SampleServiceConservationTest {
                         BigDecimal.ZERO,
                         BigDecimal.ZERO,
                         null,
+                        null,
                         null),
                 new LabFileRegistrationNumber("LF-260507-0001"),
                 "user-1",
@@ -128,6 +129,7 @@ class SampleServiceConservationTest {
                 null,
                 new LabFileSummary.BillingBlock(BigDecimal.ZERO, BigDecimal.ZERO, null, null),
                 FIXED_NOW,
+                null,
                 null,
                 null,
                 null);

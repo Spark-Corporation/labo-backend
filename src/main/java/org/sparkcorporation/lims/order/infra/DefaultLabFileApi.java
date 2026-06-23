@@ -214,7 +214,8 @@ public class DefaultLabFileApi implements LabFileApi {
                 lf.getCreatedAt(),
                 lf.getCreatedByUserId(),
                 lf.getSignedBy(),
-                lf.getSignedAt());
+                lf.getSignedAt(),
+                lf.getRendezVousAt());
     }
 
     private SampleSummary toSampleSummary(Sample s) {

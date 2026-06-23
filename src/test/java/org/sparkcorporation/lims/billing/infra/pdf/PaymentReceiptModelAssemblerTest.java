@@ -196,6 +196,7 @@ class PaymentReceiptModelAssemblerTest {
                 Instant.parse("2026-05-22T08:00:00Z"),
                 null,
                 null,
+                null,
                 null);
     }
 

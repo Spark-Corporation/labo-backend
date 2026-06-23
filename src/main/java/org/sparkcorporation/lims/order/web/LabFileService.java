@@ -148,7 +148,8 @@ public class LabFileService {
                 req.homeCollectionFee() != null ? req.homeCollectionFee() : BigDecimal.ZERO,
                 req.additionalFees() != null ? req.additionalFees() : BigDecimal.ZERO,
                 req.discountKind(),
-                req.discountValue());
+                req.discountValue(),
+                req.rendezVousAt());
     }
 
     private void publishAnalysisRequestAdded(LabFile file) {
@@ -221,6 +222,20 @@ public class LabFileService {
                 fileRepo.findActiveById(id.value())
                         .orElseThrow(() -> new LabFileNotFoundException(id));
         file.update(cmd, clock);
+        return LabFileMapper.toResponse(labFileApi.requireById(id));
+    }
+
+    /**
+     * Sets (or clears, when {@code rendezVousAt} is null) the result-pickup rendez-vous (CDC
+     * §II/§IV). Works at any status — the appointment is settable up to delivery. 404 for an
+     * unknown / soft-deleted dossier.
+     */
+    @Transactional
+    public LabFileResponse scheduleRendezVous(LabFileId id, @Nullable Instant rendezVousAt) {
+        var file =
+                fileRepo.findActiveById(id.value())
+                        .orElseThrow(() -> new LabFileNotFoundException(id));
+        file.scheduleRendezVous(rendezVousAt, clock);
         return LabFileMapper.toResponse(labFileApi.requireById(id));
     }
 

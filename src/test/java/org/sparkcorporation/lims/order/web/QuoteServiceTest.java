@@ -242,6 +242,7 @@ class QuoteServiceTest {
                         List.of(),
                         List.of(),
                         FIXED_NOW,
+                        null,
                         null);
         when(labFileService.create(any(CreateLabFileRequest.class), eq("user-1")))
                 .thenReturn(labFileResponse);

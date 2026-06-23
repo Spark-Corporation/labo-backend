@@ -1,6 +1,7 @@
 package org.sparkcorporation.lims.order.domain;
 
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.util.List;
 
 import org.jspecify.annotations.Nullable;
@@ -29,7 +30,8 @@ public record NewLabFile(
         BigDecimal homeCollectionFee,
         BigDecimal additionalFees,
         @Nullable DiscountKind discountKind,
-        @Nullable BigDecimal discountValue) {
+        @Nullable BigDecimal discountValue,
+        @Nullable Instant rendezVousAt) {
 
     public NewLabFile {
         analysisCodes = List.copyOf(analysisCodes);

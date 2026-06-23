@@ -37,6 +37,7 @@ class LabFileTest {
                 BigDecimal.ZERO,
                 BigDecimal.ZERO,
                 null,
+                null,
                 null);
     }
 
@@ -76,6 +77,7 @@ class LabFileTest {
                         BigDecimal.ZERO,
                         BigDecimal.ZERO,
                         null,
+                        null,
                         null);
         src.clear();
         assertThat(cmd.analysisCodes()).containsExactly("GLUC", "CHOL");
@@ -106,6 +108,7 @@ class LabFileTest {
                         null,
                         BigDecimal.ZERO,
                         BigDecimal.ZERO,
+                        null,
                         null,
                         null);
         var file = LabFile.open(openCmd, REG, "01CREATOR", FIXED);
@@ -238,6 +241,7 @@ class LabFileTest {
                         BigDecimal.ZERO,
                         BigDecimal.ZERO,
                         null,
+                        null,
                         null);
         var file = LabFile.open(openCmd, REG, "01CREATOR", FIXED);
         var laterClock = Clock.fixed(Instant.parse("2026-05-07T09:00:00Z"), ZoneOffset.UTC);
@@ -266,6 +270,7 @@ class LabFileTest {
                         null,
                         BigDecimal.ZERO,
                         BigDecimal.ZERO,
+                        null,
                         null,
                         null);
         var file = LabFile.open(openCmd, REG, "01CREATOR", FIXED);
@@ -354,6 +359,7 @@ class LabFileTest {
                         new BigDecimal("-1"),
                         BigDecimal.ZERO,
                         null,
+                        null,
                         null);
         assertThatThrownBy(() -> LabFile.open(cmd, REG, "01CREATOR", FIXED))
                 .isInstanceOf(IllegalArgumentException.class)
@@ -374,6 +380,7 @@ class LabFileTest {
                         BigDecimal.ZERO,
                         BigDecimal.ZERO,
                         DiscountKind.AMOUNT,
+                        null,
                         null);
         assertThatThrownBy(() -> LabFile.open(cmd, REG, "01CREATOR", FIXED))
                 .isInstanceOf(IllegalArgumentException.class)

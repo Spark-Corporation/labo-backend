@@ -100,6 +100,9 @@ public class LabFile {
     @Column(name = "printed_at")
     private @Nullable Instant printedAt;
 
+    @Column(name = "rendezvous_at")
+    private @Nullable Instant rendezVousAt;
+
     @Column(name = "insurance_id", length = 26)
     private @Nullable String insuranceId;
 
@@ -162,6 +165,7 @@ public class LabFile {
         f.additionalFees = cmd.additionalFees();
         f.discountKind = cmd.discountKind();
         f.discountValue = cmd.discountValue();
+        f.rendezVousAt = cmd.rendezVousAt();
         f.createdAt = now;
         f.updatedAt = now;
         return f;
@@ -242,6 +246,17 @@ public class LabFile {
     /** Print-channel stamp (CDC §IX « Dossiers imprimés »). Re-prints overwrite. */
     public void markPrinted(Instant printedAt) {
         this.printedAt = printedAt;
+    }
+
+    /**
+     * Sets (or clears, when {@code when} is null) the result-pickup rendez-vous (CDC §II/§IV).
+     * Deliberately NOT gated on {@code status == OPEN} — a pickup appointment stays settable up to
+     * delivery, like {@code markPrinted}/{@code markEmailed}. Bumps {@code updatedAt} (a user edit,
+     * matching {@code markUrgent}/{@code markSigned}).
+     */
+    public void scheduleRendezVous(@Nullable Instant when, Clock clock) {
+        this.rendezVousAt = when;
+        this.updatedAt = clock.instant();
     }
 
     /**

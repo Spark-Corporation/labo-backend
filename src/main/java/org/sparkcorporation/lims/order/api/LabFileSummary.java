@@ -40,7 +40,8 @@ public record LabFileSummary(
         Instant createdAt,
         @Nullable String createdByUserId,
         @Nullable String signedBy,
-        @Nullable Instant signedAt) {
+        @Nullable Instant signedAt,
+        @Nullable Instant rendezVousAt) {
 
     public LabFileSummary {
         samples = List.copyOf(samples);

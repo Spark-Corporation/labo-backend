@@ -146,6 +146,7 @@ class JpaLabFileRepositoryTest extends IntegrationTestBase {
                         java.math.BigDecimal.ZERO,
                         java.math.BigDecimal.ZERO,
                         null,
+                        null,
                         null);
         var rn = new LabFileRegistrationNumber(nextRegistrationNumber());
         return LabFile.open(cmd, rn, null, FIXED);
@@ -170,6 +171,7 @@ class JpaLabFileRepositoryTest extends IntegrationTestBase {
                         null,
                         java.math.BigDecimal.ZERO,
                         java.math.BigDecimal.ZERO,
+                        null,
                         null,
                         null);
         var rn = new LabFileRegistrationNumber(nextRegistrationNumber());

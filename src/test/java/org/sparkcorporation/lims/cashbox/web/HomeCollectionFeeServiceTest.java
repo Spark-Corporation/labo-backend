@@ -228,6 +228,7 @@ class HomeCollectionFeeServiceTest {
                 FIXED.instant(),
                 null,
                 null,
+                null,
                 null);
     }
 }

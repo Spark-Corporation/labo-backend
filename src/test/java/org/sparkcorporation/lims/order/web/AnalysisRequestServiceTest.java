@@ -76,6 +76,7 @@ class AnalysisRequestServiceTest {
                         BigDecimal.ZERO,
                         BigDecimal.ZERO,
                         null,
+                        null,
                         null),
                 new LabFileRegistrationNumber("LF-260513-0001"),
                 null,
@@ -120,6 +121,7 @@ class AnalysisRequestServiceTest {
                 null,
                 new LabFileSummary.BillingBlock(BigDecimal.ZERO, BigDecimal.ZERO, null, null),
                 FIXED_NOW,
+                null,
                 null,
                 null,
                 null);

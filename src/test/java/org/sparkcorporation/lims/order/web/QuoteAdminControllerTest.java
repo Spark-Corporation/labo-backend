@@ -99,6 +99,7 @@ class QuoteAdminControllerTest {
                 List.of(),
                 List.of(),
                 Instant.parse("2026-05-08T10:45:00Z"),
+                null,
                 null);
     }
 

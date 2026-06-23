@@ -199,6 +199,7 @@ class SendDossierServiceTest {
                 Instant.parse("2026-05-29T09:00:00Z"),
                 null,
                 null,
+                null,
                 null);
     }
 }

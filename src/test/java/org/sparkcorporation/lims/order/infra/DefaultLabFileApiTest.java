@@ -107,6 +107,7 @@ class DefaultLabFileApiTest {
                         BigDecimal.ZERO,
                         BigDecimal.ZERO,
                         null,
+                        null,
                         null);
         return LabFile.open(cmd, new LabFileRegistrationNumber("LF-260507-0001"), null, FIXED);
     }
@@ -124,6 +125,7 @@ class DefaultLabFileApiTest {
                         BigDecimal.ZERO,
                         BigDecimal.ZERO,
                         null,
+                        null,
                         null);
         return LabFile.open(cmd, new LabFileRegistrationNumber("LF-260507-0003"), null, FIXED);
     }
@@ -140,6 +142,7 @@ class DefaultLabFileApiTest {
                         null,
                         BigDecimal.ZERO,
                         BigDecimal.ZERO,
+                        null,
                         null,
                         null);
         return LabFile.open(cmd, new LabFileRegistrationNumber("LF-260507-0002"), null, FIXED);
