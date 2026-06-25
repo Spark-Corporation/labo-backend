@@ -248,6 +248,7 @@ class WorksheetModelAssemblerTest {
                 null,
                 null,
                 null,
+                null,
                 new AnalysisSummary.UnitsSummary(null, null, null, null, null),
                 new AnalysisSummary.AnalyticalDelaySummary(null, null, null),
                 List.of(),

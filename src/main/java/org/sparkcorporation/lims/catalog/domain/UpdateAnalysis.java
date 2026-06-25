@@ -21,6 +21,7 @@ public record UpdateAnalysis(
         @Nullable RecipientId recipientId,
         @Nullable ResultType resultType,
         @Nullable String interpretationText,
+        @Nullable String formulaExpression,
         @Nullable String defaultPortoir,
         @Nullable Integer defaultConservationDays,
         @Nullable Units units,

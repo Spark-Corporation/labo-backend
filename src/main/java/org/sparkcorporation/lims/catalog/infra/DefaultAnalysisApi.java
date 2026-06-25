@@ -190,6 +190,7 @@ public class DefaultAnalysisApi implements AnalysisApi {
                 recipientSnapshot,
                 a.resultType(),
                 a.interpretationText(),
+                a.formulaExpression(),
                 a.defaultPortoir(),
                 a.defaultConservationDays(),
                 unitsSummary,

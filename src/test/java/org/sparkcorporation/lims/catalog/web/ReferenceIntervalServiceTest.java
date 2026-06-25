@@ -67,6 +67,7 @@ class ReferenceIntervalServiceTest {
                         null,
                         null,
                         null,
+                        null,
                         null);
         return Analysis.create(cmd, disc, null, null, Clock.systemUTC());
     }
@@ -84,6 +85,7 @@ class ReferenceIntervalServiceTest {
                         null,
                         null,
                         ResultType.REAL,
+                        null,
                         null,
                         null,
                         null,

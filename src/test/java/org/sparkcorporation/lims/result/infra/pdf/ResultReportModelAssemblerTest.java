@@ -514,6 +514,7 @@ class ResultReportModelAssemblerTest {
                 null,
                 null,
                 null,
+                null,
                 new AnalysisSummary.UnitsSummary("g/L", 2, null, null, null),
                 new AnalysisSummary.AnalyticalDelaySummary(1, null, null),
                 List.of(),

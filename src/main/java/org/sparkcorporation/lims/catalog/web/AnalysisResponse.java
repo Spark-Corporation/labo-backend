@@ -25,6 +25,7 @@ public record AnalysisResponse(
         @Nullable RecipientSnapshotResponse recipient,
         ResultType resultType,
         @Nullable String interpretationText,
+        @Nullable String formulaExpression,
         @Nullable String defaultPortoir,
         @Nullable Integer defaultConservationDays,
         UnitsResponse units,

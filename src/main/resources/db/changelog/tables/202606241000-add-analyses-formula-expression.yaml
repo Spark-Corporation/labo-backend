@@ -1,0 +1,15 @@
+databaseChangeLog:
+  - changeSet:
+      id: 202606241000-add-analyses-formula-expression
+      author: samuel
+      contextFilter: dev,test,prod
+      labels: sp11-formula
+      preconditions:
+        - onFail: HALT
+        - tableExists: { tableName: analyses }
+      changes:
+        - addColumn:
+            tableName: analyses
+            columns:
+              - column: { name: formula_expression, type: text }
+      # rollback: AUTHORED BY USER

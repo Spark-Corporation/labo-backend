@@ -25,6 +25,7 @@ public record AnalysisSummary(
         @Nullable RecipientSnapshot recipient,
         ResultType resultType,
         @Nullable String interpretationText,
+        @Nullable String formulaExpression,
         @Nullable String defaultPortoir,
         @Nullable Integer defaultConservationDays,
         UnitsSummary units,

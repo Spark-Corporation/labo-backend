@@ -50,6 +50,7 @@ class DefaultAnalysisApiDisciplinePrefixTest {
                         null,
                         null,
                         null,
+                        null,
                         null);
         var analysis = Analysis.create(cmd, disc, null, null, Clock.systemUTC());
         when(repo.findByCode("GLY")).thenReturn(Optional.of(analysis));

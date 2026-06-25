@@ -63,6 +63,29 @@ class AnalysisCrudIT extends IntegrationTestBase {
     }
 
     @Test
+    void create_formula_analysis_then_get_returns_formula_expression() {
+        var http = authedHttp();
+        var body = simplePayload("LDL_CALC", "LDL calculé");
+        body.put("resultType", "FORMULA");
+        body.put("formulaExpression", "CT - HDL - TG/5");
+
+        Map<?, ?> created =
+                http.post()
+                        .uri("/api/v1/catalog/analyses")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .body(body)
+                        .retrieve()
+                        .body(Map.class);
+        assertThat(created.get("resultType")).isEqualTo("FORMULA");
+        assertThat(created.get("formulaExpression")).isEqualTo("CT - HDL - TG/5");
+        String id = (String) created.get("id");
+
+        Map<?, ?> got =
+                http.get().uri("/api/v1/catalog/analyses/{id}", id).retrieve().body(Map.class);
+        assertThat(got.get("formulaExpression")).isEqualTo("CT - HDL - TG/5");
+    }
+
+    @Test
     void create_grouped_analysis_with_component_then_get_returns_summary_with_component_link() {
         var http = authedHttp();
 

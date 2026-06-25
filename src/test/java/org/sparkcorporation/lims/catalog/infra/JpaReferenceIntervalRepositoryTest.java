@@ -59,6 +59,7 @@ class JpaReferenceIntervalRepositoryTest extends IntegrationTestBase {
                         null,
                         null,
                         null,
+                        null,
                         null);
         var a = analyses.save(Analysis.create(cmd, d, null, null, Clock.systemUTC()));
         analyses.flush();

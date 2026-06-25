@@ -79,6 +79,7 @@ class SampleServiceConservationTest {
                 null,
                 ResultType.REAL,
                 null,
+                null,
                 defaultPortoir,
                 defaultConservationDays,
                 new AnalysisSummary.UnitsSummary(null, null, null, null, null),

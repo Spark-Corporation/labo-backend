@@ -50,6 +50,7 @@ class AnalysisComponentPersistenceTest extends IntegrationTestBase {
                         null,
                         null,
                         null,
+                        null,
                         null);
         return Analysis.create(cmd, d, null, null, Clock.systemUTC());
     }
@@ -66,6 +67,7 @@ class AnalysisComponentPersistenceTest extends IntegrationTestBase {
                         null,
                         null,
                         ResultType.REAL,
+                        null,
                         null,
                         null,
                         null,

@@ -94,6 +94,7 @@ class AnalysisServiceTest {
                 null,
                 null,
                 null,
+                null,
                 null);
     }
 
@@ -108,6 +109,7 @@ class AnalysisServiceTest {
                 null,
                 null,
                 ResultType.REAL,
+                null,
                 null,
                 null,
                 null,
@@ -133,6 +135,7 @@ class AnalysisServiceTest {
                         null,
                         null,
                         ResultType.REAL,
+                        null,
                         null,
                         null,
                         null,
@@ -167,7 +170,18 @@ class AnalysisServiceTest {
         when(repo.findActiveById(a.rawId())).thenReturn(Optional.of(a));
         var cmd =
                 new UpdateAnalysis(
-                        "Glycémie 2", null, null, null, null, null, null, null, null, null, null);
+                        "Glycémie 2",
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null);
         service.update(a.id(), cmd);
         verify(events).publishEvent(any(AnalysisUpdated.class));
         assertThat(a.name()).isEqualTo("Glycémie 2");
@@ -177,7 +191,8 @@ class AnalysisServiceTest {
     void update_throws_when_missing() {
         when(repo.findActiveById(any())).thenReturn(Optional.empty());
         var cmd =
-                new UpdateAnalysis("X", null, null, null, null, null, null, null, null, null, null);
+                new UpdateAnalysis(
+                        "X", null, null, null, null, null, null, null, null, null, null, null);
         assertThatThrownBy(() -> service.update(AnalysisId.generate(), cmd))
                 .isInstanceOf(AnalysisNotFoundException.class);
     }
@@ -377,6 +392,7 @@ class AnalysisServiceTest {
                         null,
                         null,
                         ResultType.REAL,
+                        null,
                         null,
                         null,
                         null,

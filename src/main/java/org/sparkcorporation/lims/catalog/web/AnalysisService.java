@@ -323,6 +323,7 @@ public class AnalysisService {
                                 a.recipient().id(), a.recipient().code(), a.recipient().name()),
                 a.resultType(),
                 a.interpretationText(),
+                a.formulaExpression(),
                 a.defaultPortoir(),
                 a.defaultConservationDays(),
                 new AnalysisSummary.UnitsSummary(

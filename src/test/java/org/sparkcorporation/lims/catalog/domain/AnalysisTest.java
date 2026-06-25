@@ -138,6 +138,40 @@ class AnalysisTest {
         assertThat(a.deletedAt()).isNull();
     }
 
+    @Test
+    void create_carries_formula_expression() {
+        var a = formulaAnalysis("LDL", "CT - HDL - TG/5");
+        assertThat(a.formulaExpression()).isEqualTo("CT - HDL - TG/5");
+    }
+
+    @Test
+    void duplicate_clones_formula_expression() {
+        var source = formulaAnalysis("LDL", "CT - HDL - TG/5");
+        var clone = source.duplicate(AnalysisCode.of("DUP_LDL"), FIXED);
+        assertThat(clone.formulaExpression()).isEqualTo("CT - HDL - TG/5");
+    }
+
+    private static Analysis formulaAnalysis(String code, String expression) {
+        var cmd =
+                new NewAnalysis(
+                        code,
+                        "Stub " + code,
+                        AnalysisKind.SIMPLE,
+                        new BigDecimal("10.00"),
+                        1,
+                        DisciplineId.next(),
+                        null,
+                        null,
+                        ResultType.FORMULA,
+                        null,
+                        expression,
+                        null,
+                        null,
+                        null,
+                        null);
+        return Analysis.create(cmd, null, null, null, FIXED);
+    }
+
     private static Analysis stubAnalysis(String code, AnalysisKind kind) {
         var cmd =
                 new NewAnalysis(
@@ -150,6 +184,7 @@ class AnalysisTest {
                         null,
                         null,
                         ResultType.REAL,
+                        null,
                         null,
                         null,
                         null,

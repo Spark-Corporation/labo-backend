@@ -58,6 +58,7 @@ class JpaAnalysisRepositoryTest extends IntegrationTestBase {
                         null,
                         null,
                         null,
+                        null,
                         null);
         return Analysis.create(cmd, d, m, r, Clock.systemUTC());
     }

@@ -93,6 +93,10 @@ public class Analysis {
     @Nullable
     private String interpretationText;
 
+    @Column(name = "formula_expression", columnDefinition = "TEXT")
+    @Nullable
+    private String formulaExpression;
+
     @Column(name = "default_portoir", length = 20)
     @Nullable
     private String defaultPortoir;
@@ -148,6 +152,7 @@ public class Analysis {
         a.recipient = recipient;
         a.resultType = cmd.resultType();
         a.interpretationText = cmd.interpretationText();
+        a.formulaExpression = cmd.formulaExpression();
         a.defaultPortoir = cmd.defaultPortoir();
         a.defaultConservationDays = cmd.defaultConservationDays();
         a.units = cmd.units() == null ? Units.empty() : cmd.units();
@@ -189,6 +194,9 @@ public class Analysis {
         }
         if (cmd.interpretationText() != null) {
             this.interpretationText = cmd.interpretationText();
+        }
+        if (cmd.formulaExpression() != null) {
+            this.formulaExpression = cmd.formulaExpression();
         }
         if (cmd.defaultPortoir() != null) {
             this.defaultPortoir = cmd.defaultPortoir();
@@ -256,6 +264,7 @@ public class Analysis {
         clone.recipient = this.recipient;
         clone.resultType = this.resultType;
         clone.interpretationText = this.interpretationText;
+        clone.formulaExpression = this.formulaExpression;
         clone.defaultPortoir = this.defaultPortoir;
         clone.defaultConservationDays = this.defaultConservationDays;
         clone.units = this.units;
@@ -328,6 +337,10 @@ public class Analysis {
 
     public @Nullable String interpretationText() {
         return interpretationText;
+    }
+
+    public @Nullable String formulaExpression() {
+        return formulaExpression;
     }
 
     public @Nullable String defaultPortoir() {

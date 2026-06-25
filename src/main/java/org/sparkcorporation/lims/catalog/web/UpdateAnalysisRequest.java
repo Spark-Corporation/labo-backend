@@ -25,6 +25,7 @@ public record UpdateAnalysisRequest(
         @Size(max = 26) @Nullable String recipientId,
         @Nullable ResultType resultType,
         @Nullable String interpretationText,
+        @Nullable String formulaExpression,
         @Size(max = 20) @Nullable String defaultPortoir,
         @Nullable Integer defaultConservationDays,
         @Valid @Nullable UnitsRequest units,

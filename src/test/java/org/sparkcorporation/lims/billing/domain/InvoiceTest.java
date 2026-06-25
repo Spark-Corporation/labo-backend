@@ -267,6 +267,7 @@ class InvoiceTest {
                 null,
                 null,
                 null,
+                null,
                 new UnitsSummary(null, null, null, null, null),
                 new AnalyticalDelaySummary(null, null, null),
                 List.of(),

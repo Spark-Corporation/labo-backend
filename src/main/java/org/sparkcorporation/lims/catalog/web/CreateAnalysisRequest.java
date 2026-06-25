@@ -31,6 +31,7 @@ public record CreateAnalysisRequest(
         @Size(max = 26) @Nullable String recipientId,
         @NotNull ResultType resultType,
         @Nullable String interpretationText,
+        @Nullable String formulaExpression,
         @Size(max = 20) @Nullable String defaultPortoir,
         @Nullable Integer defaultConservationDays,
         @Valid @Nullable UnitsRequest units,

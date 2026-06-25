@@ -26,6 +26,7 @@ public record NewAnalysis(
         @Nullable RecipientId recipientId,
         ResultType resultType,
         @Nullable String interpretationText,
+        @Nullable String formulaExpression,
         @Nullable String defaultPortoir,
         @Nullable Integer defaultConservationDays,
         @Nullable Units units,
