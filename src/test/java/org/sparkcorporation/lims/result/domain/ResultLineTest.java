@@ -41,6 +41,7 @@ class ResultLineTest {
                         null,
                         null,
                         null,
+                        null,
                         null);
         return Result.create(cmd, FIXED);
     }
@@ -243,7 +244,32 @@ class ResultLineTest {
     }
 
     @Test
-    void kindMismatch_FORMULA_line_with_REAL_value_throws() {
+    void draftFor_snapshots_conversion_factor() {
+        var cmd =
+                new NewResult(
+                        new LabFileId("01KQZ0WPVQA364NMRAJMKRQC84"),
+                        new AnalysisRequestId("01KQZ0WPVQA364NMRAJMKRQC85"),
+                        new AnalysisId("01KQZ0WPVQA364NMRAJMKRQC86"),
+                        "GLU",
+                        AnalysisKind.SIMPLE,
+                        ResultType.REAL,
+                        List.of(),
+                        Sex.M,
+                        12000,
+                        PatientCategory.HOMME,
+                        "g/L",
+                        2,
+                        "mmol/L",
+                        1,
+                        new BigDecimal("18.0"));
+        Result r = Result.create(cmd, FIXED);
+        var line = r.getLines().iterator().next();
+        assertThat(line.getUnit1To2Factor()).isEqualByComparingTo("18.0");
+    }
+
+    @Test
+    void formula_line_rejects_operator_setValue() {
+        // SP11: FORMULA results are server-computed (recompute path), never operator-entered.
         Result r = newResultWithSingleLine(ResultType.FORMULA);
         var line = r.getLines().iterator().next();
 
@@ -254,7 +280,7 @@ class ResultLineTest {
                                         new NewLineValue(
                                                 new NumericResult(new BigDecimal("1")), null),
                                         null))
-                .isInstanceOf(ResultLineKindMismatchException.class);
+                .isInstanceOf(FormulaLineNotEditableException.class);
     }
 
     @Test

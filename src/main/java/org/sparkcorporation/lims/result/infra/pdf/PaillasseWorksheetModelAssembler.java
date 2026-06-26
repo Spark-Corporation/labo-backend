@@ -178,16 +178,8 @@ public class PaillasseWorksheetModelAssembler {
         return intervals.stream()
                 .filter(ri -> ri.id().value().equals(row.getReferenceIntervalId()))
                 .findFirst()
-                .map(PaillasseWorksheetModelAssembler::formatInterval)
+                .map(ReferenceIntervalFormatter::unit1)
                 .orElse("");
-    }
-
-    private static String formatInterval(ReferenceIntervalSummary ri) {
-        if (ri.unit1Min() != null && ri.unit1Max() != null) {
-            return "%s – %s"
-                    .formatted(ri.unit1Min().toPlainString(), ri.unit1Max().toPlainString());
-        }
-        return ri.commentText() != null ? ri.commentText() : "";
     }
 
     private PaillasseWorksheetModel.DossierBlock toDossierBlock(

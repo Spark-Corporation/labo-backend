@@ -3,7 +3,6 @@ package org.sparkcorporation.lims.result.web;
 import java.math.BigDecimal;
 
 import org.sparkcorporation.lims.result.api.ResultSummary;
-import org.sparkcorporation.lims.result.domain.FormulaResult;
 import org.sparkcorporation.lims.result.domain.FreeFormResult;
 import org.sparkcorporation.lims.result.domain.IntegerResult;
 import org.sparkcorporation.lims.result.domain.NumericResult;
@@ -20,8 +19,9 @@ public final class ResultMapper {
     private ResultMapper() {}
 
     /**
-     * DTO → domain. The 5-arm switch is exhaustive over the sealed {@link
-     * PatchLineRequest.ValueUnion}.
+     * DTO → domain. The 4-arm switch is exhaustive over the sealed {@link
+     * PatchLineRequest.ValueUnion}. FORMULA has no operator-submit variant (SP11) — formula values
+     * are server-computed, never entered.
      */
     public static ResultValue toDomainValue(PatchLineRequest.ValueUnion union) {
         return switch (union) {
@@ -29,7 +29,6 @@ public final class ResultMapper {
             case PatchLineRequest.ValueUnion.RealVariant r ->
                     new NumericResult(new BigDecimal(r.value()));
             case PatchLineRequest.ValueUnion.TextVariant t -> new TextResult(t.value());
-            case PatchLineRequest.ValueUnion.FormulaVariant f -> new FormulaResult(f.value());
             case PatchLineRequest.ValueUnion.FreeVariant ff -> new FreeFormResult(ff.value());
         };
     }

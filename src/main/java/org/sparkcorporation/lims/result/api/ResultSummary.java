@@ -55,6 +55,7 @@ public record ResultSummary(
             @Nullable Integer unit1Decimals,
             @Nullable String unit2Snapshot,
             @Nullable Integer unit2Decimals,
+            @Nullable BigDecimal conversionFactor,
             @Nullable ReferenceIntervalId referenceIntervalId,
             boolean isOutOfRange,
             @Nullable String commentText) {}

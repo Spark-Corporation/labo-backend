@@ -1,5 +1,6 @@
 package org.sparkcorporation.lims.result.domain;
 
+import java.math.BigDecimal;
 import java.util.List;
 
 import org.jspecify.annotations.Nullable;
@@ -32,7 +33,8 @@ public record NewResult(
         @Nullable String unit1,
         @Nullable Integer unit1Decimals,
         @Nullable String unit2,
-        @Nullable Integer unit2Decimals) {
+        @Nullable Integer unit2Decimals,
+        @Nullable BigDecimal conversionFactor) {
 
     public NewResult {
         components = List.copyOf(components);

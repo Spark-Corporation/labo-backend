@@ -97,6 +97,9 @@ public class ResultLine {
     @Column(name = "unit2_decimals")
     private @Nullable Integer unit2Decimals;
 
+    @Column(name = "unit_1_to_2_factor", precision = 18, scale = 6)
+    private @Nullable BigDecimal unit1To2Factor;
+
     @Column(name = "reference_interval_id", length = 26)
     private @Nullable String referenceIntervalId;
 
@@ -144,7 +147,8 @@ public class ResultLine {
             @Nullable String unit1,
             @Nullable Integer unit1Decimals,
             @Nullable String unit2,
-            @Nullable Integer unit2Decimals) {
+            @Nullable Integer unit2Decimals,
+            @Nullable BigDecimal conversionFactor) {
         ResultLine line = new ResultLine();
         line.id = Ulid.generate();
         line.result = parent;
@@ -156,6 +160,7 @@ public class ResultLine {
         line.unit1Decimals = unit1Decimals;
         line.unit2Snapshot = unit2;
         line.unit2Decimals = unit2Decimals;
+        line.unit1To2Factor = conversionFactor;
         line.isOutOfRange = false;
         return line;
     }
@@ -167,7 +172,7 @@ public class ResultLine {
                     case INTEGER -> valueInteger != null ? new IntegerResult(valueInteger) : null;
                     case REAL -> valueReal != null ? new NumericResult(valueReal) : null;
                     case TEXT -> valueText != null ? new TextResult(valueText) : null;
-                    case FORMULA -> valueText != null ? new FormulaResult(valueText) : null;
+                    case FORMULA -> valueReal != null ? new FormulaResult(valueReal) : null;
                     case FREE -> valueText != null ? new FreeFormResult(valueText) : null;
                 };
         // Defensive: catches malformed rows where the populated value column does not match
@@ -192,6 +197,11 @@ public class ResultLine {
 
     /** Aggregate-internal mutator — only {@link Result#setLineValue} should call this. */
     void setValue(NewLineValue cmd, @Nullable ReferenceIntervalSummary matchedRi) {
+        // SP11: FORMULA results are server-computed (see applyComputedFormula); operators must not
+        // set them. Reject up front, before any column is touched.
+        if (resultType == ResultType.FORMULA) {
+            throw new FormulaLineNotEditableException(new ResultLineId(id));
+        }
         // clear existing typed value first
         this.valueInteger = null;
         this.valueReal = null;
@@ -206,7 +216,10 @@ public class ResultLine {
                 case IntegerResult ir -> this.valueInteger = ir.value();
                 case NumericResult nr -> this.valueReal = nr.value();
                 case TextResult tr -> this.valueText = tr.value();
-                case FormulaResult fr -> this.valueText = fr.renderedValue();
+                // Unreachable: FORMULA lines are rejected above; a FormulaResult value can only
+                // pair with a FORMULA line (enforced by validateValueKindMatchesType).
+                case FormulaResult ignored ->
+                        throw new FormulaLineNotEditableException(new ResultLineId(id));
                 case FreeFormResult ff -> this.valueText = ff.value();
             }
             this.referenceIntervalId = matchedRi == null ? null : matchedRi.id().value();
@@ -217,6 +230,30 @@ public class ResultLine {
         }
         if (cmd.commentText() != null) {
             this.commentText = cmd.commentText().isEmpty() ? null : cmd.commentText();
+        }
+    }
+
+    /**
+     * Aggregate-internal: sets a server-computed FORMULA value ({@code null} clears it). The
+     * recompute path ({@code FormulaRecalculationService}) only — bypasses the operator-entry guard
+     * in {@link #setValue}. Stores the value in {@code value_real} and recomputes {@code
+     * isOutOfRange}.
+     */
+    void applyComputedFormula(
+            @Nullable BigDecimal value, @Nullable ReferenceIntervalSummary matchedRi) {
+        this.valueInteger = null;
+        this.valueText = null;
+        this.valueReal = value;
+        if (value == null) {
+            this.referenceIntervalId = null;
+            this.isOutOfRange = false;
+            this.resultValue = null;
+        } else {
+            this.referenceIntervalId = matchedRi == null ? null : matchedRi.id().value();
+            this.isOutOfRange =
+                    ReferenceIntervalMatcher.isOutOfRange(
+                            ResultType.FORMULA, null, value, null, matchedRi);
+            this.resultValue = new FormulaResult(value);
         }
     }
 

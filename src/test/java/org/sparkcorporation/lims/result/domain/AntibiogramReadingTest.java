@@ -42,6 +42,7 @@ class AntibiogramReadingTest {
                         null,
                         null,
                         null,
+                        null,
                         null);
         return Result.create(cmd, FIXED);
     }

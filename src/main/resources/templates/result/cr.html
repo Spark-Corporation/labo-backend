@@ -60,21 +60,32 @@
     <table>
       <thead>
         <tr>
-          <th style="width:18%;">Code</th>
-          <th style="width:42%;">Analyse</th>
-          <th style="width:14%;">Résultats</th>
-          <th style="width:12%;">Unités</th>
-          <th style="width:14%;">Références</th>
+          <th style="width:12%;">Code</th>
+          <th style="width:28%;">Analyse</th>
+          <th style="width:10%;">Résultats</th>
+          <th style="width:9%;">Unité</th>
+          <th style="width:10%;">Résultats (SI)</th>
+          <th style="width:9%;">Unité (SI)</th>
+          <th style="width:11%;">Références</th>
+          <th style="width:11%;">Références (SI)</th>
         </tr>
       </thead>
       <tbody>
-        <tr th:each="row : ${group.rows}" th:classappend="${row.outOfRange} ? 'out' : ''">
-          <td th:text="${row.code}">CODE</td>
-          <td th:text="${row.label}">Libellé</td>
-          <td class="num" th:text="${row.valueDisplay}">valeur</td>
-          <td th:text="${row.unit}">unité</td>
-          <td th:text="${row.referenceRange}">référence</td>
-        </tr>
+        <th:block th:each="row : ${group.rows}">
+          <tr th:classappend="${row.outOfRange} ? 'out' : ''">
+            <td th:text="${row.code}">CODE</td>
+            <td th:text="${row.label}">Libellé</td>
+            <td class="num" th:text="${row.valueDisplay}">valeur</td>
+            <td th:text="${row.unit}">unité</td>
+            <td class="num" th:text="${row.value2} ?: ''">valeur SI</td>
+            <td th:text="${row.unit2} ?: ''">unité SI</td>
+            <td th:text="${row.referenceRange}">référence</td>
+            <td th:text="${row.referenceRange2} ?: ''">référence SI</td>
+          </tr>
+          <tr th:if="${row.interpretation != null}">
+            <td colspan="8" class="interp" th:text="${row.interpretation}">Interprétation</td>
+          </tr>
+        </th:block>
       </tbody>
     </table>
   </div>

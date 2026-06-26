@@ -597,7 +597,7 @@ class ReferenceIntervalMatcherTest {
     }
 
     @Test
-    void outOfRange_FORMULA_value_skips_scoring_returns_false() {
+    void outOfRange_FORMULA_value_is_range_checked_like_real() {
         var standard =
                 ri(
                         "01KQZ0WPVQA364NMRAJMKRQC01",
@@ -610,11 +610,15 @@ class ReferenceIntervalMatcherTest {
                         new BigDecimal("5"),
                         new BigDecimal("10"));
 
-        boolean out =
-                ReferenceIntervalMatcher.isOutOfRange(
-                        ResultType.FORMULA, null, null, "computed", standard);
-
-        assertThat(out).isFalse();
+        // SP11: FORMULA is now a server-computed number in value_real, range-checked like REAL.
+        assertThat(
+                        ReferenceIntervalMatcher.isOutOfRange(
+                                ResultType.FORMULA, null, new BigDecimal("12"), null, standard))
+                .isTrue();
+        assertThat(
+                        ReferenceIntervalMatcher.isOutOfRange(
+                                ResultType.FORMULA, null, new BigDecimal("7"), null, standard))
+                .isFalse();
     }
 
     @Test

@@ -102,6 +102,7 @@ class CompteRenduContentDigestTest {
                         null,
                         null,
                         null,
+                        null,
                         false,
                         null);
         return new ResultSummary(

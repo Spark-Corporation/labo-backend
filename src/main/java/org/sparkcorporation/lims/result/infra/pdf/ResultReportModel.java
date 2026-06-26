@@ -79,15 +79,26 @@ public record ResultReportModel(
         }
     }
 
-    /** One row per result line. {@code outOfRange} drives the red styling in the template. */
+    /**
+     * One row per result line. {@code outOfRange} drives the red styling in the template. Unit-1
+     * fields ({@code valueDisplay}, {@code unit}, {@code referenceRange}) are always present; the
+     * unit-2 fields ({@code value2}, {@code unit2}, {@code referenceRange2}) are {@code null} when
+     * the analysis has no second unit configured. {@code interpretation} is set only on the first
+     * row of an analysis, and only when the analysis has non-blank interpretation text (CDC
+     * §Config.8 NB — printed only when filled).
+     */
     public record AnalysisRow(
             String code,
             String label,
             String valueDisplay,
-            String referenceRange,
             String unit,
+            @Nullable String value2,
+            @Nullable String unit2,
+            String referenceRange,
+            @Nullable String referenceRange2,
             boolean outOfRange,
-            @Nullable String comment) {}
+            @Nullable String comment,
+            @Nullable String interpretation) {}
 
     /** Antibiogram block — one per Result with antibiogram readings. */
     public record AntibiogramBlock(String sampleLabel, List<AntibiogramReading> readings) {

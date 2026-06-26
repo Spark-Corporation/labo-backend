@@ -124,6 +124,7 @@ class ResultReportModelAssemblerTest {
                         null,
                         null,
                         null,
+                        null,
                         false,
                         null);
         var line2 =
@@ -138,6 +139,7 @@ class ResultReportModelAssemblerTest {
                         null,
                         "g/dL",
                         2,
+                        null,
                         null,
                         null,
                         null,
@@ -330,6 +332,7 @@ class ResultReportModelAssemblerTest {
                         null,
                         null,
                         null,
+                        null,
                         false,
                         null);
         var r1 =
@@ -409,6 +412,7 @@ class ResultReportModelAssemblerTest {
                         null,
                         "g/L",
                         2,
+                        null,
                         null,
                         null,
                         null,

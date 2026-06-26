@@ -1,8 +1,12 @@
 package org.sparkcorporation.lims.result.domain;
 
+import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.Instant;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import jakarta.persistence.CascadeType;
@@ -32,6 +36,7 @@ import org.springframework.data.annotation.LastModifiedDate;
 import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 
 import org.sparkcorporation.lims.catalog.api.ReferenceIntervalSummary;
+import org.sparkcorporation.lims.catalog.api.ResultType;
 import org.sparkcorporation.lims.result.api.AntibiogramReadingId;
 import org.sparkcorporation.lims.result.api.ResultId;
 import org.sparkcorporation.lims.result.api.ResultLineId;
@@ -184,7 +189,8 @@ public class Result {
                                     cmd.unit1(),
                                     cmd.unit1Decimals(),
                                     cmd.unit2(),
-                                    cmd.unit2Decimals()));
+                                    cmd.unit2Decimals(),
+                                    cmd.conversionFactor()));
             case GROUPED, SOCIETY_PANEL -> {
                 int pos = 0;
                 for (var comp : cmd.components()) {
@@ -198,7 +204,8 @@ public class Result {
                                     cmd.unit1(),
                                     cmd.unit1Decimals(),
                                     cmd.unit2(),
-                                    cmd.unit2Decimals()));
+                                    cmd.unit2Decimals(),
+                                    cmd.conversionFactor()));
                 }
             }
         }
@@ -219,6 +226,53 @@ public class Result {
         guardNotLocked();
         ResultLine line = findLine(lineId);
         line.clearValue();
+        recomputeState();
+    }
+
+    /** Lines whose result type is FORMULA (server-computed; SP11). Read-only snapshot. */
+    public List<ResultLine> formulaLines() {
+        return lines.stream().filter(l -> l.getResultType() == ResultType.FORMULA).toList();
+    }
+
+    /**
+     * Resolved numeric values of <strong>measured</strong> (non-FORMULA) lines, keyed by component
+     * code. Skips FORMULA, null, and non-numeric (TEXT/FREE) lines — formula codes are fed into the
+     * recompute map only as each resolves, so a stale prior-transaction formula value never seeds a
+     * recompute. INTEGER widens to {@link BigDecimal}.
+     */
+    public Map<String, BigDecimal> measuredNumericValues() {
+        var values = new LinkedHashMap<String, BigDecimal>();
+        for (ResultLine l : lines) {
+            if (l.getResultType() == ResultType.FORMULA) {
+                continue;
+            }
+            BigDecimal v =
+                    switch (l.getResultType()) {
+                        case INTEGER ->
+                                l.getValueInteger() == null
+                                        ? null
+                                        : BigDecimal.valueOf(l.getValueInteger());
+                        case REAL -> l.getValueReal();
+                        case TEXT, FREE, FORMULA -> null;
+                    };
+            if (v != null) {
+                values.put(l.getComponentCodeSnapshot(), v);
+            }
+        }
+        return values;
+    }
+
+    /**
+     * Sets a server-computed FORMULA value on the named line ({@code null} clears it) and
+     * recomputes parent state. Recompute path only (see {@code FormulaRecalculationService}).
+     */
+    public void applyFormula(
+            ResultLineId lineId,
+            @Nullable BigDecimal value,
+            @Nullable ReferenceIntervalSummary ri) {
+        guardNotLocked();
+        ResultLine line = findLine(lineId);
+        line.applyComputedFormula(value, ri);
         recomputeState();
     }
 

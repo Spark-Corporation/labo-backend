@@ -92,6 +92,7 @@ class JpaResultRepositoryTest extends IntegrationTestBase {
                                 "mg/dL",
                                 2,
                                 null,
+                                null,
                                 null),
                         FIXED);
         repo.saveAndFlush(result);
@@ -142,6 +143,7 @@ class JpaResultRepositoryTest extends IntegrationTestBase {
                         PatientCategory.FEMME,
                         "mg/dL",
                         2,
+                        null,
                         null,
                         null),
                 FIXED);

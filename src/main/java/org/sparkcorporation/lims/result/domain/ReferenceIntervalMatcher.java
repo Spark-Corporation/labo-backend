@@ -84,8 +84,9 @@ public final class ReferenceIntervalMatcher {
         BigDecimal v =
                 switch (resultType) {
                     case INTEGER -> valueInteger == null ? null : new BigDecimal(valueInteger);
-                    case REAL -> valueReal;
-                    case TEXT, FORMULA, FREE -> null;
+                    // FORMULA is a server-computed number in value_real (SP11) — scored like REAL.
+                    case REAL, FORMULA -> valueReal;
+                    case TEXT, FREE -> null;
                 };
         if (v == null) {
             return false;

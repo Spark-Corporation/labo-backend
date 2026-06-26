@@ -140,21 +140,55 @@ class OpenHtmlToPdfRenderingServiceIT extends IntegrationTestBase {
         var biochimieRows =
                 java.util.List.of(
                         new ResultReportModel.AnalysisRow(
-                                "GLU", "Glucose", "1.05", "0.7-1.10", "g/L", false, null),
+                                "GLU",
+                                "Glucose",
+                                "1.05",
+                                "g/L",
+                                null,
+                                null,
+                                "0.7-1.10",
+                                null,
+                                false,
+                                null,
+                                null),
                         new ResultReportModel.AnalysisRow(
                                 "CRE",
                                 "Créatinine",
                                 "12.4",
-                                "6-12",
                                 "mg/L",
+                                null,
+                                null,
+                                "6-12",
+                                null,
                                 true,
-                                "À recontrôler"));
+                                "À recontrôler",
+                                null));
         var hemaRows =
                 java.util.List.of(
                         new ResultReportModel.AnalysisRow(
-                                "HB", "Hémoglobine", "13.5", "12-16", "g/dL", false, null),
+                                "HB",
+                                "Hémoglobine",
+                                "13.5",
+                                "g/dL",
+                                null,
+                                null,
+                                "12-16",
+                                null,
+                                false,
+                                null,
+                                null),
                         new ResultReportModel.AnalysisRow(
-                                "GR", "Globules rouges", "4.6", "4.0-5.5", "T/L", false, null));
+                                "GR",
+                                "Globules rouges",
+                                "4.6",
+                                "T/L",
+                                null,
+                                null,
+                                "4.0-5.5",
+                                null,
+                                false,
+                                null,
+                                null));
         return new ResultReportModel(
                 new ResultReportModel.LabFileSummary(
                         labFileId,

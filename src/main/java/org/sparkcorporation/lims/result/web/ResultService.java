@@ -58,6 +58,7 @@ public class ResultService {
     private final LabFileApi labFileApi;
     private final AnalysisApi analysisApi;
     private final AntibioticApi antibioticApi;
+    private final FormulaRecalculationService formulaRecalc;
     private final ApplicationEventPublisher events;
     private final Clock clock;
 
@@ -81,6 +82,7 @@ public class ResultService {
                 val == null ? null : matchInterval(r, new AnalysisId(r.getAnalysisId()));
         boolean wasDraft = r.getState() == ResultState.DRAFT;
         r.setLineValue(lineId, new NewLineValue(val, req.commentText()), matched);
+        formulaRecalc.recompute(r.getLabFileId());
         if (wasDraft && r.getState() == ResultState.ENTERED) {
             events.publishEvent(
                     new ResultEntered(
@@ -97,6 +99,7 @@ public class ResultService {
                 repo.findActiveById(id.value()).orElseThrow(() -> new ResultNotFoundException(id));
         assertDossierEditable(new LabFileId(r.getLabFileId()));
         r.clearLineValue(lineId);
+        formulaRecalc.recompute(r.getLabFileId());
     }
 
     @Transactional

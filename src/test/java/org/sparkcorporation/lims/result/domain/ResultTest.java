@@ -45,6 +45,7 @@ class ResultTest {
                 "mg/dL",
                 2,
                 null,
+                null,
                 null);
     }
 
@@ -60,6 +61,7 @@ class ResultTest {
                 Sex.M,
                 12000,
                 PatientCategory.HOMME,
+                null,
                 null,
                 null,
                 null,
@@ -102,6 +104,7 @@ class ResultTest {
                         null,
                         null,
                         null,
+                        null,
                         null);
 
         Result r = Result.create(cmd, FIXED);
@@ -130,6 +133,7 @@ class ResultTest {
                         Sex.M,
                         12000,
                         PatientCategory.HOMME,
+                        null,
                         null,
                         null,
                         null,

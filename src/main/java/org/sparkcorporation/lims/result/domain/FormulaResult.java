@@ -1,19 +1,18 @@
 package org.sparkcorporation.lims.result.domain;
 
-import java.util.Objects;
+import java.math.BigDecimal;
+
+import org.jspecify.annotations.Nullable;
 
 /**
- * Permit of {@link ResultValue} for catalog {@code ResultType.FORMULA}. Holds the pre-rendered
- * string the client computed from the formula expression — server stores it verbatim.
+ * Permit of {@link ResultValue} for catalog {@code ResultType.FORMULA}. Server-computed numeric
+ * value (CDC §Config.8 "Formule", SP11); persisted in {@code value_real}. {@code null} means the
+ * formula could not be resolved (missing inputs / cycle) and renders blank.
  */
-public record FormulaResult(String renderedValue) implements ResultValue {
-
-    public FormulaResult {
-        Objects.requireNonNull(renderedValue, "renderedValue");
-    }
+public record FormulaResult(@Nullable BigDecimal value) implements ResultValue {
 
     @Override
     public String renderForReport() {
-        return renderedValue;
+        return value == null ? "" : value.toPlainString();
     }
 }

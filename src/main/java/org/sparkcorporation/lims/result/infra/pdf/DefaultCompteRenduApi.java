@@ -59,6 +59,16 @@ public class DefaultCompteRenduApi implements CompteRenduApi {
                                                             .append(l.componentCodeSnapshot())
                                                             .append('=')
                                                             .append(lineValue(l))
+                                                            // SP11: the unit-2 conversion factor is
+                                                            // part of the rendered (and signed)
+                                                            // content — a config change must
+                                                            // invalidate the signature.
+                                                            .append("|f=")
+                                                            .append(
+                                                                    l.conversionFactor() == null
+                                                                            ? ""
+                                                                            : l.conversionFactor()
+                                                                                    .toPlainString())
                                                             .append('|')
                                                             .append(l.isOutOfRange())
                                                             .append('\n'));

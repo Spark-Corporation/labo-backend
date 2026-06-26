@@ -24,14 +24,12 @@ public record PatchLineRequest(@Valid @Nullable ValueUnion value, @Nullable Stri
         @JsonSubTypes.Type(value = ValueUnion.IntegerVariant.class, name = "INTEGER"),
         @JsonSubTypes.Type(value = ValueUnion.RealVariant.class, name = "REAL"),
         @JsonSubTypes.Type(value = ValueUnion.TextVariant.class, name = "TEXT"),
-        @JsonSubTypes.Type(value = ValueUnion.FormulaVariant.class, name = "FORMULA"),
         @JsonSubTypes.Type(value = ValueUnion.FreeVariant.class, name = "FREE")
     })
     public sealed interface ValueUnion
             permits ValueUnion.IntegerVariant,
                     ValueUnion.RealVariant,
                     ValueUnion.TextVariant,
-                    ValueUnion.FormulaVariant,
                     ValueUnion.FreeVariant {
 
         /** Variant for {@code ResultType.INTEGER}. */
@@ -48,9 +46,6 @@ public record PatchLineRequest(@Valid @Nullable ValueUnion value, @Nullable Stri
 
         /** Variant for {@code ResultType.TEXT}. */
         record TextVariant(@NotNull String value) implements ValueUnion {}
-
-        /** Variant for {@code ResultType.FORMULA}; {@code value} is the pre-rendered string. */
-        record FormulaVariant(@NotNull String value) implements ValueUnion {}
 
         /** Variant for {@code ResultType.FREE} ("Autre"). */
         record FreeVariant(@NotNull String value) implements ValueUnion {}

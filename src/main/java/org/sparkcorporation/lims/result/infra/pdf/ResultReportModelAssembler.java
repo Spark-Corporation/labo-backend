@@ -28,6 +28,7 @@ import org.sparkcorporation.lims.catalog.api.AnalysisSummary;
 import org.sparkcorporation.lims.catalog.api.AntibioticApi;
 import org.sparkcorporation.lims.catalog.api.AntibioticId;
 import org.sparkcorporation.lims.catalog.api.AntibioticSummary;
+import org.sparkcorporation.lims.catalog.api.ReferenceIntervalSummary;
 import org.sparkcorporation.lims.iam.api.UserApi;
 import org.sparkcorporation.lims.iam.api.UserId;
 import org.sparkcorporation.lims.iam.api.UserSummary;
@@ -109,7 +110,16 @@ public class ResultReportModelAssembler {
         results.forEach(r -> analysisIds.add(r.analysisId()));
         Map<AnalysisId, AnalysisSummary> analyses = analysisApi.findAllByIds(analysisIds);
 
-        var groups = buildGroups(results, analyses);
+        // Index reference intervals by id (one batched fetch per analysis in play), so each line's
+        // referenceIntervalId resolves without an N+1. Mirrors the antibiotic batch fetch.
+        Map<String, ReferenceIntervalSummary> riById = new HashMap<>();
+        for (var analysis : analyses.values()) {
+            for (var ri : analysisApi.findActiveReferenceIntervalsByAnalysis(analysis.id())) {
+                riById.put(ri.id().value(), ri);
+            }
+        }
+
+        var groups = buildGroups(results, analyses, riById);
         var antibiograms = buildAntibiograms(results);
 
         // Electronic-signature attestation (SP3): present only once the dossier is SIGNED.
@@ -196,15 +206,20 @@ public class ResultReportModelAssembler {
     }
 
     private static List<ResultReportModel.AnalysisGroupBlock> buildGroups(
-            List<ResultSummary> results, Map<AnalysisId, AnalysisSummary> analyses) {
+            List<ResultSummary> results,
+            Map<AnalysisId, AnalysisSummary> analyses,
+            Map<String, ReferenceIntervalSummary> riById) {
         // Group ResultSummary by paillasse name (discipline name on the analysis snapshot).
         var byPaillasse = new HashMap<String, List<ResultReportModel.AnalysisRow>>();
         for (var result : results) {
             var analysis = analyses.get(result.analysisId());
             var paillasseName = analysis == null ? "Autre" : analysis.discipline().name();
             var rows = byPaillasse.computeIfAbsent(paillasseName, k -> new ArrayList<>());
+            int idx = 0;
             for (var line : result.lines()) {
-                rows.add(toAnalysisRow(line));
+                // Interpretation belongs to the analysis: render it once, under the first row.
+                rows.add(toAnalysisRow(line, analysis, riById, idx == 0));
+                idx++;
             }
         }
         return byPaillasse.entrySet().stream()
@@ -213,23 +228,63 @@ public class ResultReportModelAssembler {
                 .toList();
     }
 
-    private static ResultReportModel.AnalysisRow toAnalysisRow(ResultSummary.LineSummary line) {
+    private static ResultReportModel.AnalysisRow toAnalysisRow(
+            ResultSummary.LineSummary line,
+            @Nullable AnalysisSummary analysis,
+            Map<String, ReferenceIntervalSummary> riById,
+            boolean withInterpretation) {
+        var ri =
+                line.referenceIntervalId() == null
+                        ? null
+                        : riById.get(line.referenceIntervalId().value());
+        BigDecimal numeric = numericValue(line);
+        String unit2 = line.unit2Snapshot();
+        // Only render a unit-2 value when the analysis actually has a second unit configured, so a
+        // misconfigured factor-without-unit can't print a bare number in an empty-unit column.
+        String value2 =
+                unit2 == null
+                        ? null
+                        : UnitValueFormatter.unit2Value(
+                                numeric, line.conversionFactor(), line.unit2Decimals());
+        String interpretation = null;
+        if (withInterpretation && analysis != null) {
+            var text = analysis.interpretationText();
+            if (text != null && !text.isBlank()) {
+                interpretation = text;
+            }
+        }
         return new ResultReportModel.AnalysisRow(
                 line.componentCodeSnapshot(),
-                line.componentCodeSnapshot(), // label = code by default until catalog labels
-                // are wired
+                line.componentCodeSnapshot(), // label = code by default until catalog labels wired
                 displayValue(line),
-                "", // reference range — chunk 7 widens this once the RI snapshot is wired
                 line.unit1Snapshot() == null ? "" : line.unit1Snapshot(),
+                value2,
+                unit2,
+                ReferenceIntervalFormatter.unit1(ri),
+                unit2 == null ? null : ReferenceIntervalFormatter.unit2(ri),
                 line.isOutOfRange(),
-                line.commentText());
+                line.commentText(),
+                interpretation);
+    }
+
+    /** The line's numeric value (INTEGER widened, REAL/FORMULA as-is); {@code null} for text. */
+    private static @Nullable BigDecimal numericValue(ResultSummary.LineSummary line) {
+        return switch (line.resultType()) {
+            case INTEGER ->
+                    line.valueInteger() == null ? null : BigDecimal.valueOf(line.valueInteger());
+            case REAL, FORMULA -> line.valueReal();
+            case TEXT, FREE -> null;
+        };
     }
 
     private static String displayValue(ResultSummary.LineSummary line) {
         return switch (line.resultType()) {
-            case INTEGER -> line.valueInteger() == null ? "" : line.valueInteger().toString();
-            case REAL -> line.valueReal() == null ? "" : line.valueReal().toPlainString();
-            case TEXT, FORMULA, FREE -> line.valueText() == null ? "" : line.valueText();
+            case INTEGER -> UnitValueFormatter.unit1Value(numericValue(line), line.unit1Decimals());
+            // REAL and FORMULA are both numeric in value_real (SP11); format to configured
+            // decimals.
+            case REAL, FORMULA ->
+                    UnitValueFormatter.unit1Value(line.valueReal(), line.unit1Decimals());
+            case TEXT, FREE -> line.valueText() == null ? "" : line.valueText();
         };
     }
 

@@ -17,7 +17,6 @@ import org.sparkcorporation.lims.result.api.ResultId;
 import org.sparkcorporation.lims.result.api.ResultLineId;
 import org.sparkcorporation.lims.result.api.ResultState;
 import org.sparkcorporation.lims.result.api.ResultSummary;
-import org.sparkcorporation.lims.result.domain.FormulaResult;
 import org.sparkcorporation.lims.result.domain.FreeFormResult;
 import org.sparkcorporation.lims.result.domain.IntegerResult;
 import org.sparkcorporation.lims.result.domain.NumericResult;
@@ -54,14 +53,6 @@ class ResultMapperTest {
         var result = ResultMapper.toDomainValue(union);
         assertThat(result).isInstanceOf(TextResult.class);
         assertThat(((TextResult) result).value()).isEqualTo("Positif");
-    }
-
-    @Test
-    void toDomainValue_formula_variant_produces_FormulaResult() {
-        var union = new PatchLineRequest.ValueUnion.FormulaVariant("EXPR");
-        var result = ResultMapper.toDomainValue(union);
-        assertThat(result).isInstanceOf(FormulaResult.class);
-        assertThat(((FormulaResult) result).renderedValue()).isEqualTo("EXPR");
     }
 
     @Test
@@ -115,6 +106,7 @@ class ResultMapperTest {
                 null,
                 "mmol/L",
                 2,
+                null,
                 null,
                 null,
                 refId,

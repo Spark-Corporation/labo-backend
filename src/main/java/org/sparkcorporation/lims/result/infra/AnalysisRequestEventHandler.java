@@ -103,7 +103,8 @@ public class AnalysisRequestEventHandler {
                         analysis.units().unit1(),
                         analysis.units().unit1Decimals(),
                         analysis.units().unit2(),
-                        analysis.units().unit2Decimals());
+                        analysis.units().unit2Decimals(),
+                        analysis.units().conversionFactor());
 
         Result r = Result.create(cmd, clock);
         repo.save(r);

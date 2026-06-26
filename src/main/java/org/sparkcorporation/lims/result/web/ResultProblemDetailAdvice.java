@@ -15,6 +15,7 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 
 import org.sparkcorporation.lims.result.domain.AntibiogramAntibioticNotFoundException;
 import org.sparkcorporation.lims.result.domain.DossierLockedException;
+import org.sparkcorporation.lims.result.domain.FormulaLineNotEditableException;
 import org.sparkcorporation.lims.result.domain.IllegalStateTransitionException;
 import org.sparkcorporation.lims.result.domain.ResultLineKindMismatchException;
 import org.sparkcorporation.lims.result.domain.ResultLockedException;
@@ -117,6 +118,19 @@ public class ResultProblemDetailAdvice {
         pd.setProperty("lineId", ex.lineId().value());
         pd.setProperty("lineType", ex.lineType().name());
         pd.setProperty("requestKind", ex.requestKind());
+        return pd;
+    }
+
+    @ExceptionHandler(FormulaLineNotEditableException.class)
+    public ProblemDetail handleFormulaNotEditable(
+            FormulaLineNotEditableException ex, HttpServletRequest req) {
+        var pd =
+                problem422(
+                        ex.getMessage(),
+                        "/errors/result/result-line.formula-not-editable",
+                        "Formula line is not operator-editable",
+                        req);
+        pd.setProperty("lineId", ex.lineId().value());
         return pd;
     }
 

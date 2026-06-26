@@ -63,6 +63,7 @@ public final class ResultSummaryMapper {
                 l.getUnit1Decimals(),
                 l.getUnit2Snapshot(),
                 l.getUnit2Decimals(),
+                l.getUnit1To2Factor(),
                 l.getReferenceIntervalId() == null
                         ? null
                         : new ReferenceIntervalId(l.getReferenceIntervalId()),
