@@ -4,7 +4,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import java.math.BigDecimal;
 import java.time.Clock;
-import java.util.Set;
 
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -163,59 +162,5 @@ class JpaReferenceIntervalRepositoryTest extends IntegrationTestBase {
         repo.deleteById(ri.rawId());
         repo.flush();
         assertThat(repo.findActiveByAnalysisId(aid.value())).isEmpty();
-    }
-
-    @Test
-    void softDeleteByAnalysisIdAndCategoryIn_affects_only_matching_categories() {
-        var aid = persistAnalysis("BULK");
-        repo.save(
-                standard(
-                        aid,
-                        PatientCategory.HOMME,
-                        new BigDecimal("1"),
-                        new BigDecimal("2"),
-                        null));
-        repo.save(
-                standard(
-                        aid,
-                        PatientCategory.FEMME,
-                        new BigDecimal("1"),
-                        new BigDecimal("2"),
-                        null));
-        repo.save(
-                standard(
-                        aid,
-                        PatientCategory.ENFANT,
-                        new BigDecimal("1"),
-                        new BigDecimal("2"),
-                        null));
-        repo.flush();
-
-        int count =
-                repo.softDeleteByAnalysisIdAndCategoryIn(
-                        aid.value(), Set.of(PatientCategory.HOMME, PatientCategory.FEMME));
-        repo.flush();
-
-        assertThat(count).isEqualTo(2);
-        assertThat(repo.findActiveByAnalysisId(aid.value()))
-                .hasSize(1)
-                .allSatisfy(ri -> assertThat(ri.category()).isEqualTo(PatientCategory.ENFANT));
-    }
-
-    @Test
-    void softDeleteByAnalysisIdAndCategoryIn_returns_zero_when_none_match() {
-        var aid = persistAnalysis("ZERO");
-        repo.save(
-                standard(
-                        aid,
-                        PatientCategory.HOMME,
-                        new BigDecimal("1"),
-                        new BigDecimal("2"),
-                        null));
-        repo.flush();
-        int count =
-                repo.softDeleteByAnalysisIdAndCategoryIn(
-                        aid.value(), Set.of(PatientCategory.NOURRISSON_NOUVEAU_NE));
-        assertThat(count).isZero();
     }
 }

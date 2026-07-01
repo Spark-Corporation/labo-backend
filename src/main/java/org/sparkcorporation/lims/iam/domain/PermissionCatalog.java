@@ -3,7 +3,7 @@ package org.sparkcorporation.lims.iam.domain;
 import java.util.Set;
 
 /**
- * Tech doc §9.5 permission catalog. Static set of 50 strings. Used as the source of truth for
+ * Tech doc §9.5 permission catalog. Static set of 51 strings. Used as the source of truth for
  * {@code @RequiresPermission(...)} keys; an integrity test at startup verifies this set matches the
  * DB-seeded {@code permissions.name} column set.
  *
@@ -45,6 +45,11 @@ import java.util.Set;
  * /api/v1/samples/{id}:mark-destroyed} disposal surface (CDC Onglet « Conservation »); seeded via
  * {@code 202606181005-grant-sample-destroy} and granted to the {@code ADMIN}, {@code BIOLOGIST} and
  * {@code TECHNICIAN} roles.
+ *
+ * <p>{@code catalog.view-history} added in SP12 for the new {@code GET
+ * /api/v1/catalog/analyses/{id}/history} config-modification-history surface (CDC Configurations
+ * §8/§9); seeded via {@code 202606291004-seed-catalog-view-history-permission} and granted to the
+ * {@code ADMIN} and {@code LAB_MANAGER} roles (the same roles that hold {@code catalog.manage}).
  */
 public final class PermissionCatalog {
 
@@ -79,6 +84,7 @@ public final class PermissionCatalog {
                     "cashbox.close-day",
                     "home-collection-fee.record",
                     "catalog.manage",
+                    "catalog.view-history",
                     "prescriber.manage",
                     "insurance.manage",
                     "partner.manage",

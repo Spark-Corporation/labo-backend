@@ -30,8 +30,9 @@ import org.sparkcorporation.lims.catalog.domain.NewReferenceInterval;
 
 /**
  * Admin REST controller for {@link org.sparkcorporation.lims.catalog.domain.Analysis} per spec §5.5
- * — 13 endpoints under {@code /api/v1/catalog/analyses/*}, all gated by
- * {@code @RequiresPermission("catalog.manage")}.
+ * — endpoints under {@code /api/v1/catalog/analyses/*}. The config-management endpoints are gated
+ * by {@code @RequiresPermission("catalog.manage")}; the SP12 config-history read endpoint ({@code
+ * GET /{id}/history}) is gated by {@code catalog.view-history}.
  *
  * <p>PATCH semantics (spec §5.5): {@code code} and {@code kind} are immutable. The PATCH endpoint
  * binds the body as a {@code Map} first to detect either field explicitly and reject with 422
@@ -44,6 +45,7 @@ public class AnalysisAdminController {
 
     private final AnalysisService service;
     private final ReferenceIntervalService intervalService;
+    private final AnalysisHistoryService historyService;
     private final AnalysisMapper mapper;
     private final ReferenceIntervalMapper intervalMapper;
     private final ObjectMapper json;
@@ -69,6 +71,16 @@ public class AnalysisAdminController {
     @RequiresPermission("catalog.manage")
     public AnalysisResponse get(@PathVariable String id) {
         return service.get(AnalysisId.of(id));
+    }
+
+    /** SP12: configuration-modification history (CDC Configurations §8/§9). */
+    @GetMapping("/{id}/history")
+    @RequiresPermission("catalog.view-history")
+    public AnalysisHistoryResponse history(
+            @PathVariable String id,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size) {
+        return historyService.history(AnalysisId.of(id), page, size);
     }
 
     @PatchMapping("/{id}")

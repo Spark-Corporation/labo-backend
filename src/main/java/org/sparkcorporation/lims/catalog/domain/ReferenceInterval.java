@@ -13,6 +13,7 @@ import jakarta.persistence.Table;
 import jakarta.persistence.Version;
 
 import org.hibernate.annotations.SQLDelete;
+import org.hibernate.envers.Audited;
 import org.jspecify.annotations.Nullable;
 
 import org.sparkcorporation.lims.catalog.api.AnalysisId;
@@ -42,6 +43,7 @@ import org.sparkcorporation.lims.shared.domain.Sex;
  */
 @Entity
 @Table(name = "reference_intervals")
+@Audited
 @SQLDelete(
         sql =
                 "UPDATE reference_intervals SET deleted_at = now(), version = version + 1 WHERE id"

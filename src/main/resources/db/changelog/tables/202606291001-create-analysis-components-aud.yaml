@@ -1,0 +1,34 @@
+databaseChangeLog:
+  - changeSet:
+      id: 202606291001-create-analysis-components-aud
+      author: samuel
+      contextFilter: dev,test,prod
+      labels: sp12-catalog-audit
+      preConditions:
+        - onFail: HALT
+        - tableExists: { tableName: revinfo }
+        - not:
+            - tableExists: { tableName: analysis_components_aud }
+      changes:
+        # Envers audit-history table for @Audited AnalysisComponent (grouped-analysis membership,
+        # CDC §9). Transcribed from hbm2ddl; PK (rev, child_id, parent_id) mirrors the composite
+        # @IdClass key plus the revision number.
+        - createTable:
+            tableName: analysis_components_aud
+            columns:
+              - column: { name: parent_id, type: varchar(26), constraints: { nullable: false } }
+              - column: { name: child_id, type: varchar(26), constraints: { nullable: false } }
+              - column: { name: rev, type: int, constraints: { nullable: false } }
+              - column: { name: revtype, type: smallint }
+              - column: { name: position, type: integer }
+        - addPrimaryKey:
+            tableName: analysis_components_aud
+            columnNames: "rev, child_id, parent_id"
+            constraintName: pk_analysis_components_aud
+        - addForeignKeyConstraint:
+            baseTableName: analysis_components_aud
+            baseColumnNames: rev
+            referencedTableName: revinfo
+            referencedColumnNames: rev
+            constraintName: fk_analysis_components_aud_revinfo
+      # rollback: AUTHORED BY USER

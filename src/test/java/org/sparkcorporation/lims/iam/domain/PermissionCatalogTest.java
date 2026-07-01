@@ -11,8 +11,8 @@ class PermissionCatalogTest {
     private static final Pattern NAME_FORMAT = Pattern.compile("^[a-z][a-z0-9.\\-]*$");
 
     @Test
-    void contains_exactly_50_permissions() {
-        assertThat(PermissionCatalog.ALL).hasSize(50);
+    void contains_exactly_51_permissions() {
+        assertThat(PermissionCatalog.ALL).hasSize(51);
     }
 
     @Test
@@ -47,5 +47,10 @@ class PermissionCatalogTest {
     @Test
     void includes_sample_destroy() {
         assertThat(PermissionCatalog.ALL).contains("sample.destroy");
+    }
+
+    @Test
+    void includes_catalog_view_history() {
+        assertThat(PermissionCatalog.ALL).contains("catalog.view-history");
     }
 }

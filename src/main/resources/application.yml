@@ -13,6 +13,12 @@ spring:
     properties:
       hibernate:
         default_schema: lims
+      # Retain the full entity state on DEL revisions (SP12). Without this, Envers stores only the
+      # id on a delete, leaving FK columns (e.g. reference_intervals_aud.analysis_id) null — which
+      # makes it impossible to associate a deleted row with its owning analysis when building the
+      # config-history timeline. Full Envers key (not under `hibernate.*`). Applies to all @Audited
+      # entities.
+      "[org.hibernate.envers.store_data_at_delete]": true
   liquibase:
     change-log: classpath:db/changelog/master.changelog.yaml
     default-schema: lims

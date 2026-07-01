@@ -1,0 +1,46 @@
+databaseChangeLog:
+  - changeSet:
+      id: 202606291003-create-reference-intervals-aud
+      author: samuel
+      contextFilter: dev,test,prod
+      labels: sp12-catalog-audit
+      preConditions:
+        - onFail: HALT
+        - tableExists: { tableName: revinfo }
+        - not:
+            - tableExists: { tableName: reference_intervals_aud }
+      changes:
+        # Envers audit-history table for @Audited ReferenceInterval (valeurs usuelles, CDC §8).
+        # Transcribed from hbm2ddl; enum CHECK constraints omitted (validate ignores them).
+        - createTable:
+            tableName: reference_intervals_aud
+            columns:
+              - column: { name: id, type: varchar(26), constraints: { nullable: false } }
+              - column: { name: rev, type: int, constraints: { nullable: false } }
+              - column: { name: revtype, type: smallint }
+              - column: { name: analysis_id, type: varchar(26) }
+              - column: { name: category, type: varchar(25) }
+              - column: { name: sex, type: "char(1)" }
+              - column: { name: age_min, type: integer }
+              - column: { name: age_max, type: integer }
+              - column: { name: age_unit, type: varchar(10) }
+              - column: { name: mode, type: varchar(10) }
+              - column: { name: unit_1_min, type: "numeric(18,4)" }
+              - column: { name: unit_1_max, type: "numeric(18,4)" }
+              - column: { name: unit_2_min, type: "numeric(18,4)" }
+              - column: { name: unit_2_max, type: "numeric(18,4)" }
+              - column: { name: comment_text, type: TEXT }
+              - column: { name: created_at, type: "timestamp(6) with time zone" }
+              - column: { name: updated_at, type: "timestamp(6) with time zone" }
+              - column: { name: deleted_at, type: "timestamp(6) with time zone" }
+        - addPrimaryKey:
+            tableName: reference_intervals_aud
+            columnNames: "rev, id"
+            constraintName: pk_reference_intervals_aud
+        - addForeignKeyConstraint:
+            baseTableName: reference_intervals_aud
+            baseColumnNames: rev
+            referencedTableName: revinfo
+            referencedColumnNames: rev
+            constraintName: fk_reference_intervals_aud_revinfo
+      # rollback: AUTHORED BY USER

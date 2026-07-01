@@ -75,6 +75,7 @@ class AnalysisAdminControllerTest {
     @Autowired private MockMvc mvc;
     @MockitoBean private AnalysisService service;
     @MockitoBean private ReferenceIntervalService intervalService;
+    @MockitoBean private AnalysisHistoryService historyService;
 
     private final ObjectMapper json = new ObjectMapper().findAndRegisterModules();
 

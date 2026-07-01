@@ -1,0 +1,33 @@
+databaseChangeLog:
+  - changeSet:
+      id: 202606291002-create-analysis-techniques-aud
+      author: samuel
+      contextFilter: dev,test,prod
+      labels: sp12-catalog-audit
+      preConditions:
+        - onFail: HALT
+        - tableExists: { tableName: revinfo }
+        - not:
+            - tableExists: { tableName: analysis_techniques_aud }
+      changes:
+        # Envers audit-history table for @Audited AnalysisTechniqueLink (analysis technique links +
+        # is_default flag, CDC §8). Transcribed from hbm2ddl; PK (rev, analysis_id, technique_id).
+        - createTable:
+            tableName: analysis_techniques_aud
+            columns:
+              - column: { name: analysis_id, type: varchar(26), constraints: { nullable: false } }
+              - column: { name: technique_id, type: varchar(26), constraints: { nullable: false } }
+              - column: { name: rev, type: int, constraints: { nullable: false } }
+              - column: { name: revtype, type: smallint }
+              - column: { name: is_default, type: boolean }
+        - addPrimaryKey:
+            tableName: analysis_techniques_aud
+            columnNames: "rev, analysis_id, technique_id"
+            constraintName: pk_analysis_techniques_aud
+        - addForeignKeyConstraint:
+            baseTableName: analysis_techniques_aud
+            baseColumnNames: rev
+            referencedTableName: revinfo
+            referencedColumnNames: rev
+            constraintName: fk_analysis_techniques_aud_revinfo
+      # rollback: AUTHORED BY USER

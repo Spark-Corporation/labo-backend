@@ -2,7 +2,6 @@ package org.sparkcorporation.lims.catalog.web;
 
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -171,7 +170,14 @@ class ReferenceIntervalServiceTest {
         var sourceInterval = standardInterval(a.id(), PatientCategory.HOMME);
         when(repo.findActiveByAnalysisIdAndCategory(a.rawId(), PatientCategory.HOMME))
                 .thenReturn(List.of(sourceInterval));
-        when(repo.softDeleteByAnalysisIdAndCategoryIn(eq(a.rawId()), any())).thenReturn(0);
+        // Each target category has one pre-existing interval that must be soft-deleted
+        // entity-by-entity (so Envers records the DEL) before re-cloning the source.
+        var existingFemme = standardInterval(a.id(), PatientCategory.FEMME);
+        var existingEnfant = standardInterval(a.id(), PatientCategory.ENFANT);
+        when(repo.findActiveByAnalysisIdAndCategory(a.rawId(), PatientCategory.FEMME))
+                .thenReturn(List.of(existingFemme));
+        when(repo.findActiveByAnalysisIdAndCategory(a.rawId(), PatientCategory.ENFANT))
+                .thenReturn(List.of(existingEnfant));
         when(repo.save(any(ReferenceInterval.class))).thenAnswer(inv -> inv.getArgument(0));
 
         service.replicate(
@@ -179,11 +185,9 @@ class ReferenceIntervalServiceTest {
                 PatientCategory.HOMME,
                 EnumSet.of(PatientCategory.FEMME, PatientCategory.ENFANT));
 
-        // Soft-delete invoked once for the target categories.
-        verify(repo, times(1))
-                .softDeleteByAnalysisIdAndCategoryIn(
-                        eq(a.rawId()),
-                        eq(EnumSet.of(PatientCategory.FEMME, PatientCategory.ENFANT)));
+        // Entity-level soft-delete of each pre-existing target interval (NOT a bulk update).
+        verify(repo).delete(existingFemme);
+        verify(repo).delete(existingEnfant);
         // Save invoked once per (target × source intervals) — 2 targets × 1 source = 2 saves.
         verify(repo, times(2)).save(any(ReferenceInterval.class));
         verify(events).publishEvent(any(IntervalsReplicated.class));

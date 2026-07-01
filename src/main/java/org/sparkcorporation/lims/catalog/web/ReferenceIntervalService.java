@@ -81,7 +81,14 @@ public class ReferenceIntervalService {
         if (sourceIntervals.isEmpty()) {
             throw new NoIntervalsToReplicateException(source);
         }
-        repo.softDeleteByAnalysisIdAndCategoryIn(id.value(), resolvedTargets);
+        // Entity-level soft-delete (not a bulk @Modifying update) so the @SQLDelete mapping fires
+        // the Envers DEL event and the removal is captured in the config history (SP12). Bulk DML
+        // bypasses Envers entirely.
+        for (var target : resolvedTargets) {
+            for (var existing : repo.findActiveByAnalysisIdAndCategory(id.value(), target)) {
+                repo.delete(existing);
+            }
+        }
         int count = 0;
         for (var target : resolvedTargets) {
             for (var s : sourceIntervals) {

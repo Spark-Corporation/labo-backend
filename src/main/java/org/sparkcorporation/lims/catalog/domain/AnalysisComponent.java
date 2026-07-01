@@ -6,6 +6,8 @@ import jakarta.persistence.Id;
 import jakarta.persistence.IdClass;
 import jakarta.persistence.Table;
 
+import org.hibernate.envers.Audited;
+
 import org.sparkcorporation.lims.catalog.api.AnalysisId;
 
 /**
@@ -15,6 +17,7 @@ import org.sparkcorporation.lims.catalog.api.AnalysisId;
  */
 @Entity
 @Table(name = "analysis_components")
+@Audited
 @IdClass(AnalysisComponentKey.class)
 public class AnalysisComponent {
 

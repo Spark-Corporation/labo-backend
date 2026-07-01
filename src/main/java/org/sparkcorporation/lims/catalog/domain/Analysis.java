@@ -24,6 +24,9 @@ import jakarta.persistence.Table;
 import jakarta.persistence.Version;
 
 import org.hibernate.annotations.SQLDelete;
+import org.hibernate.envers.Audited;
+import org.hibernate.envers.NotAudited;
+import org.hibernate.envers.RelationTargetAuditMode;
 import org.jspecify.annotations.Nullable;
 
 import org.sparkcorporation.lims.catalog.api.AnalysisCode;
@@ -44,6 +47,7 @@ import org.sparkcorporation.lims.catalog.api.ResultType;
  */
 @Entity
 @Table(name = "analyses")
+@Audited
 @SQLDelete(
         sql =
                 "UPDATE analyses SET deleted_at = now(), version = version + 1 WHERE id = ? AND"
@@ -72,16 +76,19 @@ public class Analysis {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "discipline_id", nullable = false)
+    @Audited(targetAuditMode = RelationTargetAuditMode.NOT_AUDITED)
     @Nullable
     private Discipline discipline;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "matrix_id")
+    @Audited(targetAuditMode = RelationTargetAuditMode.NOT_AUDITED)
     @Nullable
     private Matrix matrix;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "recipient_id")
+    @Audited(targetAuditMode = RelationTargetAuditMode.NOT_AUDITED)
     @Nullable
     private Recipient recipient;
 
@@ -109,13 +116,19 @@ public class Analysis {
 
     @Embedded private AnalyticalDelay delay;
 
+    // @NotAudited: the join column (parent_id / analysis_id) is also the child's @Id, which makes
+    // Envers' audited-collection mapping emit a duplicated column. AnalysisComponent and
+    // AnalysisTechniqueLink are audited as independent entities instead (SP12), and their config
+    // history is reconstructed by querying their own *_aud tables by parent_id / analysis_id.
     @OneToMany(cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
     @JoinColumn(name = "parent_id")
     @OrderBy("position ASC")
+    @NotAudited
     private List<AnalysisComponent> components = new ArrayList<>();
 
     @OneToMany(cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
     @JoinColumn(name = "analysis_id")
+    @NotAudited
     private Set<AnalysisTechniqueLink> techniques = new HashSet<>();
 
     @Column(name = "created_at", nullable = false, updatable = false)
