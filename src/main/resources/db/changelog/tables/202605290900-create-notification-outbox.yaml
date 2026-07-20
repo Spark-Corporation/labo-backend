@@ -1,0 +1,39 @@
+databaseChangeLog:
+  - changeSet:
+      id: 202605290900-create-notification-outbox
+      author: samuel
+      contextFilter: dev,test,prod
+      labels: sp4-notifications
+      preConditions:
+        - onFail: HALT
+        - not:
+            - tableExists: { tableName: notification_outbox }
+      changes:
+        - createTable:
+            tableName: notification_outbox
+            columns:
+              - column: { name: id, type: varchar(26), constraints: { primaryKey: true, nullable: false } }
+              - column: { name: channel, type: varchar(16), constraints: { nullable: false } }
+              - column: { name: recipient, type: varchar(255), constraints: { nullable: false } }
+              - column: { name: subject, type: varchar(255) }
+              - column: { name: body, type: text, constraints: { nullable: false } }
+              - column: { name: attachment_filename, type: varchar(255) }
+              - column: { name: attachment_content_type, type: varchar(100) }
+              - column: { name: attachment_bytes, type: bytea }
+              - column: { name: status, type: varchar(16), constraints: { nullable: false } }
+              - column: { name: attempts, type: int, defaultValueNumeric: 0, constraints: { nullable: false } }
+              - column: { name: next_attempt_at, type: timestamptz, constraints: { nullable: false } }
+              - column: { name: last_error, type: text }
+              - column: { name: context_type, type: varchar(16) }
+              - column: { name: context_id, type: varchar(26) }
+              - column: { name: created_at, type: timestamptz, constraints: { nullable: false } }
+              - column: { name: sent_at, type: timestamptz }
+        - createIndex:
+            tableName: notification_outbox
+            indexName: idx_notification_outbox_due
+            columns: [{ column: { name: status } }, { column: { name: next_attempt_at } }]
+        - createIndex:
+            tableName: notification_outbox
+            indexName: idx_notification_outbox_context
+            columns: [{ column: { name: context_type } }, { column: { name: context_id } }]
+      # rollback: AUTHORED BY USER  (proposed: dropTable notification_outbox)

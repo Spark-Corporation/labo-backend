@@ -1,0 +1,13 @@
+databaseChangeLog:
+  - changeSet:
+      id: 202605041030-create-lims-schema
+      author: samuel
+      comment: Create the LIMS schema (no tables yet)
+      changes:
+        - sql:
+            sql: CREATE SCHEMA IF NOT EXISTS lims
+            stripComments: false
+      rollback:
+        - sql:
+            sql: DROP SCHEMA IF EXISTS lims CASCADE
+            stripComments: false

@@ -1,0 +1,30 @@
+databaseChangeLog:
+  - changeSet:
+      id: 202605051001-create-patient-code-counters
+      author: samuel
+      labels: phase-1-2
+      preConditions:
+        - onFail: HALT
+        - not:
+            - tableExists: { tableName: patient_code_counters }
+      changes:
+        - createTable:
+            tableName: patient_code_counters
+            columns:
+              - column:
+                  name: lab_prefix
+                  type: varchar(5)
+                  constraints: { nullable: false }
+              - column:
+                  name: day
+                  type: date
+                  constraints: { nullable: false }
+              - column:
+                  name: sequence
+                  type: int
+                  defaultValueNumeric: 0
+                  constraints: { nullable: false }
+        - addPrimaryKey:
+            tableName: patient_code_counters
+            columnNames: lab_prefix, day
+            constraintName: pk_patient_code_counters

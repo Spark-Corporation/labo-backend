@@ -1,0 +1,26 @@
+databaseChangeLog:
+  - changeSet:
+      id: 202605120810-add-patients-insurance-partner-fks
+      author: samuel
+      preconditions:
+        - tableExists: { tableName: insurances }
+        - tableExists: { tableName: partners }
+      changes:
+        - addColumn:
+            tableName: patients
+            columns:
+              - column: { name: insurance_id, type: varchar(26) }
+              - column: { name: partner_id, type: varchar(26) }
+        - addForeignKeyConstraint:
+            baseTableName: patients
+            baseColumnNames: insurance_id
+            referencedTableName: insurances
+            referencedColumnNames: id
+            constraintName: patients_insurance_fk
+        - addForeignKeyConstraint:
+            baseTableName: patients
+            baseColumnNames: partner_id
+            referencedTableName: partners
+            referencedColumnNames: id
+            constraintName: patients_partner_fk
+      # rollback: AUTHORED BY USER

@@ -1,0 +1,263 @@
+# Seed the 9 cashbox permissions introduced in 1.7.a chunk 2 and their role grants.
+# Grant matrix per spec §9.5:
+#   cashbox.expense-category.read      RECEPTIONIST, LAB_MANAGER, BIOLOGIST, ACCOUNTANT, CASHIER
+#   cashbox.expense-category.manage    LAB_MANAGER
+#   cashbox.expense.read               RECEPTIONIST, LAB_MANAGER, ACCOUNTANT, CASHIER
+#   cashbox.expense.record             RECEPTIONIST, LAB_MANAGER, CASHIER
+#   cashbox.home-collection.read       RECEPTIONIST, LAB_MANAGER, ACCOUNTANT, CASHIER
+#   cashbox.home-collection.record     RECEPTIONIST, LAB_MANAGER, CASHIER
+#   cashbox.journal.read               RECEPTIONIST, LAB_MANAGER, ACCOUNTANT, CASHIER
+#   cashbox.session.close              RECEPTIONIST, LAB_MANAGER, CASHIER
+#   cashbox.session.reopen             LAB_MANAGER
+#
+# Role ULIDs from 202605061001-seed-iam-catalog.yaml:
+#   ROLE_LAB_MANAGER    = 01KQZ0WPVP2EM2DF5E5RKVE7GP
+#   ROLE_BIOLOGIST      = 01KQZ0WPVPH1378BY4T3Y8QBB1
+#   ROLE_RECEPTIONIST   = 01KQZ0WPVPT1RA89KGHRZE3RSF
+#   ROLE_CASHIER        = 01KQZ0WPVPKM5QMKSEGP9REH7X
+#   ROLE_ACCOUNTANT     = 01KQZ0WPVP2ZCER149WMN014CB
+#
+# Permission ULIDs (captured from UlidGenerator throwaway helper, deleted before commit):
+#   cashbox.expense-category.read     = 01KRXY4CP5XBW747K8245Z8VRQ
+#   cashbox.expense-category.manage   = 01KRXY4CP5GSF3H2KTZ58QXSCE
+#   cashbox.expense.read              = 01KRXY4CP5KBWRXECZ6ASFK03D
+#   cashbox.expense.record            = 01KRXY4CP56V4Z1NM1RBSZJENK
+#   cashbox.home-collection.read      = 01KRXY4CP5W9H6T2TR952VYBR1
+#   cashbox.home-collection.record    = 01KRXY4CP5AK92BRN7METPE6YM
+#   cashbox.journal.read              = 01KRXY4CP5DFF5CGG9DH0QQEED
+#   cashbox.session.close             = 01KRXY4CP52R27RGR4BBYQ5Y0D
+#   cashbox.session.reopen            = 01KRXY4CP5PXCKY6REPX5QC9E8
+#
+# TODO: author rollback block — domain semantics required (CLAUDE.md rule)
+databaseChangeLog:
+  - changeSet:
+      id: 202605180930-seed-cashbox-permissions
+      author: samuel
+      contextFilter: dev,test,prod
+      labels: phase-1-7-a,permissions
+      preConditions:
+        - onFail: MARK_RAN
+        - sqlCheck:
+            expectedResult: 0
+            sql: SELECT COUNT(*) FROM permissions WHERE name = 'cashbox.expense-category.read'
+      changes:
+        # ---- Permission: cashbox.expense-category.read ----
+        - insert:
+            tableName: permissions
+            columns:
+              - column: { name: id, value: "01KRXY4CP5XBW747K8245Z8VRQ" }
+              - column: { name: name, value: "cashbox.expense-category.read" }
+              - column: { name: description, value: "Read cashbox expense-category catalog" }
+              - column: { name: cdc_clause, value: "VIII" }
+        - insert:
+            tableName: role_permissions
+            columns:
+              - column: { name: role_id, value: "01KQZ0WPVPT1RA89KGHRZE3RSF" }
+              - column: { name: permission_id, value: "01KRXY4CP5XBW747K8245Z8VRQ" }
+        - insert:
+            tableName: role_permissions
+            columns:
+              - column: { name: role_id, value: "01KQZ0WPVP2EM2DF5E5RKVE7GP" }
+              - column: { name: permission_id, value: "01KRXY4CP5XBW747K8245Z8VRQ" }
+        - insert:
+            tableName: role_permissions
+            columns:
+              - column: { name: role_id, value: "01KQZ0WPVPH1378BY4T3Y8QBB1" }
+              - column: { name: permission_id, value: "01KRXY4CP5XBW747K8245Z8VRQ" }
+        - insert:
+            tableName: role_permissions
+            columns:
+              - column: { name: role_id, value: "01KQZ0WPVP2ZCER149WMN014CB" }
+              - column: { name: permission_id, value: "01KRXY4CP5XBW747K8245Z8VRQ" }
+        - insert:
+            tableName: role_permissions
+            columns:
+              - column: { name: role_id, value: "01KQZ0WPVPKM5QMKSEGP9REH7X" }
+              - column: { name: permission_id, value: "01KRXY4CP5XBW747K8245Z8VRQ" }
+
+        # ---- Permission: cashbox.expense-category.manage ----
+        - insert:
+            tableName: permissions
+            columns:
+              - column: { name: id, value: "01KRXY4CP5GSF3H2KTZ58QXSCE" }
+              - column: { name: name, value: "cashbox.expense-category.manage" }
+              - column: { name: description, value: "Manage cashbox expense-category catalog" }
+              - column: { name: cdc_clause, value: "VIII" }
+        - insert:
+            tableName: role_permissions
+            columns:
+              - column: { name: role_id, value: "01KQZ0WPVP2EM2DF5E5RKVE7GP" }
+              - column: { name: permission_id, value: "01KRXY4CP5GSF3H2KTZ58QXSCE" }
+
+        # ---- Permission: cashbox.expense.read ----
+        - insert:
+            tableName: permissions
+            columns:
+              - column: { name: id, value: "01KRXY4CP5KBWRXECZ6ASFK03D" }
+              - column: { name: name, value: "cashbox.expense.read" }
+              - column: { name: description, value: "Read cashbox expenses" }
+              - column: { name: cdc_clause, value: "VIII" }
+        - insert:
+            tableName: role_permissions
+            columns:
+              - column: { name: role_id, value: "01KQZ0WPVPT1RA89KGHRZE3RSF" }
+              - column: { name: permission_id, value: "01KRXY4CP5KBWRXECZ6ASFK03D" }
+        - insert:
+            tableName: role_permissions
+            columns:
+              - column: { name: role_id, value: "01KQZ0WPVP2EM2DF5E5RKVE7GP" }
+              - column: { name: permission_id, value: "01KRXY4CP5KBWRXECZ6ASFK03D" }
+        - insert:
+            tableName: role_permissions
+            columns:
+              - column: { name: role_id, value: "01KQZ0WPVP2ZCER149WMN014CB" }
+              - column: { name: permission_id, value: "01KRXY4CP5KBWRXECZ6ASFK03D" }
+        - insert:
+            tableName: role_permissions
+            columns:
+              - column: { name: role_id, value: "01KQZ0WPVPKM5QMKSEGP9REH7X" }
+              - column: { name: permission_id, value: "01KRXY4CP5KBWRXECZ6ASFK03D" }
+
+        # ---- Permission: cashbox.expense.record ----
+        - insert:
+            tableName: permissions
+            columns:
+              - column: { name: id, value: "01KRXY4CP56V4Z1NM1RBSZJENK" }
+              - column: { name: name, value: "cashbox.expense.record" }
+              - column: { name: description, value: "Record a cashbox expense" }
+              - column: { name: cdc_clause, value: "VIII" }
+        - insert:
+            tableName: role_permissions
+            columns:
+              - column: { name: role_id, value: "01KQZ0WPVPT1RA89KGHRZE3RSF" }
+              - column: { name: permission_id, value: "01KRXY4CP56V4Z1NM1RBSZJENK" }
+        - insert:
+            tableName: role_permissions
+            columns:
+              - column: { name: role_id, value: "01KQZ0WPVP2EM2DF5E5RKVE7GP" }
+              - column: { name: permission_id, value: "01KRXY4CP56V4Z1NM1RBSZJENK" }
+        - insert:
+            tableName: role_permissions
+            columns:
+              - column: { name: role_id, value: "01KQZ0WPVPKM5QMKSEGP9REH7X" }
+              - column: { name: permission_id, value: "01KRXY4CP56V4Z1NM1RBSZJENK" }
+
+        # ---- Permission: cashbox.home-collection.read ----
+        - insert:
+            tableName: permissions
+            columns:
+              - column: { name: id, value: "01KRXY4CP5W9H6T2TR952VYBR1" }
+              - column: { name: name, value: "cashbox.home-collection.read" }
+              - column: { name: description, value: "Read cashbox home-collection fee records" }
+              - column: { name: cdc_clause, value: "VIII" }
+        - insert:
+            tableName: role_permissions
+            columns:
+              - column: { name: role_id, value: "01KQZ0WPVPT1RA89KGHRZE3RSF" }
+              - column: { name: permission_id, value: "01KRXY4CP5W9H6T2TR952VYBR1" }
+        - insert:
+            tableName: role_permissions
+            columns:
+              - column: { name: role_id, value: "01KQZ0WPVP2EM2DF5E5RKVE7GP" }
+              - column: { name: permission_id, value: "01KRXY4CP5W9H6T2TR952VYBR1" }
+        - insert:
+            tableName: role_permissions
+            columns:
+              - column: { name: role_id, value: "01KQZ0WPVP2ZCER149WMN014CB" }
+              - column: { name: permission_id, value: "01KRXY4CP5W9H6T2TR952VYBR1" }
+        - insert:
+            tableName: role_permissions
+            columns:
+              - column: { name: role_id, value: "01KQZ0WPVPKM5QMKSEGP9REH7X" }
+              - column: { name: permission_id, value: "01KRXY4CP5W9H6T2TR952VYBR1" }
+
+        # ---- Permission: cashbox.home-collection.record ----
+        - insert:
+            tableName: permissions
+            columns:
+              - column: { name: id, value: "01KRXY4CP5AK92BRN7METPE6YM" }
+              - column: { name: name, value: "cashbox.home-collection.record" }
+              - column: { name: description, value: "Record a cashbox home-collection fee" }
+              - column: { name: cdc_clause, value: "VIII" }
+        - insert:
+            tableName: role_permissions
+            columns:
+              - column: { name: role_id, value: "01KQZ0WPVPT1RA89KGHRZE3RSF" }
+              - column: { name: permission_id, value: "01KRXY4CP5AK92BRN7METPE6YM" }
+        - insert:
+            tableName: role_permissions
+            columns:
+              - column: { name: role_id, value: "01KQZ0WPVP2EM2DF5E5RKVE7GP" }
+              - column: { name: permission_id, value: "01KRXY4CP5AK92BRN7METPE6YM" }
+        - insert:
+            tableName: role_permissions
+            columns:
+              - column: { name: role_id, value: "01KQZ0WPVPKM5QMKSEGP9REH7X" }
+              - column: { name: permission_id, value: "01KRXY4CP5AK92BRN7METPE6YM" }
+
+        # ---- Permission: cashbox.journal.read ----
+        - insert:
+            tableName: permissions
+            columns:
+              - column: { name: id, value: "01KRXY4CP5DFF5CGG9DH0QQEED" }
+              - column: { name: name, value: "cashbox.journal.read" }
+              - column: { name: description, value: "Read cashbox journal des caisses" }
+              - column: { name: cdc_clause, value: "VIII" }
+        - insert:
+            tableName: role_permissions
+            columns:
+              - column: { name: role_id, value: "01KQZ0WPVPT1RA89KGHRZE3RSF" }
+              - column: { name: permission_id, value: "01KRXY4CP5DFF5CGG9DH0QQEED" }
+        - insert:
+            tableName: role_permissions
+            columns:
+              - column: { name: role_id, value: "01KQZ0WPVP2EM2DF5E5RKVE7GP" }
+              - column: { name: permission_id, value: "01KRXY4CP5DFF5CGG9DH0QQEED" }
+        - insert:
+            tableName: role_permissions
+            columns:
+              - column: { name: role_id, value: "01KQZ0WPVP2ZCER149WMN014CB" }
+              - column: { name: permission_id, value: "01KRXY4CP5DFF5CGG9DH0QQEED" }
+        - insert:
+            tableName: role_permissions
+            columns:
+              - column: { name: role_id, value: "01KQZ0WPVPKM5QMKSEGP9REH7X" }
+              - column: { name: permission_id, value: "01KRXY4CP5DFF5CGG9DH0QQEED" }
+
+        # ---- Permission: cashbox.session.close ----
+        - insert:
+            tableName: permissions
+            columns:
+              - column: { name: id, value: "01KRXY4CP52R27RGR4BBYQ5Y0D" }
+              - column: { name: name, value: "cashbox.session.close" }
+              - column: { name: description, value: "Close a cashbox session" }
+              - column: { name: cdc_clause, value: "VIII" }
+        - insert:
+            tableName: role_permissions
+            columns:
+              - column: { name: role_id, value: "01KQZ0WPVPT1RA89KGHRZE3RSF" }
+              - column: { name: permission_id, value: "01KRXY4CP52R27RGR4BBYQ5Y0D" }
+        - insert:
+            tableName: role_permissions
+            columns:
+              - column: { name: role_id, value: "01KQZ0WPVP2EM2DF5E5RKVE7GP" }
+              - column: { name: permission_id, value: "01KRXY4CP52R27RGR4BBYQ5Y0D" }
+        - insert:
+            tableName: role_permissions
+            columns:
+              - column: { name: role_id, value: "01KQZ0WPVPKM5QMKSEGP9REH7X" }
+              - column: { name: permission_id, value: "01KRXY4CP52R27RGR4BBYQ5Y0D" }
+
+        # ---- Permission: cashbox.session.reopen ----
+        - insert:
+            tableName: permissions
+            columns:
+              - column: { name: id, value: "01KRXY4CP5PXCKY6REPX5QC9E8" }
+              - column: { name: name, value: "cashbox.session.reopen" }
+              - column: { name: description, value: "Reopen a closed cashbox session" }
+              - column: { name: cdc_clause, value: "VIII" }
+        - insert:
+            tableName: role_permissions
+            columns:
+              - column: { name: role_id, value: "01KQZ0WPVP2EM2DF5E5RKVE7GP" }
+              - column: { name: permission_id, value: "01KRXY4CP5PXCKY6REPX5QC9E8" }

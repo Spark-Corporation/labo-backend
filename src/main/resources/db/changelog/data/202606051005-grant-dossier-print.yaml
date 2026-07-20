@@ -1,0 +1,36 @@
+# dossier.print = 01KYSP70PR1NTAB3C4D5E6F7G8
+databaseChangeLog:
+  - changeSet:
+      id: 202606051005-grant-dossier-print
+      author: samuel
+      contextFilter: dev,test,prod
+      labels: sp7-printing
+      preConditions:
+        - onFail: MARK_RAN
+        - sqlCheck:
+            expectedResult: 0
+            sql: SELECT COUNT(*) FROM permissions WHERE name = 'dossier.print'
+      changes:
+        - insert:
+            tableName: permissions
+            columns:
+              - column: { name: id, value: "01KYSP70PR1NTAB3C4D5E6F7G8" }
+              - column: { name: name, value: "dossier.print" }
+              - column: { name: description, value: "Marquer un dossier comme imprimé" }
+              - column: { name: cdc_clause, value: "IX" }
+        - insert: # ADMIN -> dossier.print
+            tableName: role_permissions
+            columns:
+              - column: { name: role_id, value: "01KQZ0WPVNGGWQ1HKC18A0ABSX" }
+              - column: { name: permission_id, value: "01KYSP70PR1NTAB3C4D5E6F7G8" }
+        - insert: # BIOLOGIST -> dossier.print
+            tableName: role_permissions
+            columns:
+              - column: { name: role_id, value: "01KQZ0WPVPH1378BY4T3Y8QBB1" }
+              - column: { name: permission_id, value: "01KYSP70PR1NTAB3C4D5E6F7G8" }
+        - insert: # RECEPTIONIST -> dossier.print
+            tableName: role_permissions
+            columns:
+              - column: { name: role_id, value: "01KQZ0WPVPT1RA89KGHRZE3RSF" }
+              - column: { name: permission_id, value: "01KYSP70PR1NTAB3C4D5E6F7G8" }
+      # rollback: AUTHORED BY USER

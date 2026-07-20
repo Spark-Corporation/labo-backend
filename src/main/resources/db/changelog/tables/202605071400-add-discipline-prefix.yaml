@@ -1,0 +1,76 @@
+databaseChangeLog:
+  # Block 1 — add the column nullable so the addColumn call works on any environment
+  # whose disciplines table already has rows (the 1.3.a seed at
+  # data/202605061501-seed-catalog-disciplines-matrices-recipients.yaml inserts 5 disciplines).
+  - changeSet:
+      id: 202605071400-1-add-discipline-prefix-column
+      author: samuel
+      labels: phase-1-4
+      changes:
+        - addColumn:
+            tableName: disciplines
+            columns:
+              - column:
+                  name: discipline_prefix
+                  type: varchar(32)
+                  constraints:
+                    nullable: true
+
+  # Block 1.5 — backfill the 5 seeded disciplines by code-to-prefix mapping. The 1.3.a seed
+  # uses code = DisciplinePrefix.name() (BIOCHIMIE, HEMATOLOGIE, IMMUNO_SEROLOGIE,
+  # MICROBIOLOGIE, BIOLOGIE_MOLECULAIRE), so the backfill is trivial. preConditions
+  # short-circuit when the column is already populated (re-runnable / idempotent on envs
+  # that materialized the column via a different path).
+  - changeSet:
+      id: 202605071400-1b-backfill-discipline-prefix
+      author: samuel
+      labels: phase-1-4
+      preConditions:
+        - onFail: MARK_RAN
+        - sqlCheck:
+            expectedResult: 1
+            sql: SELECT COUNT(*) FROM disciplines WHERE discipline_prefix IS NULL AND code = 'BIOCHIMIE'
+      changes:
+        - update:
+            tableName: disciplines
+            columns:
+              - column: { name: discipline_prefix, value: BIOCHIMIE }
+            where: code = 'BIOCHIMIE' AND discipline_prefix IS NULL
+        - update:
+            tableName: disciplines
+            columns:
+              - column: { name: discipline_prefix, value: HEMATOLOGIE }
+            where: code = 'HEMATOLOGIE' AND discipline_prefix IS NULL
+        - update:
+            tableName: disciplines
+            columns:
+              - column: { name: discipline_prefix, value: IMMUNO_SEROLOGIE }
+            where: code = 'IMMUNO_SEROLOGIE' AND discipline_prefix IS NULL
+        - update:
+            tableName: disciplines
+            columns:
+              - column: { name: discipline_prefix, value: MICROBIOLOGIE }
+            where: code = 'MICROBIOLOGIE' AND discipline_prefix IS NULL
+        - update:
+            tableName: disciplines
+            columns:
+              - column: { name: discipline_prefix, value: BIOLOGIE_MOLECULAIRE }
+            where: code = 'BIOLOGIE_MOLECULAIRE' AND discipline_prefix IS NULL
+
+  # Block 2 — tighten to NOT NULL. After Block 1.5 the 5 seeded disciplines have non-null
+  # prefixes; any admin-created disciplines on existing envs must be backfilled out-of-band
+  # before this changeset runs (preCondition would fail and surface the gap).
+  - changeSet:
+      id: 202605071400-2-tighten-discipline-prefix-not-null
+      author: samuel
+      labels: phase-1-4
+      preConditions:
+        - onFail: HALT
+        - sqlCheck:
+            expectedResult: 0
+            sql: SELECT COUNT(*) FROM disciplines WHERE discipline_prefix IS NULL
+      changes:
+        - addNotNullConstraint:
+            tableName: disciplines
+            columnName: discipline_prefix
+            columnDataType: varchar(32)

@@ -1,0 +1,35 @@
+databaseChangeLog:
+  - changeSet:
+      id: 202606101000-create-audit-checkpoints
+      author: samuel
+      preConditions:
+        - onFail: HALT
+        - not:
+            - tableExists: { tableName: audit_checkpoints }
+      changes:
+        - createTable:
+            tableName: audit_checkpoints
+            columns:
+              - column: { name: checkpoint_id,   type: varchar(36),  constraints: { primaryKey: true, nullable: false } }
+              - column: { name: global_sequence, type: bigint,       constraints: { nullable: false } }
+              - column: { name: timestamp,        type: text,         constraints: { nullable: false } }
+              - column: { name: chain_heads,      type: jsonb,        constraints: { nullable: false } }
+              - column: { name: merkle_root,      type: varchar(64),  constraints: { nullable: false } }
+              - column: { name: signature,        type: text,         constraints: { nullable: false } }
+              - column: { name: key_id,           type: varchar(36),  constraints: { nullable: false } }
+        - addForeignKeyConstraint:
+            baseTableName: audit_checkpoints
+            baseColumnNames: key_id
+            referencedTableName: user_key_pairs
+            referencedColumnNames: key_id
+            constraintName: fk_audit_checkpoints_key
+        - createIndex:
+            tableName: audit_checkpoints
+            indexName: ix_audit_checkpoints_seq_ts
+            columns: [{ column: { name: global_sequence } }, { column: { name: timestamp } }]
+        - sql:
+            sql: |
+              CREATE RULE no_update_audit_checkpoints AS ON UPDATE TO audit_checkpoints DO INSTEAD NOTHING;
+              CREATE RULE no_delete_audit_checkpoints AS ON DELETE TO audit_checkpoints DO INSTEAD NOTHING;
+      # rollback: AUTHORED BY USER  (proposed: DROP RULE no_update_audit_checkpoints; DROP RULE
+      # no_delete_audit_checkpoints; dropTable audit_checkpoints)

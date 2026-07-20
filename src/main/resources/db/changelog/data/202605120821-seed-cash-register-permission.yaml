@@ -1,0 +1,37 @@
+# Seed the cash-register.manage permission introduced in 1.6.a chunk 6.
+# Granted to ADMIN (matches all-32 grant) and LAB_MANAGER (spec §9.5 — "/cash-registers/*").
+#
+# ULID assignments (captured from UlidGenerator throwaway helper, deleted before commit):
+#   cash-register.manage         = 01KRA1MB3CWD5E6F7G8H9JNRSV
+databaseChangeLog:
+  - changeSet:
+      id: 202605120821-seed-cash-register-permission
+      author: samuel
+      contextFilter: dev,test,prod
+      labels: phase-1-6-a
+      preConditions:
+        - onFail: MARK_RAN
+        - sqlCheck:
+            expectedResult: 0
+            sql: SELECT COUNT(*) FROM permissions WHERE name = 'cash-register.manage'
+      changes:
+        - insert:
+            tableName: permissions
+            columns:
+              - column: { name: id, value: "01KRA1MB3CWD5E6F7G8H9JNRSV" }
+              - column: { name: name, value: "cash-register.manage" }
+              - column: { name: description, value: "Manage cash registers and user assignments" }
+              - column: { name: cdc_clause, value: "VIII" }
+        # ADMIN → cash-register.manage
+        - insert:
+            tableName: role_permissions
+            columns:
+              - column: { name: role_id, value: "01KQZ0WPVNGGWQ1HKC18A0ABSX" }
+              - column: { name: permission_id, value: "01KRA1MB3CWD5E6F7G8H9JNRSV" }
+        # LAB_MANAGER → cash-register.manage
+        - insert:
+            tableName: role_permissions
+            columns:
+              - column: { name: role_id, value: "01KQZ0WPVP2EM2DF5E5RKVE7GP" }
+              - column: { name: permission_id, value: "01KRA1MB3CWD5E6F7G8H9JNRSV" }
+      # rollback: AUTHORED BY USER

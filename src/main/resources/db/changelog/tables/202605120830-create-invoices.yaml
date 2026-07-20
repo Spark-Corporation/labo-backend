@@ -1,0 +1,60 @@
+databaseChangeLog:
+  - changeSet:
+      id: 202605120830-create-invoices
+      author: samuel
+      preconditions:
+        - onFail: HALT
+        - tableExists: { tableName: lab_files }
+      changes:
+        - createTable:
+            tableName: invoices
+            columns:
+              - column: { name: id,                            type: varchar(26),  constraints: { primaryKey: true,  nullable: false } }
+              - column: { name: number,                        type: varchar(20),  constraints: { nullable: false, unique: true, uniqueConstraintName: uq_invoices_number } }
+              - column: { name: lab_file_id,                   type: varchar(26),  constraints: { nullable: false, unique: true, uniqueConstraintName: uq_invoices_lab_file_id } }
+              - column: { name: issued_at,                     type: TIMESTAMP WITH TIME ZONE, constraints: { nullable: false } }
+              - column: { name: customer_kind,                 type: varchar(10),  constraints: { nullable: false } }
+              - column: { name: customer_id,                   type: varchar(26),  constraints: { nullable: false } }
+              - column: { name: customer_name_snapshot,        type: varchar(255), constraints: { nullable: false } }
+              - column: { name: home_collection_fee_snapshot,  type: "numeric(18,2)", constraints: { nullable: false } }
+              - column: { name: additional_fees_snapshot,      type: "numeric(18,2)", constraints: { nullable: false } }
+              - column: { name: discount_kind_snapshot,        type: varchar(10) }
+              - column: { name: discount_value_snapshot,       type: "numeric(18,4)" }
+              - column: { name: total_amount,                  type: "numeric(18,2)", constraints: { nullable: false } }
+              - column: { name: insurance_coverage_amount,     type: "numeric(18,2)", defaultValueNumeric: 0, constraints: { nullable: false } }
+              - column: { name: discount_amount,               type: "numeric(18,2)", defaultValueNumeric: 0, constraints: { nullable: false } }
+              - column: { name: net_amount,                    type: "numeric(18,2)", constraints: { nullable: false } }
+              - column: { name: created_at,                    type: TIMESTAMP WITH TIME ZONE, constraints: { nullable: false } }
+              - column: { name: version,                       type: BIGINT,        constraints: { nullable: false }, defaultValueNumeric: 0 }
+        - addForeignKeyConstraint:
+            baseTableName: invoices
+            baseColumnNames: lab_file_id
+            referencedTableName: lab_files
+            referencedColumnNames: id
+            constraintName: fk_invoices_lab_file
+        - sql:
+            sql: |
+              ALTER TABLE invoices
+                ADD CONSTRAINT invoices_customer_kind_chk
+                CHECK (customer_kind IN ('PATIENT', 'INSURANCE', 'PARTNER'));
+              ALTER TABLE invoices
+                ADD CONSTRAINT invoices_net_nonneg_chk CHECK (net_amount >= 0);
+              ALTER TABLE invoices
+                ADD CONSTRAINT invoices_coverage_nonneg_chk
+                CHECK (insurance_coverage_amount >= 0);
+              ALTER TABLE invoices
+                ADD CONSTRAINT invoices_discount_nonneg_chk CHECK (discount_amount >= 0);
+              ALTER TABLE invoices
+                ADD CONSTRAINT invoices_number_format_chk
+                CHECK (number ~ '^[A-Z]{3}[0-9]{2}-[0-9]{4}-[0-9]{3,}$');
+        - createIndex:
+            tableName: invoices
+            indexName: ix_invoices_customer
+            columns:
+              - column: { name: customer_kind }
+              - column: { name: customer_id }
+        - createIndex:
+            tableName: invoices
+            indexName: ix_invoices_issued_at
+            columns: [{ column: { name: issued_at } }]
+      # rollback: AUTHORED BY USER

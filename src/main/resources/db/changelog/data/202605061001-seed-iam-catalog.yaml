@@ -1,0 +1,760 @@
+# Seed IAM catalog: 7 roles + 31 permissions + role-permission mappings (per tech doc §9.5).
+#
+# ULID assignments captured from UlidGenerator throwaway helper (deleted before commit).
+# ROLES (7):
+#   ROLE_ADMIN          = 01KQZ0WPVNGGWQ1HKC18A0ABSX
+#   ROLE_LAB_MANAGER    = 01KQZ0WPVP2EM2DF5E5RKVE7GP
+#   ROLE_BIOLOGIST      = 01KQZ0WPVPH1378BY4T3Y8QBB1
+#   ROLE_TECHNICIAN     = 01KQZ0WPVPN6YX8WNVSCS08QB9
+#   ROLE_RECEPTIONIST   = 01KQZ0WPVPT1RA89KGHRZE3RSF
+#   ROLE_CASHIER        = 01KQZ0WPVPKM5QMKSEGP9REH7X
+#   ROLE_ACCOUNTANT     = 01KQZ0WPVP2ZCER149WMN014CB
+# PERMISSIONS (31):
+#   patient.create               = 01KQZ0WPVPXDP1TQZACETXDVMX
+#   patient.update               = 01KQZ0WPVPNGEPK44D42FC9VEK
+#   patient.search               = 01KQZ0WPVPDAZE3TD7PQV3F2RB
+#   patient.merge                = 01KQZ0WPVPJ37A7F6CRYMREYBP
+#   lab-file.create              = 01KQZ0WPVP34CXD9ZF2RRMYPGA
+#   lab-file.read                = 01KQZ0WPVP836F6QEKG99K1V0P
+#   sample.record-in-lab         = 01KQZ0WPVPPPQTN8CMMEBDB35F
+#   sample.record-external       = 01KQZ0WPVPYWYTAR6RSBVQF8ZH
+#   sample.record-home           = 01KQZ0WPVP1K45HFHSD3X48JTN
+#   result.enter                 = 01KQZ0WPVPW3BD9V1SMTXAQKYK
+#   result.validate-tech         = 01KQZ0WPVPNQWMJ8SVW8Y4FY7Z
+#   result.validate-bio          = 01KQZ0WPVP8VQ06V0JRJNVNBSY
+#   dossier.sign-electronically  = 01KQZ0WPVPD5TGJGBSQ4N77Q34
+#   dossier.publish              = 01KQZ0WPVPZR18B0PGW61PF7PJ
+#   quote.create                 = 01KQZ0WPVPFYY5X7XQ7V15GSZN
+#   quote.send                   = 01KQZ0WPVPDJBNPW7DBAJVQGBR
+#   quote.lock                   = 01KQZ0WPVP8F7EAVDH526SZXBZ
+#   invoice.create               = 01KQZ0WPVPPC0YMFE70R3EFFX8
+#   invoice.read                 = 01KQZ0WPVQ6V1T8X3Z67YK1VF4
+#   payment.collect              = 01KQZ0WPVQPKPBQVM2TGQ0BPSZ
+#   expense.record               = 01KQZ0WPVQ5P7P9W589Y615ZA5
+#   cashbox.use-assigned         = 01KQZ0WPVQEA7Y75ST7G3JMDDQ
+#   cashbox.close-day            = 01KQZ0WPVQ0VY5QHSHZNZHX3ZX
+#   home-collection-fee.record   = 01KQZ0WPVQPXYNEABRYK9GMY2Z
+#   catalog.manage               = 01KQZ0WPVQYFW32Y27848C3QQ4
+#   prescriber.manage            = 01KQZ0WPVQ2W6TW6ZPX4BZ5K83
+#   insurance.manage             = 01KQZ0WPVQCXTP5KM5M8YMVF71
+#   partner.manage               = 01KQZ0WPVQDP9QRTPKZ6FN1MR8
+#   users.manage                 = 01KQZ0WPVQF61G08X2040B5EYA
+#   stats.read                   = 01KQZ0WPVQGN8WJZ4JVPRTFSCA
+#   audit.read                   = 01KQZ0WPVQX1CMVQQX14BYAHSA
+
+databaseChangeLog:
+  - changeSet:
+      id: 202605061001-seed-iam-catalog
+      author: samuel
+      contextFilter: dev,test,prod
+      labels: phase-1-1-b
+      preConditions:
+        - onFail: MARK_RAN
+        - sqlCheck:
+            expectedResult: 0
+            sql: SELECT COUNT(*) FROM roles
+      changes:
+        # ---- Roles (7) ----
+        - insert:
+            tableName: roles
+            columns:
+              - column: { name: id, value: "01KQZ0WPVNGGWQ1HKC18A0ABSX" }
+              - column: { name: name, value: "ADMIN" }
+              - column: { name: description, value: "Full access; user/role management" }
+              - column: { name: is_system, valueBoolean: true }
+        - insert:
+            tableName: roles
+            columns:
+              - column: { name: id, value: "01KQZ0WPVP2EM2DF5E5RKVE7GP" }
+              - column: { name: name, value: "LAB_MANAGER" }
+              - column: { name: description, value: "Lab admin: catalog, prescribers, partners, users" }
+              - column: { name: is_system, valueBoolean: true }
+        - insert:
+            tableName: roles
+            columns:
+              - column: { name: id, value: "01KQZ0WPVPH1378BY4T3Y8QBB1" }
+              - column: { name: name, value: "BIOLOGIST" }
+              - column: { name: description, value: "Final clinical sign-off; result publication" }
+              - column: { name: is_system, valueBoolean: true }
+        - insert:
+            tableName: roles
+            columns:
+              - column: { name: id, value: "01KQZ0WPVPN6YX8WNVSCS08QB9" }
+              - column: { name: name, value: "TECHNICIAN" }
+              - column: { name: description, value: "Sample handling, technical validation" }
+              - column: { name: is_system, valueBoolean: true }
+        - insert:
+            tableName: roles
+            columns:
+              - column: { name: id, value: "01KQZ0WPVPT1RA89KGHRZE3RSF" }
+              - column: { name: name, value: "RECEPTIONIST" }
+              - column: { name: description, value: "Patient registration, billing front-desk" }
+              - column: { name: is_system, valueBoolean: true }
+        - insert:
+            tableName: roles
+            columns:
+              - column: { name: id, value: "01KQZ0WPVPKM5QMKSEGP9REH7X" }
+              - column: { name: name, value: "CASHIER" }
+              - column: { name: description, value: "Cashbox, expenses, daily close-out" }
+              - column: { name: is_system, valueBoolean: true }
+        - insert:
+            tableName: roles
+            columns:
+              - column: { name: id, value: "01KQZ0WPVP2ZCER149WMN014CB" }
+              - column: { name: name, value: "ACCOUNTANT" }
+              - column: { name: description, value: "Stats, expenses, invoices read" }
+              - column: { name: is_system, valueBoolean: true }
+
+        # ---- Permissions (31) ----
+        - insert:
+            tableName: permissions
+            columns:
+              - column: { name: id, value: "01KQZ0WPVPXDP1TQZACETXDVMX" }
+              - column: { name: name, value: "patient.create" }
+              - column: { name: description, value: "Register a new patient" }
+              - column: { name: cdc_clause, value: "I" }
+        - insert:
+            tableName: permissions
+            columns:
+              - column: { name: id, value: "01KQZ0WPVPNGEPK44D42FC9VEK" }
+              - column: { name: name, value: "patient.update" }
+              - column: { name: description, value: "Update patient identity / contact" }
+              - column: { name: cdc_clause, value: "I" }
+        - insert:
+            tableName: permissions
+            columns:
+              - column: { name: id, value: "01KQZ0WPVPDAZE3TD7PQV3F2RB" }
+              - column: { name: name, value: "patient.search" }
+              - column: { name: description, value: "Search the patient registry" }
+              - column: { name: cdc_clause, value: "I" }
+        - insert:
+            tableName: permissions
+            columns:
+              - column: { name: id, value: "01KQZ0WPVPJ37A7F6CRYMREYBP" }
+              - column: { name: name, value: "patient.merge" }
+              - column: { name: description, value: "Merge duplicate patient records" }
+              - column: { name: cdc_clause, value: "I" }
+        - insert:
+            tableName: permissions
+            columns:
+              - column: { name: id, value: "01KQZ0WPVP34CXD9ZF2RRMYPGA" }
+              - column: { name: name, value: "lab-file.create" }
+              - column: { name: description, value: "Open a new lab file (dossier d'analyse)" }
+              - column: { name: cdc_clause, value: "II" }
+        - insert:
+            tableName: permissions
+            columns:
+              - column: { name: id, value: "01KQZ0WPVP836F6QEKG99K1V0P" }
+              - column: { name: name, value: "lab-file.read" }
+              - column: { name: description, value: "Read an existing lab file" }
+              - column: { name: cdc_clause, value: "IX" }
+        - insert:
+            tableName: permissions
+            columns:
+              - column: { name: id, value: "01KQZ0WPVPPPQTN8CMMEBDB35F" }
+              - column: { name: name, value: "sample.record-in-lab" }
+              - column: { name: description, value: "Record sample collected in lab" }
+              - column: { name: cdc_clause, value: "II" }
+        - insert:
+            tableName: permissions
+            columns:
+              - column: { name: id, value: "01KQZ0WPVPYWYTAR6RSBVQF8ZH" }
+              - column: { name: name, value: "sample.record-external" }
+              - column: { name: description, value: "Record sample brought in from outside" }
+              - column: { name: cdc_clause, value: "II" }
+        - insert:
+            tableName: permissions
+            columns:
+              - column: { name: id, value: "01KQZ0WPVP1K45HFHSD3X48JTN" }
+              - column: { name: name, value: "sample.record-home" }
+              - column: { name: description, value: "Record sample collected at home" }
+              - column: { name: cdc_clause, value: "II" }
+        - insert:
+            tableName: permissions
+            columns:
+              - column: { name: id, value: "01KQZ0WPVPW3BD9V1SMTXAQKYK" }
+              - column: { name: name, value: "result.enter" }
+              - column: { name: description, value: "Enter analysis results" }
+              - column: { name: cdc_clause, value: "IV" }
+        - insert:
+            tableName: permissions
+            columns:
+              - column: { name: id, value: "01KQZ0WPVPNQWMJ8SVW8Y4FY7Z" }
+              - column: { name: name, value: "result.validate-tech" }
+              - column: { name: description, value: "Technical validation of a result" }
+              - column: { name: cdc_clause, value: "IV" }
+        - insert:
+            tableName: permissions
+            columns:
+              - column: { name: id, value: "01KQZ0WPVP8VQ06V0JRJNVNBSY" }
+              - column: { name: name, value: "result.validate-bio" }
+              - column: { name: description, value: "Biological (clinical) validation of a result" }
+              - column: { name: cdc_clause, value: "X" }
+        - insert:
+            tableName: permissions
+            columns:
+              - column: { name: id, value: "01KQZ0WPVPD5TGJGBSQ4N77Q34" }
+              - column: { name: name, value: "dossier.sign-electronically" }
+              - column: { name: description, value: "Sign a dossier electronically" }
+              - column: { name: cdc_clause, value: "IV" }
+        - insert:
+            tableName: permissions
+            columns:
+              - column: { name: id, value: "01KQZ0WPVPZR18B0PGW61PF7PJ" }
+              - column: { name: name, value: "dossier.publish" }
+              - column: { name: description, value: "Publish dossier (online + email)" }
+              - column: { name: cdc_clause, value: "IV" }
+        - insert:
+            tableName: permissions
+            columns:
+              - column: { name: id, value: "01KQZ0WPVPFYY5X7XQ7V15GSZN" }
+              - column: { name: name, value: "quote.create" }
+              - column: { name: description, value: "Create a quote (devis)" }
+              - column: { name: cdc_clause, value: "III" }
+        - insert:
+            tableName: permissions
+            columns:
+              - column: { name: id, value: "01KQZ0WPVPDJBNPW7DBAJVQGBR" }
+              - column: { name: name, value: "quote.send" }
+              - column: { name: description, value: "Send a quote to a client" }
+              - column: { name: cdc_clause, value: "III" }
+        - insert:
+            tableName: permissions
+            columns:
+              - column: { name: id, value: "01KQZ0WPVP8F7EAVDH526SZXBZ" }
+              - column: { name: name, value: "quote.lock" }
+              - column: { name: description, value: "Lock a quote against further changes" }
+              - column: { name: cdc_clause, value: "III" }
+        - insert:
+            tableName: permissions
+            columns:
+              - column: { name: id, value: "01KR7CK1RZRQ76TR1874WZNXSR" }
+              - column: { name: name, value: "quote.read" }
+              - column: { name: description, value: "Read quotes (list/detail/search)" }
+              - column: { name: cdc_clause, value: "III" }
+        - insert:
+            tableName: permissions
+            columns:
+              - column: { name: id, value: "01KQZ0WPVPPC0YMFE70R3EFFX8" }
+              - column: { name: name, value: "invoice.create" }
+              - column: { name: description, value: "Create an invoice" }
+              - column: { name: cdc_clause, value: "II" }
+        - insert:
+            tableName: permissions
+            columns:
+              - column: { name: id, value: "01KQZ0WPVQ6V1T8X3Z67YK1VF4" }
+              - column: { name: name, value: "invoice.read" }
+              - column: { name: description, value: "Read invoices" }
+              - column: { name: cdc_clause, value: "GC1" }
+        - insert:
+            tableName: permissions
+            columns:
+              - column: { name: id, value: "01KQZ0WPVQPKPBQVM2TGQ0BPSZ" }
+              - column: { name: name, value: "payment.collect" }
+              - column: { name: description, value: "Collect payment" }
+              - column: { name: cdc_clause, value: "VIII" }
+        - insert:
+            tableName: permissions
+            columns:
+              - column: { name: id, value: "01KQZ0WPVQ5P7P9W589Y615ZA5" }
+              - column: { name: name, value: "expense.record" }
+              - column: { name: description, value: "Record an expense" }
+              - column: { name: cdc_clause, value: "GC2" }
+        - insert:
+            tableName: permissions
+            columns:
+              - column: { name: id, value: "01KQZ0WPVQEA7Y75ST7G3JMDDQ" }
+              - column: { name: name, value: "cashbox.use-assigned" }
+              - column: { name: description, value: "Use the cashbox assigned to this user" }
+              - column: { name: cdc_clause, value: "VIII" }
+        - insert:
+            tableName: permissions
+            columns:
+              - column: { name: id, value: "01KQZ0WPVQ0VY5QHSHZNZHX3ZX" }
+              - column: { name: name, value: "cashbox.close-day" }
+              - column: { name: description, value: "Close the cashbox for the day" }
+              - column: { name: cdc_clause, value: "GC4" }
+        - insert:
+            tableName: permissions
+            columns:
+              - column: { name: id, value: "01KQZ0WPVQPXYNEABRYK9GMY2Z" }
+              - column: { name: name, value: "home-collection-fee.record" }
+              - column: { name: description, value: "Record home-collection fee" }
+              - column: { name: cdc_clause, value: "GC5" }
+        - insert:
+            tableName: permissions
+            columns:
+              - column: { name: id, value: "01KQZ0WPVQYFW32Y27848C3QQ4" }
+              - column: { name: name, value: "catalog.manage" }
+              - column: { name: description, value: "Manage analysis / bilan / pricing catalog" }
+              - column: { name: cdc_clause, value: "VII" }
+        - insert:
+            tableName: permissions
+            columns:
+              - column: { name: id, value: "01KQZ0WPVQ2W6TW6ZPX4BZ5K83" }
+              - column: { name: name, value: "prescriber.manage" }
+              - column: { name: description, value: "Manage prescribers (médecins)" }
+              - column: { name: cdc_clause, value: "VII" }
+        - insert:
+            tableName: permissions
+            columns:
+              - column: { name: id, value: "01KQZ0WPVQCXTP5KM5M8YMVF71" }
+              - column: { name: name, value: "insurance.manage" }
+              - column: { name: description, value: "Manage insurance partners" }
+              - column: { name: cdc_clause, value: "VII" }
+        - insert:
+            tableName: permissions
+            columns:
+              - column: { name: id, value: "01KQZ0WPVQDP9QRTPKZ6FN1MR8" }
+              - column: { name: name, value: "partner.manage" }
+              - column: { name: description, value: "Manage external partner labs" }
+              - column: { name: cdc_clause, value: "VII" }
+        - insert:
+            tableName: permissions
+            columns:
+              - column: { name: id, value: "01KQZ0WPVQF61G08X2040B5EYA" }
+              - column: { name: name, value: "users.manage" }
+              - column: { name: description, value: "Manage users and role assignments" }
+              - column: { name: cdc_clause, value: "ADM" }
+        - insert:
+            tableName: permissions
+            columns:
+              - column: { name: id, value: "01KQZ0WPVQGN8WJZ4JVPRTFSCA" }
+              - column: { name: name, value: "stats.read" }
+              - column: { name: description, value: "Read statistics dashboard" }
+              - column: { name: cdc_clause, value: "STA" }
+        - insert:
+            tableName: permissions
+            columns:
+              - column: { name: id, value: "01KQZ0WPVQX1CMVQQX14BYAHSA" }
+              - column: { name: name, value: "audit.read" }
+              - column: { name: description, value: "Read the audit trail" }
+              - column: { name: cdc_clause, value: "ADM" }
+
+        # ---- Role-permission mappings (per tech doc §9.5) ----
+        # ADMIN → all 32
+        - insert:
+            tableName: role_permissions
+            columns:
+              - column: { name: role_id, value: "01KQZ0WPVNGGWQ1HKC18A0ABSX" }
+              - column: { name: permission_id, value: "01KR7CK1RZRQ76TR1874WZNXSR" }
+        - insert:
+            tableName: role_permissions
+            columns:
+              - column: { name: role_id, value: "01KQZ0WPVNGGWQ1HKC18A0ABSX" }
+              - column: { name: permission_id, value: "01KQZ0WPVPXDP1TQZACETXDVMX" }
+        - insert:
+            tableName: role_permissions
+            columns:
+              - column: { name: role_id, value: "01KQZ0WPVNGGWQ1HKC18A0ABSX" }
+              - column: { name: permission_id, value: "01KQZ0WPVPNGEPK44D42FC9VEK" }
+        - insert:
+            tableName: role_permissions
+            columns:
+              - column: { name: role_id, value: "01KQZ0WPVNGGWQ1HKC18A0ABSX" }
+              - column: { name: permission_id, value: "01KQZ0WPVPDAZE3TD7PQV3F2RB" }
+        - insert:
+            tableName: role_permissions
+            columns:
+              - column: { name: role_id, value: "01KQZ0WPVNGGWQ1HKC18A0ABSX" }
+              - column: { name: permission_id, value: "01KQZ0WPVPJ37A7F6CRYMREYBP" }
+        - insert:
+            tableName: role_permissions
+            columns:
+              - column: { name: role_id, value: "01KQZ0WPVNGGWQ1HKC18A0ABSX" }
+              - column: { name: permission_id, value: "01KQZ0WPVP34CXD9ZF2RRMYPGA" }
+        - insert:
+            tableName: role_permissions
+            columns:
+              - column: { name: role_id, value: "01KQZ0WPVNGGWQ1HKC18A0ABSX" }
+              - column: { name: permission_id, value: "01KQZ0WPVP836F6QEKG99K1V0P" }
+        - insert:
+            tableName: role_permissions
+            columns:
+              - column: { name: role_id, value: "01KQZ0WPVNGGWQ1HKC18A0ABSX" }
+              - column: { name: permission_id, value: "01KQZ0WPVPPPQTN8CMMEBDB35F" }
+        - insert:
+            tableName: role_permissions
+            columns:
+              - column: { name: role_id, value: "01KQZ0WPVNGGWQ1HKC18A0ABSX" }
+              - column: { name: permission_id, value: "01KQZ0WPVPYWYTAR6RSBVQF8ZH" }
+        - insert:
+            tableName: role_permissions
+            columns:
+              - column: { name: role_id, value: "01KQZ0WPVNGGWQ1HKC18A0ABSX" }
+              - column: { name: permission_id, value: "01KQZ0WPVP1K45HFHSD3X48JTN" }
+        - insert:
+            tableName: role_permissions
+            columns:
+              - column: { name: role_id, value: "01KQZ0WPVNGGWQ1HKC18A0ABSX" }
+              - column: { name: permission_id, value: "01KQZ0WPVPW3BD9V1SMTXAQKYK" }
+        - insert:
+            tableName: role_permissions
+            columns:
+              - column: { name: role_id, value: "01KQZ0WPVNGGWQ1HKC18A0ABSX" }
+              - column: { name: permission_id, value: "01KQZ0WPVPNQWMJ8SVW8Y4FY7Z" }
+        - insert:
+            tableName: role_permissions
+            columns:
+              - column: { name: role_id, value: "01KQZ0WPVNGGWQ1HKC18A0ABSX" }
+              - column: { name: permission_id, value: "01KQZ0WPVP8VQ06V0JRJNVNBSY" }
+        - insert:
+            tableName: role_permissions
+            columns:
+              - column: { name: role_id, value: "01KQZ0WPVNGGWQ1HKC18A0ABSX" }
+              - column: { name: permission_id, value: "01KQZ0WPVPD5TGJGBSQ4N77Q34" }
+        - insert:
+            tableName: role_permissions
+            columns:
+              - column: { name: role_id, value: "01KQZ0WPVNGGWQ1HKC18A0ABSX" }
+              - column: { name: permission_id, value: "01KQZ0WPVPZR18B0PGW61PF7PJ" }
+        - insert:
+            tableName: role_permissions
+            columns:
+              - column: { name: role_id, value: "01KQZ0WPVNGGWQ1HKC18A0ABSX" }
+              - column: { name: permission_id, value: "01KQZ0WPVPFYY5X7XQ7V15GSZN" }
+        - insert:
+            tableName: role_permissions
+            columns:
+              - column: { name: role_id, value: "01KQZ0WPVNGGWQ1HKC18A0ABSX" }
+              - column: { name: permission_id, value: "01KQZ0WPVPDJBNPW7DBAJVQGBR" }
+        - insert:
+            tableName: role_permissions
+            columns:
+              - column: { name: role_id, value: "01KQZ0WPVNGGWQ1HKC18A0ABSX" }
+              - column: { name: permission_id, value: "01KQZ0WPVP8F7EAVDH526SZXBZ" }
+        - insert:
+            tableName: role_permissions
+            columns:
+              - column: { name: role_id, value: "01KQZ0WPVNGGWQ1HKC18A0ABSX" }
+              - column: { name: permission_id, value: "01KQZ0WPVPPC0YMFE70R3EFFX8" }
+        - insert:
+            tableName: role_permissions
+            columns:
+              - column: { name: role_id, value: "01KQZ0WPVNGGWQ1HKC18A0ABSX" }
+              - column: { name: permission_id, value: "01KQZ0WPVQ6V1T8X3Z67YK1VF4" }
+        - insert:
+            tableName: role_permissions
+            columns:
+              - column: { name: role_id, value: "01KQZ0WPVNGGWQ1HKC18A0ABSX" }
+              - column: { name: permission_id, value: "01KQZ0WPVQPKPBQVM2TGQ0BPSZ" }
+        - insert:
+            tableName: role_permissions
+            columns:
+              - column: { name: role_id, value: "01KQZ0WPVNGGWQ1HKC18A0ABSX" }
+              - column: { name: permission_id, value: "01KQZ0WPVQ5P7P9W589Y615ZA5" }
+        - insert:
+            tableName: role_permissions
+            columns:
+              - column: { name: role_id, value: "01KQZ0WPVNGGWQ1HKC18A0ABSX" }
+              - column: { name: permission_id, value: "01KQZ0WPVQEA7Y75ST7G3JMDDQ" }
+        - insert:
+            tableName: role_permissions
+            columns:
+              - column: { name: role_id, value: "01KQZ0WPVNGGWQ1HKC18A0ABSX" }
+              - column: { name: permission_id, value: "01KQZ0WPVQ0VY5QHSHZNZHX3ZX" }
+        - insert:
+            tableName: role_permissions
+            columns:
+              - column: { name: role_id, value: "01KQZ0WPVNGGWQ1HKC18A0ABSX" }
+              - column: { name: permission_id, value: "01KQZ0WPVQPXYNEABRYK9GMY2Z" }
+        - insert:
+            tableName: role_permissions
+            columns:
+              - column: { name: role_id, value: "01KQZ0WPVNGGWQ1HKC18A0ABSX" }
+              - column: { name: permission_id, value: "01KQZ0WPVQYFW32Y27848C3QQ4" }
+        - insert:
+            tableName: role_permissions
+            columns:
+              - column: { name: role_id, value: "01KQZ0WPVNGGWQ1HKC18A0ABSX" }
+              - column: { name: permission_id, value: "01KQZ0WPVQ2W6TW6ZPX4BZ5K83" }
+        - insert:
+            tableName: role_permissions
+            columns:
+              - column: { name: role_id, value: "01KQZ0WPVNGGWQ1HKC18A0ABSX" }
+              - column: { name: permission_id, value: "01KQZ0WPVQCXTP5KM5M8YMVF71" }
+        - insert:
+            tableName: role_permissions
+            columns:
+              - column: { name: role_id, value: "01KQZ0WPVNGGWQ1HKC18A0ABSX" }
+              - column: { name: permission_id, value: "01KQZ0WPVQDP9QRTPKZ6FN1MR8" }
+        - insert:
+            tableName: role_permissions
+            columns:
+              - column: { name: role_id, value: "01KQZ0WPVNGGWQ1HKC18A0ABSX" }
+              - column: { name: permission_id, value: "01KQZ0WPVQF61G08X2040B5EYA" }
+        - insert:
+            tableName: role_permissions
+            columns:
+              - column: { name: role_id, value: "01KQZ0WPVNGGWQ1HKC18A0ABSX" }
+              - column: { name: permission_id, value: "01KQZ0WPVQGN8WJZ4JVPRTFSCA" }
+        - insert:
+            tableName: role_permissions
+            columns:
+              - column: { name: role_id, value: "01KQZ0WPVNGGWQ1HKC18A0ABSX" }
+              - column: { name: permission_id, value: "01KQZ0WPVQX1CMVQQX14BYAHSA" }
+
+        # LAB_MANAGER → patient.{create,update,search,merge}, cashbox.{use-assigned,close-day},
+        #               catalog.manage, prescriber.manage, insurance.manage, partner.manage,
+        #               users.manage, stats.read  (12)
+        - insert:
+            tableName: role_permissions
+            columns:
+              - column: { name: role_id, value: "01KQZ0WPVP2EM2DF5E5RKVE7GP" }
+              - column: { name: permission_id, value: "01KQZ0WPVPXDP1TQZACETXDVMX" }
+        - insert:
+            tableName: role_permissions
+            columns:
+              - column: { name: role_id, value: "01KQZ0WPVP2EM2DF5E5RKVE7GP" }
+              - column: { name: permission_id, value: "01KQZ0WPVPNGEPK44D42FC9VEK" }
+        - insert:
+            tableName: role_permissions
+            columns:
+              - column: { name: role_id, value: "01KQZ0WPVP2EM2DF5E5RKVE7GP" }
+              - column: { name: permission_id, value: "01KQZ0WPVPDAZE3TD7PQV3F2RB" }
+        - insert:
+            tableName: role_permissions
+            columns:
+              - column: { name: role_id, value: "01KQZ0WPVP2EM2DF5E5RKVE7GP" }
+              - column: { name: permission_id, value: "01KQZ0WPVPJ37A7F6CRYMREYBP" }
+        - insert:
+            tableName: role_permissions
+            columns:
+              - column: { name: role_id, value: "01KQZ0WPVP2EM2DF5E5RKVE7GP" }
+              - column: { name: permission_id, value: "01KQZ0WPVQEA7Y75ST7G3JMDDQ" }
+        - insert:
+            tableName: role_permissions
+            columns:
+              - column: { name: role_id, value: "01KQZ0WPVP2EM2DF5E5RKVE7GP" }
+              - column: { name: permission_id, value: "01KQZ0WPVQ0VY5QHSHZNZHX3ZX" }
+        - insert:
+            tableName: role_permissions
+            columns:
+              - column: { name: role_id, value: "01KQZ0WPVP2EM2DF5E5RKVE7GP" }
+              - column: { name: permission_id, value: "01KQZ0WPVQYFW32Y27848C3QQ4" }
+        - insert:
+            tableName: role_permissions
+            columns:
+              - column: { name: role_id, value: "01KQZ0WPVP2EM2DF5E5RKVE7GP" }
+              - column: { name: permission_id, value: "01KQZ0WPVQ2W6TW6ZPX4BZ5K83" }
+        - insert:
+            tableName: role_permissions
+            columns:
+              - column: { name: role_id, value: "01KQZ0WPVP2EM2DF5E5RKVE7GP" }
+              - column: { name: permission_id, value: "01KQZ0WPVQCXTP5KM5M8YMVF71" }
+        - insert:
+            tableName: role_permissions
+            columns:
+              - column: { name: role_id, value: "01KQZ0WPVP2EM2DF5E5RKVE7GP" }
+              - column: { name: permission_id, value: "01KQZ0WPVQDP9QRTPKZ6FN1MR8" }
+        - insert:
+            tableName: role_permissions
+            columns:
+              - column: { name: role_id, value: "01KQZ0WPVP2EM2DF5E5RKVE7GP" }
+              - column: { name: permission_id, value: "01KQZ0WPVQF61G08X2040B5EYA" }
+        - insert:
+            tableName: role_permissions
+            columns:
+              - column: { name: role_id, value: "01KQZ0WPVP2EM2DF5E5RKVE7GP" }
+              - column: { name: permission_id, value: "01KQZ0WPVQGN8WJZ4JVPRTFSCA" }
+
+        # BIOLOGIST → lab-file.create, lab-file.read, result.validate-bio,
+        #             dossier.sign-electronically, dossier.publish, stats.read  (6)
+        - insert:
+            tableName: role_permissions
+            columns:
+              - column: { name: role_id, value: "01KQZ0WPVPH1378BY4T3Y8QBB1" }
+              - column: { name: permission_id, value: "01KQZ0WPVP34CXD9ZF2RRMYPGA" }
+        - insert:
+            tableName: role_permissions
+            columns:
+              - column: { name: role_id, value: "01KQZ0WPVPH1378BY4T3Y8QBB1" }
+              - column: { name: permission_id, value: "01KQZ0WPVP836F6QEKG99K1V0P" }
+        - insert:
+            tableName: role_permissions
+            columns:
+              - column: { name: role_id, value: "01KQZ0WPVPH1378BY4T3Y8QBB1" }
+              - column: { name: permission_id, value: "01KQZ0WPVP8VQ06V0JRJNVNBSY" }
+        - insert:
+            tableName: role_permissions
+            columns:
+              - column: { name: role_id, value: "01KQZ0WPVPH1378BY4T3Y8QBB1" }
+              - column: { name: permission_id, value: "01KQZ0WPVPD5TGJGBSQ4N77Q34" }
+        - insert:
+            tableName: role_permissions
+            columns:
+              - column: { name: role_id, value: "01KQZ0WPVPH1378BY4T3Y8QBB1" }
+              - column: { name: permission_id, value: "01KQZ0WPVPZR18B0PGW61PF7PJ" }
+        - insert:
+            tableName: role_permissions
+            columns:
+              - column: { name: role_id, value: "01KQZ0WPVPH1378BY4T3Y8QBB1" }
+              - column: { name: permission_id, value: "01KQZ0WPVQGN8WJZ4JVPRTFSCA" }
+
+        # TECHNICIAN → lab-file.create, lab-file.read, sample.{record-in-lab,record-external,record-home},
+        #              result.enter, result.validate-tech  (7)
+        - insert:
+            tableName: role_permissions
+            columns:
+              - column: { name: role_id, value: "01KQZ0WPVPN6YX8WNVSCS08QB9" }
+              - column: { name: permission_id, value: "01KQZ0WPVP34CXD9ZF2RRMYPGA" }
+        - insert:
+            tableName: role_permissions
+            columns:
+              - column: { name: role_id, value: "01KQZ0WPVPN6YX8WNVSCS08QB9" }
+              - column: { name: permission_id, value: "01KQZ0WPVP836F6QEKG99K1V0P" }
+        - insert:
+            tableName: role_permissions
+            columns:
+              - column: { name: role_id, value: "01KQZ0WPVPN6YX8WNVSCS08QB9" }
+              - column: { name: permission_id, value: "01KQZ0WPVPPPQTN8CMMEBDB35F" }
+        - insert:
+            tableName: role_permissions
+            columns:
+              - column: { name: role_id, value: "01KQZ0WPVPN6YX8WNVSCS08QB9" }
+              - column: { name: permission_id, value: "01KQZ0WPVPYWYTAR6RSBVQF8ZH" }
+        - insert:
+            tableName: role_permissions
+            columns:
+              - column: { name: role_id, value: "01KQZ0WPVPN6YX8WNVSCS08QB9" }
+              - column: { name: permission_id, value: "01KQZ0WPVP1K45HFHSD3X48JTN" }
+        - insert:
+            tableName: role_permissions
+            columns:
+              - column: { name: role_id, value: "01KQZ0WPVPN6YX8WNVSCS08QB9" }
+              - column: { name: permission_id, value: "01KQZ0WPVPW3BD9V1SMTXAQKYK" }
+        - insert:
+            tableName: role_permissions
+            columns:
+              - column: { name: role_id, value: "01KQZ0WPVPN6YX8WNVSCS08QB9" }
+              - column: { name: permission_id, value: "01KQZ0WPVPNQWMJ8SVW8Y4FY7Z" }
+
+        # RECEPTIONIST → patient.{create,update,search,merge}, lab-file.{create,read},
+        #                sample.{record-in-lab,record-external,record-home},
+        #                quote.{create,send,lock}, invoice.create, payment.collect,
+        #                cashbox.use-assigned  (15)
+        - insert:
+            tableName: role_permissions
+            columns:
+              - column: { name: role_id, value: "01KQZ0WPVPT1RA89KGHRZE3RSF" }
+              - column: { name: permission_id, value: "01KQZ0WPVPXDP1TQZACETXDVMX" }
+        - insert:
+            tableName: role_permissions
+            columns:
+              - column: { name: role_id, value: "01KQZ0WPVPT1RA89KGHRZE3RSF" }
+              - column: { name: permission_id, value: "01KQZ0WPVPNGEPK44D42FC9VEK" }
+        - insert:
+            tableName: role_permissions
+            columns:
+              - column: { name: role_id, value: "01KQZ0WPVPT1RA89KGHRZE3RSF" }
+              - column: { name: permission_id, value: "01KQZ0WPVPDAZE3TD7PQV3F2RB" }
+        - insert:
+            tableName: role_permissions
+            columns:
+              - column: { name: role_id, value: "01KQZ0WPVPT1RA89KGHRZE3RSF" }
+              - column: { name: permission_id, value: "01KQZ0WPVPJ37A7F6CRYMREYBP" }
+        - insert:
+            tableName: role_permissions
+            columns:
+              - column: { name: role_id, value: "01KQZ0WPVPT1RA89KGHRZE3RSF" }
+              - column: { name: permission_id, value: "01KQZ0WPVP34CXD9ZF2RRMYPGA" }
+        - insert:
+            tableName: role_permissions
+            columns:
+              - column: { name: role_id, value: "01KQZ0WPVPT1RA89KGHRZE3RSF" }
+              - column: { name: permission_id, value: "01KQZ0WPVP836F6QEKG99K1V0P" }
+        - insert:
+            tableName: role_permissions
+            columns:
+              - column: { name: role_id, value: "01KQZ0WPVPT1RA89KGHRZE3RSF" }
+              - column: { name: permission_id, value: "01KQZ0WPVPPPQTN8CMMEBDB35F" }
+        - insert:
+            tableName: role_permissions
+            columns:
+              - column: { name: role_id, value: "01KQZ0WPVPT1RA89KGHRZE3RSF" }
+              - column: { name: permission_id, value: "01KQZ0WPVPYWYTAR6RSBVQF8ZH" }
+        - insert:
+            tableName: role_permissions
+            columns:
+              - column: { name: role_id, value: "01KQZ0WPVPT1RA89KGHRZE3RSF" }
+              - column: { name: permission_id, value: "01KQZ0WPVP1K45HFHSD3X48JTN" }
+        - insert:
+            tableName: role_permissions
+            columns:
+              - column: { name: role_id, value: "01KQZ0WPVPT1RA89KGHRZE3RSF" }
+              - column: { name: permission_id, value: "01KQZ0WPVPFYY5X7XQ7V15GSZN" }
+        - insert:
+            tableName: role_permissions
+            columns:
+              - column: { name: role_id, value: "01KQZ0WPVPT1RA89KGHRZE3RSF" }
+              - column: { name: permission_id, value: "01KQZ0WPVPDJBNPW7DBAJVQGBR" }
+        - insert:
+            tableName: role_permissions
+            columns:
+              - column: { name: role_id, value: "01KQZ0WPVPT1RA89KGHRZE3RSF" }
+              - column: { name: permission_id, value: "01KQZ0WPVP8F7EAVDH526SZXBZ" }
+        - insert:
+            tableName: role_permissions
+            columns:
+              - column: { name: role_id, value: "01KQZ0WPVPT1RA89KGHRZE3RSF" }
+              - column: { name: permission_id, value: "01KQZ0WPVPPC0YMFE70R3EFFX8" }
+        - insert:
+            tableName: role_permissions
+            columns:
+              - column: { name: role_id, value: "01KQZ0WPVPT1RA89KGHRZE3RSF" }
+              - column: { name: permission_id, value: "01KQZ0WPVQPKPBQVM2TGQ0BPSZ" }
+        - insert:
+            tableName: role_permissions
+            columns:
+              - column: { name: role_id, value: "01KQZ0WPVPT1RA89KGHRZE3RSF" }
+              - column: { name: permission_id, value: "01KQZ0WPVQEA7Y75ST7G3JMDDQ" }
+
+        # CASHIER → invoice.read, payment.collect, expense.record,
+        #           cashbox.use-assigned, cashbox.close-day, home-collection-fee.record  (6)
+        - insert:
+            tableName: role_permissions
+            columns:
+              - column: { name: role_id, value: "01KQZ0WPVPKM5QMKSEGP9REH7X" }
+              - column: { name: permission_id, value: "01KQZ0WPVQ6V1T8X3Z67YK1VF4" }
+        - insert:
+            tableName: role_permissions
+            columns:
+              - column: { name: role_id, value: "01KQZ0WPVPKM5QMKSEGP9REH7X" }
+              - column: { name: permission_id, value: "01KQZ0WPVQPKPBQVM2TGQ0BPSZ" }
+        - insert:
+            tableName: role_permissions
+            columns:
+              - column: { name: role_id, value: "01KQZ0WPVPKM5QMKSEGP9REH7X" }
+              - column: { name: permission_id, value: "01KQZ0WPVQ5P7P9W589Y615ZA5" }
+        - insert:
+            tableName: role_permissions
+            columns:
+              - column: { name: role_id, value: "01KQZ0WPVPKM5QMKSEGP9REH7X" }
+              - column: { name: permission_id, value: "01KQZ0WPVQEA7Y75ST7G3JMDDQ" }
+        - insert:
+            tableName: role_permissions
+            columns:
+              - column: { name: role_id, value: "01KQZ0WPVPKM5QMKSEGP9REH7X" }
+              - column: { name: permission_id, value: "01KQZ0WPVQ0VY5QHSHZNZHX3ZX" }
+        - insert:
+            tableName: role_permissions
+            columns:
+              - column: { name: role_id, value: "01KQZ0WPVPKM5QMKSEGP9REH7X" }
+              - column: { name: permission_id, value: "01KQZ0WPVQPXYNEABRYK9GMY2Z" }
+
+        # ACCOUNTANT → invoice.read, expense.record, stats.read  (3)
+        - insert:
+            tableName: role_permissions
+            columns:
+              - column: { name: role_id, value: "01KQZ0WPVP2ZCER149WMN014CB" }
+              - column: { name: permission_id, value: "01KQZ0WPVQ6V1T8X3Z67YK1VF4" }
+        - insert:
+            tableName: role_permissions
+            columns:
+              - column: { name: role_id, value: "01KQZ0WPVP2ZCER149WMN014CB" }
+              - column: { name: permission_id, value: "01KQZ0WPVQ5P7P9W589Y615ZA5" }
+        - insert:
+            tableName: role_permissions
+            columns:
+              - column: { name: role_id, value: "01KQZ0WPVP2ZCER149WMN014CB" }
+              - column: { name: permission_id, value: "01KQZ0WPVQGN8WJZ4JVPRTFSCA" }

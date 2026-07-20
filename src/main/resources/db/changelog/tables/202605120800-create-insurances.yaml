@@ -1,0 +1,28 @@
+databaseChangeLog:
+  - changeSet:
+      id: 202605120800-create-insurances
+      author: samuel
+      changes:
+        - createTable:
+            tableName: insurances
+            columns:
+              - column: { name: id, type: varchar(26), constraints: { primaryKey: true, nullable: false } }
+              - column: { name: code, type: varchar(8), constraints: { nullable: false, unique: true } }
+              - column: { name: name, type: varchar(255), constraints: { nullable: false } }
+              - column: { name: responsible_email, type: varchar(255) }
+              - column: { name: responsible_contact, type: varchar(50) }
+              - column: { name: b_rate, type: "numeric(18,2)", constraints: { nullable: false } }
+              - column: { name: coverage_rate, type: "numeric(5,4)", constraints: { nullable: false } }
+              - column: { name: disabled_at, type: timestamptz }
+              - column: { name: created_at, type: timestamptz, constraints: { nullable: false } }
+              - column: { name: updated_at, type: timestamptz, constraints: { nullable: false } }
+              - column: { name: created_by, type: varchar(26) }
+              - column: { name: updated_by, type: varchar(26) }
+        - sql:
+            sql: |
+              ALTER TABLE insurances
+                ADD CONSTRAINT insurances_b_rate_positive_chk CHECK (b_rate > 0);
+              ALTER TABLE insurances
+                ADD CONSTRAINT insurances_coverage_rate_range_chk
+                CHECK (coverage_rate >= 0 AND coverage_rate <= 1);
+      # rollback: AUTHORED BY USER — see CLAUDE.md hard rule.

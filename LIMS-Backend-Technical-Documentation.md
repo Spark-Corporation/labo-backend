@@ -1,0 +1,1790 @@
+# Laboratory Information Management System (LIMS)
+## Backend Technical Documentation
+
+**Stack:** Java 25 · Spring Boot 4.0.x · PostgreSQL · Maven
+**Author:** Samuel
+**Last updated:** 2026-05-03
+
+---
+
+## Table of Contents
+
+1. [Project Overview](#1-project-overview)
+2. [Technology Stack](#2-technology-stack)
+3. [High-Level Architecture](#3-high-level-architecture)
+4. [Project Structure](#4-project-structure)
+5. [Domain Model](#5-domain-model)
+6. [Database Design](#6-database-design)
+7. [REST API Design](#7-rest-api-design)
+8. [Module Implementation Details](#8-module-implementation-details)
+9. [Security & Authentication](#9-security--authentication)
+10. [Cross-Cutting Concerns](#10-cross-cutting-concerns)
+11. [File & Document Handling](#11-file--document-handling)
+12. [Notifications (Mail / WhatsApp / SMS)](#12-notifications-mail--whatsapp--sms)
+13. [Reporting & Statistics](#13-reporting--statistics)
+14. [Integrations](#14-integrations)
+15. [Testing Strategy](#15-testing-strategy)
+16. [Observability](#16-observability)
+17. [Deployment & DevOps](#17-deployment--devops)
+18. [Performance & Scalability](#18-performance--scalability)
+19. [Security Hardening Checklist](#19-security-hardening-checklist)
+20. [Implementation Roadmap](#20-implementation-roadmap)
+
+---
+
+## 1. Project Overview
+
+### 1.1 Purpose
+Build the backend of a Laboratory Information Management System (LIMS) for medical laboratories operating in West Africa (Togo, Benin). The backend exposes a REST API consumed by a desktop or web frontend and covers the full laboratory workflow: patient registration, sample collection, analysis ordering, result entry, biological validation, billing, accounting, and statistics.
+
+### 1.2 Business Scope
+The system must handle:
+- Patient reception and file management
+- Quotes and invoicing (with insurance and partner contracts)
+- Sample collection (in lab, at home, externally received)
+- Analysis configuration (simple, grouped, society panels) by discipline
+- Result entry with reference intervals (age/sex/category) and antibiogram interpretation
+- Two-step result validation (technical + biological)
+- Result delivery (print, email, online portal)
+- Cash registers, daily journals, expenses
+- Statistics across prescribers, disciplines, patients, insurances
+
+### 1.3 Non-Functional Requirements
+
+| Concern | Target |
+|---|---|
+| Concurrent users per lab | 20–50 |
+| Daily files per lab | 100–500 |
+| Response time (p95) | < 300 ms for CRUD, < 1 s for reports |
+| Availability | 99.5% during business hours |
+| Data retention | 10 years (medical records) |
+| Backup | Daily full + 15-min WAL archive |
+| Audit | Full traceability of all writes on patient/result data |
+| Compliance | OMS Good Laboratory Practice, ISO 15189 alignment |
+
+---
+
+### 1.4 CDC Traceability
+
+The CDC (`CAHIER DES CHARGES LOGICIEL DE GESTION DU LABORATOIRE.docx.pdf`) is the binding scope contract for this project. Every module and feature in this document maps to one or more CDC sections:
+
+| LIMS module / feature | CDC section(s) |
+|---|---|
+| `iam` (auth, habilitations, signing chain) | §I (identifiants de connexion), §II (historique des actions, comptes) **— action audit chain implemented, SP3; audit-chain checkpointing + advanced reporting implemented, SP8**, §IV (signer électroniquement le dossier) **— dossier e-signature implemented, SP3**, §VIII (caisse ↔ compte réceptionniste). **Hibernate Envers row-level history (persist-only, SP8) has no distinct CDC clause — CDC amendment pending (approved 2026-06-10), mirroring the stats-export note below.** |
+| `patient` | §I Accueil et enregistrement des patients |
+| `order` (lab files, samples, urgency) | §II Dossier Analyse, §VI Prélèvements à réaliser, §IX Gestion des dossiers; **Onglet « Conservation » per-sample conservation lifecycle (snapshot at collection) + destruction overdue queue + scheduled email alert + `:mark-destroyed` (perm `sample.destroy`) — implemented, SP9**; **result-pickup rendez-vous (`rendezvous_at`, `PUT /lab-files/{id}/rendezvous`, reuses `lab-file.create`) — CDC §II/§IV — implemented, SP10** |
+| `catalog` (configurations) | §VII Gestion des disciplines; Onglet Configurations (matrices, disciplines, récap, bilan société, préleveurs, antibiotiques, spécialités prescripteurs, analyses simples / groupées) |
+| `result` (entry, validation, antibiogram) | §IV Résultats par Patient, §V Recherche par paramètre, §X Validation biologique |
+| `billing` (invoices, payments, cash-registers) | §I, §II Facturation; §VIII Comptes et caisses (read-only); Gestion comptable §1 Factures. Insurance + Partner reference dictionaries live in `catalog`. Society panels live in `catalog` as `AnalysisKind.SOCIETY_PANEL`. |
+| `cashbox` (registers, journal, expenses, home-collection fees) (1.7.a) | §VIII Comptes et caisses; Gestion comptable §2 Dépenses, §3 Caisses, §4 Journal des caisses, §5 Frais de Prélèvement à domicile |
+
+> Note on the home-collection fee overlap: Gestion comptable §5 places the recording action inside cashbox (`HomeCollectionFeeRecord` aggregate, journal row, audit trail), while §I/§II keep the *displayed* fee on the lab file and billing's `BillingSnapshot.homeCollectionFee` reads it from there at invoice issuance. Cashbox owns the act of recording; billing owns the snapshot. The two are kept in sync by the cashbox-side single-transaction write (`HomeCollectionFeeService` → `LabFileWriteApi.setHomeCollectionFee` + journal row), so an invoice issued after the fee is recorded always sees the same number.
+| `delivery` (online channel + publish implemented, SP2 — patient portal under `/api/v1/portal`, staff `POST /lab-files/{id}:publish`; print / mail pending) | §I Identifiants de connexion pour consulter les résultats (portal login); §IV mode de diffusion "publier le résultat online" / diffusion en ligne; §IX dossier "publié" (PUBLISHED state) |
+| `stats` (implemented — live SQL, six JSON endpoints under `/api/v1/stats`; **XLSX workbook export `GET /api/v1/stats/export`, SP5**) | Onglet Statistiques **(export ships per the 2026-05-29 project decision; CDC amendment pending to add an explicit statistics-export clause)** |
+| `notification` (Mail, WhatsApp) **— implemented, SP4: leaf module, `notification_outbox` ledger, `@Scheduled` retry poller, `ChannelAdapter` SPI + config-toggled stub adapters; quote `:send` in `order`, result `:send` in `delivery`** | §III Devis (envoi par Mail / WhatsApp), §IV Résultats (envoi par Mail avec mot de passe sur le fichier), §IX dossier "envoyé par Mail" (`lab_files.emailed_at` marker) |
+| `attachment` (scan direct) **— implemented, SP6: generic upload/store/retrieve/soft-delete API behind a `BlobStore` SPI (filesystem default, S3/MinIO for prod); nested-resource controllers in `order` + `cashbox` delegate to it. Scanner discovery stays a frontend responsibility (§11.4).** | §IV "Joindre des fichiers par scan direct (détection des scanners dans le réseau)" |
+| Quotes (`quote`) | §III Devis |
+| `pdf` (shared HTML → PDF rendering, 1.5.c) | §IV Impression; §X Édition compte-rendu |
+| `labsettings` (Lab settings, 1.5.e) | §I informations générales du laboratoire (nom, adresse, accréditation, responsable); DB-backed singleton; admin updates via `PUT /api/v1/lab-settings` |
+| Payment receipt PDF (1.5.g) | §VIII (caisse / reçus) + §IV (impression); rendered by `billing/infra/pdf/` as a 1.5.c `PdfDocumentType` consumer; endpoint `GET /api/v1/payments/{id}/receipt.pdf` |
+| Quote PDF (1.5.h) | §III (devis) + §IV (impression); rendered by `order/infra/pdf/` as a 1.5.c `PdfDocumentType` consumer; endpoint `GET /api/v1/quotes/{id}/pdf` |
+| Étiquettes (labels) **— implemented, SP7** (`GET /api/v1/lab-files/{id}/labels`, JSON label records assembled in `order/web/`; frontend / printer driver renders the 4 cm × 2.5 cm thermal label) | §IV Configuration des étiquettes; §II Impression des étiquettes |
+| Feuilles de paillasse (worksheets) **— implemented, SP7**: per-dossier bench sheet (`GET /api/v1/lab-files/{id}/worksheet.pdf`, `order/infra/pdf/`, A4 portrait) and per-paillasse worklist (`GET /api/v1/paillasses/{disciplineId}/worksheet.pdf?from=&to=`, `result/infra/pdf/`, A4 landscape); both are 1.5.c `PdfDocumentType` consumers | §II Feuille de paillasse; §VII Gestion des disciplines |
+| §IX printed / signed / emailed dossier filters **— implemented, SP7**: `printed` / `signed` / `emailed` query params on `GET /api/v1/dossiers`; print channel = `lab_files.printed_at` stamped by `POST /api/v1/lab-files/{id}:mark-printed` (in `delivery`, `dossier.print` permission) | §IX Dossiers imprimés / signés / envoyés |
+| `export` (shared DOCX/XLSX rendering + OOXML password, **SP5**) — `OfficeDocumentType` SPI + registry, POI XWPF/XSSF, agile-AES `OfficePasswordProtector`; per-document renderers under `<module>.infra.export` reuse the existing report models | §III (devis → Word, `GET /api/v1/quotes/{id}/export`), §IV (dossier → Word/Excel **protégé par mot de passe**, `GET /api/v1/lab-files/{id}/export`, password in `X-Export-Password` header), §X (édition / exportation du compte-rendu en format électronique) |
+
+Anything not traceable to a CDC clause is **out of scope** and requires a CDC amendment before it can be added to this project.
+
+---
+
+## 2. Technology Stack
+
+### 2.1 Core
+- **Java 25** (LTS) — leveraging records, sealed types, pattern matching, virtual threads, text blocks
+- **Spring Boot 4.0.x** — application framework
+- **Spring Web MVC** — REST endpoints (with virtual-thread executor)
+- **Spring Data JPA / Hibernate 6** — persistence
+- **Spring Security 6** — authentication and authorization
+- **Spring Validation** — Jakarta Bean Validation 3
+- **Spring Modulith** — modular monolith with verified module boundaries
+
+### 2.2 Database & Cache
+- **PostgreSQL 17** — primary RDBMS
+- **Liquibase** — schema migration with versioned changelogs in YAML, contexts per environment, rollback support, drift detection
+- **HikariCP** — connection pool (default in Spring Boot)
+- **Redis** (optional, phase 2) — session store, rate limiting, lookup caches
+
+### 2.3 Build & Tooling
+- **Maven** with the Spring Boot parent POM
+- **Lombok** — `@Slf4j`, `@RequiredArgsConstructor`, `@Getter`, `@Setter`, `@Builder` allowed; `@Data` and `@SneakyThrows` forbidden. Records remain preferred for value objects; JPA entities stay plain classes.
+- **MapStruct** — DTO ↔ entity mapping
+- **Testcontainers** — integration tests against a real PostgreSQL
+- **Spotless / Checkstyle** — formatting and lint
+
+### 2.4 API & Documentation
+- **springdoc-openapi** — OpenAPI 3 / Swagger UI
+- **Problem Details (RFC 7807)** — error representation
+
+### 2.5 Observability
+- **Micrometer + Prometheus** — metrics
+- **Logback + JSON encoder** — structured logs
+- **OpenTelemetry** — distributed tracing
+- **Spring Boot Actuator** — health, info, metrics endpoints
+
+### 2.6 Messaging & Background Work
+- **Spring Events** (in-process) for module-to-module signaling
+- **Quartz Scheduler** or `@Scheduled` for cron jobs (sample destruction alerts **— realized by `order/infra/ConservationAlertScanner`, SP9, cron `lims.conservation.alert-cron`**, overdue reports)
+- **Java 25 Virtual Threads** for I/O-bound work; pinned platform threads for JNI/file scans
+
+### 2.7 Document & Reporting
+- **Apache POI** — DOCX **and** XLSX export and OOXML password (agile/AES) encryption, via the shared `export` module (SP5): the devis Word export, the result-dossier Word/Excel exports (password-protected), and the statistics XLSX workbook. (Replaces the originally-planned docx4j — POI covers DOCX, XLSX, and the encryption uniformly, so docx4j was dropped.)
+- **OpenHTMLtoPDF** — primary HTML → PDF engine (Thymeleaf templates → PDF bytes), used by the shared `pdf` module (§8.8) for the result compte-rendu and all subsequent consumer reports
+- **OpenPDF** — reserved for post-processing (PDF merge, password protection, watermarking) when the delivery module lands in 1.8
+- **JasperReports** (optional) — complex statistics reports
+- **Apache Tika** (`tika-core`) — magic-byte content-type detection for uploaded scans, used by the `attachment` module (SP6). `tika-core` only; the parsers module is deliberately excluded (it would drag in 100+ transitive deps and is unneeded for detection).
+- **AWS SDK v2** (`software.amazon.awssdk:s3`) — the S3/MinIO `BlobStore` backend for the `attachment` module (SP6); the filesystem backend has no extra dependency. Tests add `org.testcontainers:minio` (test-only).
+
+---
+
+## 3. High-Level Architecture
+
+### 3.1 Style
+A **modular monolith** built with **Spring Modulith**, organized along the bounded contexts identified in the spec. Each module owns its tables and exposes a service API; cross-module reads go through API calls or domain events, never direct repository access.
+
+This style fits the scope of a single-lab deployment, simplifies operations, and leaves a clear path to extract microservices later (billing, statistics, and notifications are the most likely candidates).
+
+### 3.2 Layering inside a module
+
+```
+┌──────────────────────────────────────────────────────────┐
+│                       Web layer                          │
+│   Controllers · DTOs · Validation · OpenAPI · Mappers    │
+├──────────────────────────────────────────────────────────┤
+│                   Application layer                      │
+│   Use-case services · Transactions · Authorization       │
+├──────────────────────────────────────────────────────────┤
+│                     Domain layer                         │
+│   Entities · Value Objects · Domain services · Events    │
+├──────────────────────────────────────────────────────────┤
+│                 Infrastructure layer                     │
+│   JPA repositories · External clients · File adapters    │
+└──────────────────────────────────────────────────────────┘
+```
+
+### 3.3 Modules (Spring Modulith)
+
+| Module | Responsibility |
+|---|---|
+| `iam` | Users, habilitations (roles + permissions), authentication via secured-x, dossier electronic signature, audit trail via secured-x signing chain |
+| `patient` | Patient identity, file lookup, merge, contacts |
+| `catalog` | Analyses (simple/grouped), disciplines, matrices, techniques, recipients, antibiotics, prescribers |
+| `order` | Lab files (dossiers), quotes, sample collection events |
+| `result` | Result entry, technical/biological validation, reference intervals, antibiogram interpretation |
+| `billing` | Invoices, insurance pricing, partner contracts, society panels |
+| `cashbox` | Registers, daily journals, payments, expenses, home-collection fees |
+| `delivery` | Result distribution: print, email, online link |
+| `stats` | Aggregated reporting and KPIs |
+| `notification` | Outbound mail / WhatsApp / SMS |
+| `attachment` | Scanned documents and lab-report file storage |
+| `pdf` (1.5.c) | Shared HTML → PDF rendering engine (sync + async), font registry, job table + cleanup scheduler; consumed by `result` (1.5.c), and later by `delivery` (1.8), cashbox receipts, quote PDFs, accounting exports |
+| `labsettings` (1.5.e) | DB-backed singleton aggregate carrying the lab's display identity (name, address, accreditation, manager). Consumed by document-rendering modules (result CR PDF; future cashbox receipt, quote, invoice PDFs) |
+
+### 3.4 Cross-cutting Adapters
+- `security` — provided by **secured-x** library: JWT (RS256) issuing, Argon2id password hashing (via `secured-x-provider-local`), per-user Ed25519 action signing chain, role/permission enforcement (via `secured-x-rbac`)
+- `audit` — Hibernate Envers (row-level history on critical tables) + secured-x signing chain (per-user action history, dossier electronic signature)
+- `config` — global Spring configuration
+
+---
+
+## 4. Project Structure
+
+```
+lims-backend/
+├── pom.xml
+├── Jenkinsfile
+├── .mvn/
+├── src/main/java/org/sparkcorporation/lims/
+│   ├── LimsApplication.java
+│   ├── shared/
+│   │   ├── domain/         # Money, Code, Identifier, RangeOfDays...
+│   │   ├── web/            # ProblemDetail handlers, paging
+│   │   ├── security/
+│   │   └── audit/
+│   ├── iam/
+│   │   ├── api/            # public service interfaces (consumed by other modules)
+│   │   ├── domain/
+│   │   ├── infra/
+│   │   └── web/
+│   ├── patient/...
+│   ├── catalog/...
+│   ├── order/...
+│   ├── result/...
+│   ├── billing/...
+│   ├── cashbox/...
+│   ├── delivery/...
+│   ├── stats/...
+│   ├── notification/...
+│   └── attachment/...
+├── src/main/resources/
+│   ├── application.yml
+│   ├── application-prod.yml
+│   ├── db/changelog/       # Liquibase: db.changelog-master.yaml + per-version files
+│   └── templates/          # email & report templates
+└── src/test/java/...
+```
+
+Each module (e.g. `patient`) follows the same internal layout: `api`, `domain`, `infra`, `web`. The `api` package contains only interfaces and DTOs; everything else inside the module is package-private. Spring Modulith verifies this at test time with `ApplicationModules.of(...).verify()`.
+
+---
+
+## 5. Domain Model
+
+### 5.1 Aggregate Roots (per module)
+
+| Module | Aggregate | Key fields |
+|---|---|---|
+| `iam` | `User` | username, hashedPassword, roles, cashRegisterId |
+| `patient` | `Patient` | labCode, names, civility, sex, idDocument, contacts |
+| `catalog` | `Analysis` (simple/grouped), `Discipline`, `Matrix`, `Technique`, `Antibiotic`, `Prescriber` | code, name, indiciaryValue (B), recipient, matrix, ranges |
+| `order` | `LabFile` | registrationNumber, patient, prescriber, urgency, samples |
+| `result` | `ResultEntry` | analysis, value, unit, refRange, technicalValidation, biologicalValidation |
+| `billing` | `Invoice` | number, lines, insurance, partner, totals, payments |
+| `cashbox` | `CashRegister`, `JournalEntry`, `Expense` | code, owner, movements |
+
+### 5.2 Identifier strategy
+- **Surrogate key:** ULID (`io.azam.ulidj`), 26-character lexically-sortable string stored as `varchar(26)` PK. Generated by the application before persistence to keep IDs stable across the full lifetime of the entity.
+- **Business key:** every aggregate has one (`patient.labCode`, `analysis.code`, `labFile.registrationNumber`). These are unique, indexed, and immutable.
+
+### 5.3 Value Objects
+Modeled as Java records:
+
+```java
+public record Money(BigDecimal amount, Currency currency) {
+    public Money {
+        Objects.requireNonNull(amount);
+        Objects.requireNonNull(currency);
+        if (amount.scale() > currency.getDefaultFractionDigits()) {
+            amount = amount.setScale(currency.getDefaultFractionDigits(), RoundingMode.HALF_UP);
+        }
+    }
+    public Money add(Money other) { /* same-currency check */ }
+}
+
+public record ReferenceRange(BigDecimal min, BigDecimal max, String unit) { }
+
+public record DailyId(LocalDate day, int sequence) {
+    public String format(DisciplinePrefix prefix) {
+        return "%d%02d%02d%02d-%03d".formatted(
+            prefix.code(), day.getDayOfMonth(),
+            day.getMonthValue(), day.getYear() % 100, sequence);
+    }
+}
+```
+
+### 5.4 Domain Events
+Examples:
+- `LabFileCreated`, `SampleCollected`, `ResultsEntered`, `BiologicalValidationDone`, `ResultPublished`
+- `InvoiceIssued`, `PaymentReceived`
+- `PatientMerged`
+
+Events are published with Spring's `ApplicationEventPublisher`. Subscribers in other modules listen via `@TransactionalEventListener(phase = AFTER_COMMIT)` to keep boundaries clean.
+
+### 5.5 Sealed Types for Result Values
+```java
+public sealed interface ResultValue
+    permits NumericResult, IntegerResult, TextResult, FormulaResult, FreeFormResult {
+
+    String renderForReport();
+}
+```
+Pattern matching on `ResultValue` keeps result handling exhaustive at compile time.
+
+---
+
+## 6. Database Design
+
+> *Note: the code samples in this section and Appendix A still show `UUID` columns. They migrate to `varchar(26)` ULID columns in Phase 0 scaffolding; the §5.2 decision above is the binding contract.*
+
+### 6.1 Conventions
+- Schema: `lims`
+- Table names: `snake_case`, plural (`patients`, `lab_files`)
+- Every table has: `id UUID PK`, `created_at`, `updated_at`, `created_by`, `updated_by`, `version` (JPA optimistic lock)
+- Soft delete via `deleted_at` only where the spec explicitly demands historical recovery (lab files, results); hard delete otherwise
+- Money columns: `NUMERIC(18,2)` and `currency_code CHAR(3)`
+- All FKs have an index
+
+### 6.2 Core Tables (excerpt)
+
+```sql
+CREATE TABLE patients (
+    id VARCHAR(26) PRIMARY KEY,                                       -- ULID per §5.2
+    lab_code VARCHAR(30) NOT NULL UNIQUE,                             -- format <prefix>-<yyMMdd>-<seq>, see §6.6
+    last_name VARCHAR(120) NOT NULL,
+    first_names VARCHAR(160),
+    maiden_name VARCHAR(120),
+    civility VARCHAR(20) NOT NULL,                                    -- shared.domain.Civility
+    sex CHAR(1) NOT NULL,                                             -- shared.domain.Sex (M, F)
+    birth_date DATE,
+    id_document_type VARCHAR(20),                                     -- patient.domain.IdDocumentType
+    id_document_number VARCHAR(40),
+    profession VARCHAR(80),
+    address VARCHAR(255),
+    clinical_notes TEXT,                                              -- CDC §I "Informations cliniques ou diagnostic"
+    phone VARCHAR(30),
+    email VARCHAR(120),
+    guardian_name VARCHAR(120),                                       -- CDC §I "Contact de l'accompagnant, du parent ou tuteur légal"
+    guardian_phone VARCHAR(30),
+    guardian_relationship VARCHAR(20),                                -- patient.domain.GuardianRelationship
+    insured BOOLEAN NOT NULL DEFAULT FALSE,
+    -- insurance_id, partner_id are added later by the catalog / billing changesets when those tables exist
+    portal_login VARCHAR(80) UNIQUE,                                  -- CDC §I "Identifiants de connexion pour consulter les résultats"
+    portal_password_hash VARCHAR(255),                                -- Argon2id PHC string
+    merged_into_id VARCHAR(26),                                       -- soft self-reference; FK enforced in app
+    deleted_at TIMESTAMPTZ,                                           -- soft delete; 10-year medical retention
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    created_by VARCHAR(26),                                           -- nullable until iam lands (sub-project 1.1.b)
+    updated_by VARCHAR(26),                                           -- nullable until iam lands
+    version INT NOT NULL DEFAULT 0
+);
+
+CREATE EXTENSION IF NOT EXISTS pg_trgm;
+CREATE INDEX idx_patients_last_name_trgm ON patients USING gin (lower(last_name) gin_trgm_ops);
+CREATE INDEX idx_patients_phone     ON patients (phone);
+CREATE INDEX idx_patients_id_document_number ON patients (id_document_number);
+CREATE INDEX idx_patients_merged_into_id ON patients (merged_into_id) WHERE merged_into_id IS NOT NULL;
+CREATE INDEX idx_patients_active ON patients (id) WHERE deleted_at IS NULL;
+```
+
+```sql
+CREATE TABLE lab_files (
+    id UUID PRIMARY KEY,
+    registration_number VARCHAR(30) NOT NULL UNIQUE,
+    daily_id VARCHAR(20) NOT NULL,
+    patient_id UUID NOT NULL REFERENCES patients(id),
+    prescriber_id UUID REFERENCES prescribers(id),
+    is_urgent BOOLEAN NOT NULL DEFAULT FALSE,
+    status VARCHAR(20) NOT NULL,        -- DRAFT, IN_PROGRESS, VALIDATED, PRINTED, SENT, CANCELLED
+    appointment_at TIMESTAMPTZ,
+    diagnosis TEXT,
+    total_amount NUMERIC(18,2) NOT NULL DEFAULT 0,
+    insurance_coverage NUMERIC(18,2) NOT NULL DEFAULT 0,
+    patient_due NUMERIC(18,2) NOT NULL DEFAULT 0,
+    discount NUMERIC(18,2) NOT NULL DEFAULT 0,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    deleted_at TIMESTAMPTZ,
+    -- SP3 dossier e-signature (changeset 202605281410-add-lab-files-signature, CDC §IV).
+    -- Set when the dossier transitions to SIGNED; publication is gated on SIGNED.
+    signed_by VARCHAR(26),                  -- users.id (ULID) of the signing biologist, null until signed
+    signed_at TIMESTAMPTZ,                   -- when the dossier was electronically signed
+    -- SP4 outbound mail delivery (changeset 202605290905-add-lab-files-emailed-at, CDC §IX).
+    -- Stamped by delivery's EmailedAtStampingListener on NotificationDelivered for an EMAIL/LAB_FILE.
+    emailed_at TIMESTAMPTZ,                   -- when the dossier was sent to the patient by Mail, null until sent
+    -- SP7 print channel (changeset 202606051000-add-lab-files-printed-at, CDC §IX).
+    -- Stamped by delivery's MarkPrintedService on POST :mark-printed; re-print overwrites.
+    printed_at TIMESTAMPTZ                    -- when the dossier was confirmed printed, null until printed
+);
+```
+
+```sql
+-- LIMS-side credential store consumed by secured-x's LocalAuthProvider
+CREATE TABLE local_credentials (
+    subject       VARCHAR(26) PRIMARY KEY REFERENCES users(id),
+    argon2_hash   VARCHAR(255) NOT NULL,
+    algo_params   JSONB NOT NULL,                   -- memory_kb, iterations, parallelism
+    created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+    disabled_at   TIMESTAMPTZ,
+    last_login_at TIMESTAMPTZ
+);
+
+-- secured-x per-user Ed25519 key-pair store (private key encrypted at rest, SP3)
+-- changeset 202605281400-create-user-key-pairs. The raw PKCS#8 private key the
+-- secured-x UserKeyPairManager hands us is encrypted with AES-256-GCM before
+-- persistence: private_key_encrypted holds the ciphertext (incl. GCM auth tag),
+-- private_key_iv holds the 12-byte nonce. The KEK comes from
+-- lims.signing.key-encryption-key (env LIMS_SIGNING_KEK).
+CREATE TABLE user_key_pairs (
+    key_id                VARCHAR(36) PRIMARY KEY,
+    subject               VARCHAR(26) NOT NULL REFERENCES users(id),
+    public_key            BYTEA NOT NULL,
+    private_key_encrypted BYTEA NOT NULL,   -- AES-256-GCM ciphertext of the PKCS#8 key
+    private_key_iv        BYTEA NOT NULL,    -- 12-byte GCM nonce
+    created_at            TIMESTAMPTZ NOT NULL,
+    expires_at            TIMESTAMPTZ,       -- nullable
+    active                BOOLEAN NOT NULL
+);
+CREATE INDEX ix_user_key_pairs_subject_active ON user_key_pairs(subject, active);
+
+-- secured-x append-only signed-action audit chain (SP3)
+-- changeset 202605281405-create-signed-actions.
+CREATE TABLE signed_actions (
+    action_id       VARCHAR(36) PRIMARY KEY,
+    subject         VARCHAR(26) NOT NULL,     -- users.id (ULID); no direct FK — reaches users via key_id → user_key_pairs.subject
+    action          VARCHAR(120) NOT NULL,
+    resource        VARCHAR(255),
+    -- timestamp is TEXT (ISO-8601), NOT timestamptz: it is persisted via
+    -- InstantIso8601Converter from Instant.toString() so the value the Ed25519
+    -- signature was computed over round-trips byte-identically (nanosecond
+    -- fidelity). Storing it as timestamptz would truncate / re-render the
+    -- instant and break chain verification.
+    timestamp       TEXT NOT NULL,
+    correlation_id  VARCHAR(64),
+    key_id          VARCHAR(36) NOT NULL REFERENCES user_key_pairs(key_id),
+    metadata        JSONB,
+    previous_hash   VARCHAR(64),             -- SHA-256(prev.signature), null for the genesis link
+    sequence_number BIGINT NOT NULL,
+    signature       TEXT NOT NULL,
+    UNIQUE (subject, sequence_number)
+);
+CREATE INDEX ix_signed_actions_subject_seq ON signed_actions(subject, sequence_number);
+CREATE INDEX ix_signed_actions_resource    ON signed_actions(resource);
+
+-- enforce append-only at DB level (RULE blocks UPDATE / DELETE)
+CREATE RULE no_update_signed_actions AS ON UPDATE TO signed_actions DO INSTEAD NOTHING;
+CREATE RULE no_delete_signed_actions AS ON DELETE TO signed_actions DO INSTEAD NOTHING;
+
+-- SP8 audit-chain checkpoints — append-only Merkle snapshot of every chain head,
+-- signed by the SYSTEM_AUDIT identity. changeset 202606101000-create-audit-checkpoints.
+CREATE TABLE audit_checkpoints (
+    checkpoint_id   VARCHAR(36) PRIMARY KEY,
+    global_sequence BIGINT NOT NULL,
+    timestamp       TEXT NOT NULL,                 -- ISO-8601, same fidelity rationale as signed_actions.timestamp
+    chain_heads     JSONB NOT NULL,                -- subject → SHA-256(latest signature)
+    merkle_root     VARCHAR(64) NOT NULL,          -- SHA-256 Merkle root over the chain heads
+    signature       TEXT NOT NULL,                 -- Ed25519 signature of the canonical |-delimited payload
+    key_id          VARCHAR(36) NOT NULL REFERENCES user_key_pairs(key_id)  -- the SYSTEM_AUDIT identity's key
+);
+CREATE INDEX ix_audit_checkpoints_seq_ts ON audit_checkpoints (global_sequence, timestamp);
+CREATE RULE no_update_audit_checkpoints AS ON UPDATE TO audit_checkpoints DO INSTEAD NOTHING;
+CREATE RULE no_delete_audit_checkpoints AS ON DELETE TO audit_checkpoints DO INSTEAD NOTHING;
+```
+
+```sql
+-- SP8 Hibernate Envers row-level history (persist-only, §9.4). The revision table
+-- plus six *_aud tables are hand-authored to match Envers under ddl-auto=validate.
+-- changesets 202606101010-create-envers-revinfo, 202606101011-create-envers-aud-tables.
+CREATE TABLE revinfo (
+    rev      INT PRIMARY KEY,
+    revtstmp BIGINT NOT NULL,
+    user_id  VARCHAR(26)        -- acting-user ULID stamped by LimsRevisionListener (null for anonymous/system)
+);
+-- one *_aud table per @Audited entity, each FK-referencing revinfo(rev):
+--   patients_aud, lab_files_aud, results_aud, result_lines_aud, invoices_aud, users_aud
+```
+
+```sql
+-- SP4 notification outbox — the authoritative per-delivery ledger (§12.3).
+-- changeset 202605290900-create-notification-outbox.
+CREATE TABLE notification_outbox (
+    id                      VARCHAR(26) PRIMARY KEY,        -- ULID
+    channel                 VARCHAR(16) NOT NULL,           -- EMAIL | WHATSAPP
+    recipient               VARCHAR(255) NOT NULL,          -- email or phone — PII, never logged
+    subject                 VARCHAR(255),                   -- nullable (WhatsApp has none)
+    body                    TEXT NOT NULL,
+    attachment_filename     VARCHAR(255),
+    attachment_content_type VARCHAR(100),
+    attachment_bytes        BYTEA,                          -- e.g. the encrypted CR PDF for result email
+    status                  VARCHAR(16) NOT NULL,           -- PENDING | SENT | FAILED | ABANDONED
+    attempts                INT NOT NULL DEFAULT 0,
+    next_attempt_at         TIMESTAMPTZ NOT NULL,           -- when the poller may next try this entry
+    last_error              TEXT,                           -- truncated message, no PII
+    context_type            VARCHAR(16),                    -- QUOTE | LAB_FILE
+    context_id              VARCHAR(26),                    -- quote id / lab file id
+    created_at              TIMESTAMPTZ NOT NULL,
+    sent_at                 TIMESTAMPTZ
+);
+CREATE INDEX idx_notification_outbox_due     ON notification_outbox (status, next_attempt_at);
+CREATE INDEX idx_notification_outbox_context ON notification_outbox (context_type, context_id);
+```
+
+### 6.3 Reference Intervals
+Reference intervals are **per analysis × patient category × age range × sex**, with multiple modes (Standard, Comment, None). Modeled with a single table and a `mode` discriminator:
+
+```sql
+CREATE TABLE reference_intervals (
+    id UUID PRIMARY KEY,
+    analysis_id UUID NOT NULL REFERENCES analyses(id),
+    category VARCHAR(25) NOT NULL,    -- HOMME, FEMME, ENFANT, NOURRISSON_NOUVEAU_NE
+    sex CHAR(1),
+    age_min INT, age_max INT, age_unit VARCHAR(10),
+    mode VARCHAR(15) NOT NULL,        -- STANDARD, COMMENT, NONE
+    unit_1_min NUMERIC(18,4), unit_1_max NUMERIC(18,4),
+    unit_2_min NUMERIC(18,4), unit_2_max NUMERIC(18,4),
+    comment_text TEXT
+);
+```
+
+### 6.4 Antibiogram
+```sql
+CREATE TABLE antibiotics (
+    id VARCHAR(26) PRIMARY KEY,
+    code VARCHAR(10) NOT NULL UNIQUE,
+    name VARCHAR(100) NOT NULL,
+    family VARCHAR(50),
+    reference_diameter NUMERIC(5,2) NOT NULL,
+    intermediate_lower NUMERIC(5,2),
+    intermediate_upper NUMERIC(5,2)
+);
+```
+Interpretation logic per CDC §6 "Liste d'antibiotiques" — given measured diameter `m`, reference diameter `M`, and intermediate bounds `X1 < X2` bracketing `M`:
+
+- `m < M` → **R** (Résistant)
+- `m > M` → **S** (Sensible)
+- `X1 < m < X2` → **I** (Intermédiaire)
+
+Schema mapping: `intermediate_lower` = X1, `intermediate_upper` = X2, `reference_diameter` = M. Implementation in `AntibiogramInterpreter.interpret(...)` (Appendix A.3): if `intermediate_lower ≤ m ≤ intermediate_upper` → I; else `m < reference_diameter` → R; else S.
+
+### 6.5 Migrations (Liquibase)
+
+All schema and reference-data changes are managed by **Liquibase**. Spring Boot picks the changelog up automatically when `spring.liquibase.change-log` is set; no manual command is needed at boot.
+
+**Layout**
+
+```
+src/main/resources/db/changelog/
+├── db.changelog-master.yaml
+├── changes/
+│   ├── 001-initial-schema.yaml
+│   ├── 002-patient-merge-fields.yaml
+│   ├── 003-reference-intervals.yaml
+│   ├── 004-antibiogram.yaml
+│   └── ...
+└── data/
+    ├── seed-disciplines.yaml
+    └── seed-roles.yaml
+```
+
+**Master changelog**
+
+```yaml
+databaseChangeLog:
+  - includeAll:
+      path: changes/
+      relativeToChangelogFile: true
+  - includeAll:
+      path: data/
+      relativeToChangelogFile: true
+      context: dev,test
+```
+
+**Changeset conventions**
+
+- One file per logical change. Never edit a changeset that has already been applied to a shared environment — add a new one.
+- `id` follows `<yyyyMMddHHmm>-<short-name>`, `author` is the developer's git handle.
+- Every changeset declares a `rollback` block (or explicitly states `<empty/>` rollback when impossible) so non-prod environments can step backward.
+- `contexts` separate environment-specific data: `dev`, `test`, `staging`, `prod`. Seed data lives only in `dev,test` contexts.
+- `labels` mark cross-cutting changes for filtered execution (e.g. `label="phase-2"`).
+- `preConditions` guard idempotency on environments that may already contain data (e.g. `onFail: MARK_RAN` for additive changes).
+
+**Example changeset**
+
+```yaml
+databaseChangeLog:
+  - changeSet:
+      id: 202604030900-create-patients
+      author: samuel
+      labels: phase-1
+      changes:
+        - createTable:
+            tableName: patients
+            columns:
+              - column:
+                  name: id
+                  type: uuid
+                  constraints: { primaryKey: true, nullable: false }
+              - column:
+                  name: lab_code
+                  type: varchar(20)
+                  constraints: { nullable: false, unique: true }
+              - column:
+                  name: last_name
+                  type: varchar(120)
+                  constraints: { nullable: false }
+              - column:
+                  name: first_names
+                  type: varchar(160)
+              - column:
+                  name: civility
+                  type: varchar(20)
+                  constraints: { nullable: false }
+              - column:
+                  name: sex
+                  type: char(1)
+                  constraints: { nullable: false }
+              - column:
+                  name: created_at
+                  type: timestamptz
+                  defaultValueComputed: now()
+                  constraints: { nullable: false }
+              - column:
+                  name: updated_at
+                  type: timestamptz
+                  defaultValueComputed: now()
+                  constraints: { nullable: false }
+              - column:
+                  name: version
+                  type: int
+                  defaultValueNumeric: 0
+                  constraints: { nullable: false }
+        - createIndex:
+            indexName: idx_patients_last_name
+            tableName: patients
+            columns:
+              - column: { name: last_name, computed: true, descending: false }
+      rollback:
+        - dropTable:
+            tableName: patients
+```
+
+**Operational rules**
+
+- `mvn liquibase:status` runs in CI on every pull request and fails the build if a changeset has been edited after being applied to staging.
+- `mvn liquibase:updateSQL` produces a script attached to the deployment artifact for the DBA to review before prod runs.
+- `mvn liquibase:rollbackOneUpdateSQL` is generated alongside, so a rollback path is reviewed before a release goes live.
+- A nightly `liquibase:diff` job compares the JPA-derived schema against the running database and alerts on drift.
+- A small smoke test in CI runs `update` then `rollback` to the previous tag against an empty PostgreSQL container, ensuring every changeset has a working reverse path.
+
+---
+
+### 6.6 Numbering Conventions
+
+Per CDC, several identifiers have a strict format:
+
+**Daily ID** (CDC §IV "Configuration des étiquettes — L'ID journalier") — format: `<discipline-prefix><dd><MM><yy>-<seq>`
+
+| Prefix | Discipline |
+|---|---|
+| `1` | Biochimie |
+| `2` | Hématologie |
+| `3` | Immuno-sérologie |
+| `4` | Microbiologie |
+| `5` | Biologie moléculaire |
+
+Example: `1151024-001` = Biochimie, 15 Oct 2024, 1st sample of the day.
+
+Generated atomically per discipline via `SELECT … FOR UPDATE` on a `daily_counters(day, discipline_prefix)` row.
+
+**Invoice number** (CDC Gestion comptable §1 Factures) — format: `<labCode><yy>-<ddMM>-<seq>` where `labCode` = `LTA` (laboratoires Togo) or `LBA` (laboratoires Bénin).
+
+Example: `LTA24-1710-005` = Togo lab, 17 Oct 2024 (day 17, month 10), 5th invoice of the day.
+
+**Patient lab code** (CDC §I "Génération automatique d'un code laboratoire") — format: `<labPrefix>-<yyMMdd>-<seq>`, per-lab counter, generated within the patient-creation transaction so failures roll back the counter.
+
+**Quote number** (CDC §III "Générer automatiquement un numéro de devis") — format: `DEV-<yyMMdd>-<seq>`, per-day counter.
+
+**Étiquettes (labels)** (CDC §IV "Configuration des étiquettes") — 4 cm × 2.5 cm thermal labels; barcode encodes the daily ID; label prints patient nom + prénom + date naissance + âge + sexe + first 5 analyses.
+
+---
+
+## 7. REST API Design
+
+### 7.1 Conventions
+- Base path: `/api/v1`
+- JSON only (`application/json`) — except the binary document endpoints (`pdf`/`export`), which return the file bytes with `Content-Disposition: attachment`
+- Cursor-based pagination for large lists; offset for admin lists
+- Filtering: `?status=VALIDATED&from=2026-04-01&to=2026-04-30`
+- Sorting: `?sort=createdAt,desc`
+- All write endpoints require `Idempotency-Key` header for safe retries
+- **Office exports (SP5):** office-document endpoints take a required `?format=` query parameter (`docx`/`xlsx`) and respond with the matching OOXML MIME type. The password-protected dossier export returns its generated password in the **`X-Export-Password`** response header — that header value, like patient PII and the SP4 file-password, is on the **never-log** list (the `/lab-files/*` / `/quotes/*` redaction rules cover the request/response bodies; the `X-Export-Password` header is redacted alongside them).
+
+### 7.2 Standard Error Body (RFC 7807)
+```json
+{
+  "type": "https://lims/errors/validation",
+  "title": "Validation failed",
+  "status": 422,
+  "detail": "1 field is invalid",
+  "instance": "/api/v1/patients",
+  "errors": [
+    { "field": "email", "code": "Email", "message": "must be a valid email" }
+  ],
+  "traceId": "3f1a..."
+}
+```
+
+### 7.3 Endpoint Catalog (excerpt)
+
+#### Patients
+| Method | Path | Notes |
+|---|---|---|
+| `POST` | `/patients` | create patient, generates `labCode` |
+| `GET` | `/patients/{id}` | full record |
+| `GET` | `/patients` | search by name, phone, idDocument, labCode |
+| `PATCH` | `/patients/{id}` | partial update |
+| `POST` | `/patients/{id}/merge` | merge into another patient |
+
+#### Lab Files
+| Method | Path | Notes |
+|---|---|---|
+| `POST` | `/lab-files` | create file, returns `registrationNumber` |
+| `GET` | `/lab-files/{id}` | full file with samples + analyses |
+| `POST` | `/lab-files/{id}/samples` | add a sample collection event |
+| `POST` | `/lab-files/{id}/analyses` | add analyses (codes) |
+| `POST` | `/lab-files/{id}/results:enter` | enter results (technical) |
+| `POST` | `/lab-files/{id}/results:validate-tech` | technical validation |
+| `POST` | `/lab-files/{id}/results:validate-bio` | biological validation, locks the file |
+| `POST` | `/lab-files/{id}:sign` | electronically sign a bio-validated dossier (`dossier.sign-electronically`, BIOLOGIST; CDC §IV). Binds a digest of the dossier into the signing biologist's Ed25519 action chain (explicit `ActionSigner.sign`), sets `signed_by`/`signed_at`, transitions to `SIGNED`, emits `DossierSigned`. Prerequisite for `:publish` (SP3) |
+| `POST` | `/lab-files/{id}:publish` | publish a dossier (`dossier.publish`); **now requires the dossier to be `SIGNED`** (SP3). Transitions to `PUBLISHED`, emits `ResultPublished` (online channel — SP2). Manual only |
+| `GET` | `/lab-files/{id}/labels` | label records (`lab-file.read`; SP7). One record per sample: patient nom/prénom/dateNaissance/âge/sexe, daily-ID barcode payload, first 5 analyses, `copies` from `Analysis.labelCount` |
+| `GET` | `/lab-files/{id}/worksheet.pdf` | per-dossier « feuille de paillasse » (`lab-file.read`; SP7). A4 portrait, analyses grouped by paillasse, blank handwritten-result column |
+| `POST` | `/lab-files/{id}:mark-printed` | confirm a printed dossier (`dossier.print`; SP7). `204`; stamps `lab_files.printed_at`; requires `PUBLISHED` (else `409`); re-print overwrites |
+
+#### Paillasses
+| Method | Path | Notes |
+|---|---|---|
+| `GET` | `/paillasses/{disciplineId}/worksheet.pdf?from=&to=` | per-paillasse worklist PDF (`lab-file.read`; SP7). A4 landscape, one block per dossier; `from`/`to` default to today (UTC, registration date); `from > to` → `400` |
+
+#### Quotes
+| `POST` `/quotes` · `GET` `/quotes/{id}` · `POST` `/quotes/{id}:lock` · `POST` `/quotes/{id}:send` |
+
+#### Catalog
+| `GET/POST/PUT/DELETE` `/analyses`, `/analyses/grouped`, `/disciplines`, `/matrices`, `/techniques`, `/recipients`, `/antibiotics`, `/prescribers`, `/insurances`, `/partners`, `/society-panels`, `/collectors` |
+
+#### Billing & Cashbox
+| `POST` `/invoices` (auto from a lab file) · `POST` `/payments` |
+
+**Cashbox (sub-project 1.7.a, 12 endpoints under `/api/v1/cashbox/`).**
+
+| Method | Path | Notes |
+|---|---|---|
+| `GET` | `/api/v1/cashbox/expense-categories` | list (filter by `active`) |
+| `POST` | `/api/v1/cashbox/expense-categories` | create (LAB_MANAGER) |
+| `PATCH` | `/api/v1/cashbox/expense-categories/{id}` | rename / reactivate |
+| `DELETE` | `/api/v1/cashbox/expense-categories/{id}` | soft-delete (sets `active=false`) |
+| `GET` | `/api/v1/cashbox/expenses` | filtered list |
+| `POST` | `/api/v1/cashbox/expenses` | record an expense (writes journal row) |
+| `GET` | `/api/v1/cashbox/home-collection-fees` | filtered list |
+| `POST` | `/api/v1/cashbox/home-collection-fees` | record a fee (writes journal row + syncs `lab_files.home_collection_fee`) |
+| `GET` | `/api/v1/cashbox/journal` | §4 Journal des caisses; rows with `paid_so_far` running total via CTE window function |
+| `GET` | `/api/v1/cashbox/sessions/{cashRegisterId}/{sessionDate}` | read a cash-session (per-mode totals recomputed from journal) |
+| `POST` | `/api/v1/cashbox/sessions/{cashRegisterId}/{sessionDate}:close` | soft close-out |
+| `POST` | `/api/v1/cashbox/sessions/{cashRegisterId}/{sessionDate}:reopen` | LAB_MANAGER reopen with reason |
+
+#### Attachments (scan storage, SP6, 12 endpoints — 3 owners × 4 verbs)
+
+Generic file attachments behind the `attachment` module: each endpoint is a nested resource on its owner and is gated by that owner's existing permission (read = the owner's `*.read`; write upload/delete = the owner's create/record). `POST` is `multipart/form-data` with one `file` part → `201` + `AttachmentSummary`; `DELETE` soft-deletes → `204`. The cashbox `POST` endpoints also set the owner's `*_scan_uri` column to the stored URI in the same transaction (overwrite-allowed). There is no generic `POST /attachments` (§11.4).
+
+| Method | Path | Permission |
+|---|---|---|
+| `POST` | `/api/v1/lab-files/{id}/attachments` | `lab-file.create` |
+| `GET` | `/api/v1/lab-files/{id}/attachments` | `lab-file.read` |
+| `GET` | `/api/v1/lab-files/{id}/attachments/{attachmentId}` | `lab-file.read` |
+| `DELETE` | `/api/v1/lab-files/{id}/attachments/{attachmentId}` | `lab-file.create` |
+| `POST` | `/api/v1/cashbox/expenses/{id}/attachments` | `cashbox.expense.record` |
+| `GET` | `/api/v1/cashbox/expenses/{id}/attachments` | `cashbox.expense.read` |
+| `GET` | `/api/v1/cashbox/expenses/{id}/attachments/{attachmentId}` | `cashbox.expense.read` |
+| `DELETE` | `/api/v1/cashbox/expenses/{id}/attachments/{attachmentId}` | `cashbox.expense.record` |
+| `POST` | `/api/v1/cashbox/home-collection-fees/{id}/attachments` | `cashbox.home-collection.record` |
+| `GET` | `/api/v1/cashbox/home-collection-fees/{id}/attachments` | `cashbox.home-collection.read` |
+| `GET` | `/api/v1/cashbox/home-collection-fees/{id}/attachments/{attachmentId}` | `cashbox.home-collection.read` |
+| `DELETE` | `/api/v1/cashbox/home-collection-fees/{id}/attachments/{attachmentId}` | `cashbox.home-collection.record` |
+
+#### Statistics
+All endpoints `GET`, base `/api/v1/stats`, require `stats.read`, accept required `from`/`to` (ISO `LocalDate`); `from > to` → 400. Computed live with native SQL (no `groupBy` engine — six focused endpoints).
+
+| Method | Path | Optional filters |
+|---|---|---|
+| `GET` | `/api/v1/stats/activity` | insuranceId, partnerId, prescriberId, sex |
+| `GET` | `/api/v1/stats/by-discipline` | insuranceId, partnerId |
+| `GET` | `/api/v1/stats/by-prescriber` | disciplineId |
+| `GET` | `/api/v1/stats/analyses` | disciplineId |
+| `GET` | `/api/v1/stats/antibiograms` | disciplineId |
+| `GET` | `/api/v1/stats/patients` | insuranceId, partnerId |
+
+#### Patient Portal (online delivery channel, SP2)
+A second, stateless authentication realm under `/api/v1/portal/**` (RS256 portal JWT, `aud=lims-portal`, 30-min TTL, signed with the existing RSA keys). These paths are listed in `secured-x.security.public-paths` so the staff RBAC chain ignores them; a path-scoped servlet filter is the actual gate. Patients see only their own `PUBLISHED` dossiers; cross-patient and unpublished requests return 404 (enumeration-safe).
+
+| Method | Path | Notes |
+|---|---|---|
+| `POST` | `/api/v1/portal/login` | public; verifies portal credentials via `patient::api`, returns a portal JWT |
+| `GET` | `/api/v1/portal/dossiers` | portal JWT; the authenticated patient's own `PUBLISHED` dossiers |
+| `GET` | `/api/v1/portal/dossiers/{id}/pdf` | portal JWT; compte-rendu PDF for one of the patient's own published dossiers (404 if not theirs / not published) |
+
+#### Audit (action history + checkpointing, SP3 / SP8)
+ADMIN-only access to the per-user signed-action chain (CDC §II). The read endpoints require `audit.read`; the checkpoint-creation endpoint requires `audit.checkpoint` (both ADMIN-only).
+
+| Method | Path | Notes |
+|---|---|---|
+| `GET` | `/api/v1/audit/actions` | `audit.read` (ADMIN); list signed actions from the ledger. Legacy filters `subject` / `resource` paginate the per-user chain; SP8 adds optional `action` (exact), `from` / `to` (inclusive ISO-8601 instant bounds) routed through a JPA `Specification` (`SignedActionSpecifications`). A malformed `from` / `to` → `400` |
+| `GET` | `/api/v1/audit/lab-files/{labFileId}/actions` (SP8) | `audit.read` (ADMIN); per-dossier action history, newest first. **URI-derived**: matches actions whose signed `resource` contains the lab-file ULID (LIKE substring) — cross-referenced actions whose URI does not embed the ULID are out of scope |
+| `POST` | `/api/v1/audit/verify` | `audit.read` (ADMIN); re-verify a subject's chain (`ActionSignatureVerifier.verifyChain`) and report tamper-evidence status |
+| `POST` | `/api/v1/audit/checkpoints` (SP8) | `audit.checkpoint` (ADMIN); build + persist a new audit-chain checkpoint (Merkle root over chain heads, signed by the `SYSTEM_AUDIT` identity). `201` with the checkpoint summary |
+| `GET` | `/api/v1/audit/checkpoints/latest` (SP8) | `audit.read` (ADMIN); re-verify the most recent checkpoint against the live ledger (`{checkpoint summary, signatureValid, headsMatch, actionsAppendedSince}`); `404` when no checkpoint exists |
+
+### 7.4 Versioning
+Major version in URL (`/v1`). Breaking changes ship as `/v2`; old versions stay alive for at least one release cycle.
+
+### 7.5 OpenAPI
+Every controller is annotated; the schema is generated at `/v3/api-docs` and rendered at `/swagger-ui.html`. CI fails the build if a non-trivial API change has no matching OpenAPI snapshot diff.
+
+---
+
+## 8. Module Implementation Details
+
+### 8.1 `patient` Module
+**Lab code generation.** A monotonic counter per laboratory keeps generation cheap and predictable. The format is `<labPrefix>-<yyMMdd>-<seq>`. Generation runs inside the same transaction as patient creation, so failures roll back the counter.
+
+**Patient merge.** Source records remain in the database with `merged_into_id` set; all foreign keys are rewritten to the surviving record inside one transaction. A `PatientMerged` event is published so attachments, invoices, and stats projections move accordingly.
+
+### 8.2 `catalog` Module
+**Simple vs. grouped analyses.** A single `analysis` table with a `kind` column (`SIMPLE` or `GROUPED`). Grouped analyses link to children through `analysis_components(parent_id, child_id, position)`. The duplication seen in the original spec is eliminated by sharing all configuration tabs (Conservation, Techniques, Units, Delay, Reference intervals) at the parent level.
+
+**Reference interval editor.** When a user fills the first category, the API offers a `POST /analyses/{id}/intervals:replicate` call to copy the data into the other categories.
+
+**Antibiogram interpretation** is a pure function on the domain side, so it stays independent of HTTP and is unit-tested in isolation.
+
+### 8.3 `order` Module
+**Daily ID.** Generated atomically via `SELECT ... FOR UPDATE` on a `daily_counters(day, discipline_prefix)` row, falling back to `nextval` on a per-discipline sequence. Format follows the spec: `<prefix><dd><MM><yy>-<seq>`.
+
+**Sample collection.** Three sample sub-types (`IN_LAB`, `HOME`, `EXTERNAL_RECEIVED`) modeled with a sealed hierarchy persisted as single-table inheritance with a discriminator. Validation rules differ per type (a home collection needs a distance and time window; an external sample needs a receiving operator).
+
+**Urgency flag** is a boolean on the file, but the module also raises `LabFileMarkedUrgent` so the dashboard can highlight it without polling.
+
+**Write-side cross-module port (sub-project 1.7.a).** `order::api.LabFileWriteApi` is a new write-side companion to the read-only `LabFileApi`. It exposes a single method, `setHomeCollectionFee(LabFileId, BigDecimal, UserId)`, intended for use by the cashbox module when recording a home-collection fee. The implementation wraps `LabFile.update(...)` inside the caller's transaction, so the lab-file row and the corresponding `cashbox_journal_entries` row commit together. Only `OPEN` lab files accept fee updates (otherwise `LabFileNotEditableException`). The `recordedBy` parameter is accepted now for future audit-trail use; until the audit module lands, only `updated_at` is persisted. The read-side `LabFileApi` stays strictly read-only.
+
+**Sample conservation lifecycle (SP9).** The `Sample` aggregate carries a conservation snapshot taken at collection from the analysis defaults (`AnalysisSummary.defaultPortoir` / `defaultConservationDays`): `conservation_start = collected_at`, `destruction_due_at = collected_at + conservation_days` (computed in Java; a later analysis-default edit never moves an existing deadline). Three surfaces fulfil the CDC Onglet « Conservation » alert clause: an in-app overdue queue (`GET /api/v1/samples/queues/destruction-due`, reuses `lab-file.read`), an audit-signed disposal action (`POST /api/v1/samples/{id}:mark-destroyed`, perm `sample.destroy`, idempotent, signs `sample.destroy`), and a scheduled digest (`ConservationAlertScanner`, cron `lims.conservation.alert-cron`, one email per run to `lims.conservation.alert-recipient` via the `notification` module, `alerted_at` dedup; blank recipient disables the push). This fulfils the 2026-05-07 catalog-spec deferral of the per-sample conservation lifecycle and is **fully CDC-traceable (Onglet « Conservation ») — no CDC amendment required** (unlike the Envers / stats-export notes above).
+
+**Result-pickup rendez-vous (SP10).** `LabFile.rendezVousAt` is an optional appointment instant for result collection (CDC §II/§IV). It is set at creation (`CreateLabFileRequest` → `NewLabFile`) and changed/cleared at any status via `PUT /api/v1/lab-files/{id}/rendezvous` (`RendezVousRequest`; a `null` body value clears it) — deliberately outside the OPEN edit-lock, like the printed/emailed stamps. It reuses `lab-file.create` (no new permission) and surfaces on `LabFileSummary` / `LabFileResponse`. Because `LabFile` is `@Audited` (SP8 Envers), the `202606221000-add-lab-files-rendezvous` changeset adds `rendezvous_at` to **both** `lab_files` and the hand-authored `lab_files_aud` table (else `ddl-auto=validate` rejects the mapping at boot). No reminder/queue (out of CDC scope).
+
+### 8.4 `result` Module
+**Two-step validation.** A result becomes available for biological validation only after technical validation. The API enforces ordering with state-machine guards. The biological validation event triggers invoice finalization and result-delivery readiness. (Labels print at sample collection, on demand — CDC §II — not as a bio-validation side-effect.)
+
+**Out-of-range detection** runs on save by comparing the stored `ResultValue` to the matched `ReferenceRange` for the patient's category/age/sex. The `is_out_of_range` flag is denormalized for fast filtering.
+
+**File attachments (SP6).** Scans are uploaded through the generic `attachment` module: a `BlobStore` SPI stores the bytes (filesystem default, S3/MinIO behind `lims.attachment.storage.backend`), and a row in the `attachments` table keeps the detected content type, size, SHA-256, storage backend, and key. The DB never holds the bytes; the storage URI is exposed on `AttachmentSummary` for consumers that pin it (e.g. cashbox `*_scan_uri` columns). Attachments are immutable + soft-deleted.
+
+**State machine (sub-project 1.5.a).** Four states linearly: `DRAFT → ENTERED → TECHNICAL_VALIDATED → BIOLOGICAL_VALIDATED`. `DRAFT ↔ ENTERED` flips automatically based on line-completeness; the two `*_VALIDATED` transitions require an explicit `:validate-technical` / `:validate-biological` call and are guarded by `result.validate-tech` / `result.validate-bio` permissions.
+
+**Eager creation.** The `result` module subscribes to `order::AnalysisRequestAdded` (AFTER_COMMIT, REQUIRES_NEW) and pre-creates the `Result` aggregate in `DRAFT`. The mirror `AnalysisRequestRemoved` listener soft-deletes the aggregate when still in `DRAFT`; non-DRAFT aggregates are preserved as audit trail.
+
+**Reading-2 dossier comments.** Per CDC §IX, free-form lab-file commentary lives in a separate `dossier_comments(lab_file_id PK, comment_text)` aggregate (1:1 with `LabFile`) — kept outside the `Result` aggregate so it doesn't reset the state machine.
+
+**Events emitted (4).** `ResultCreated`, `ResultEntered` (DRAFT→ENTERED only), `TechnicalValidationDone`, `BiologicalValidationDone`. The last is the trigger for billing 1.6 invoice finalization, delivery 1.8 publish, and stats 1.9 projection.
+
+**Cross-module amendments landed in 1.5.a.** `catalog::api.AnalysisApi.findActiveReferenceIntervalsByAnalysis(AnalysisId)` (used by `ReferenceIntervalMatcher` on save); `patient::api.PatientSummary.birthDate` (used to compute `patient_age_in_days_snapshot` at result creation time).
+
+**Read-side surface (sub-project 1.5.b).** Six GET endpoints expose CDC §IV
+anterior-results, §V multi-criteria line-level search, §X 3 queue lists (2
+result-grained for the biologist inbox: to-validate + to-print, 1 dossier-
+grained: urgent), §X computed dossier markers (vert / rouge / stylo via
+on-read SQL CASE), and §IX state-filtered dossier list at `/api/v1/dossiers`.
+No new tables, no Liquibase changeset — all queries read 1.5.a tables. Two
+batched cross-module accessors landed: `patient::api.PatientApi.findAllByIds`
+and `order::api.LabFileApi.findAllByIds`, plus a `PatientSummary.insured`
+field for §V's patient-type filter.
+
+**Overdue queue (sub-project 1.4.c).** `GET /api/v1/lab-files/queues/overdue`
+returns paginated lab files where at least one analysis has passed its
+configured analytical delay (`analyses.delay_days` + `delay_hours`) without
+being biologically validated. Each row carries the existing `DossierRow`
+block plus an `OverdueInfo` sub-block (canary analysis = earliest deadline,
+deadline timestamp, hours past deadline, total overdue count). Native SQL
+via Postgres `DISTINCT ON`; no new tables, no Liquibase changeset, no new
+permission, no modulith dependency edge. Permission: `lab-file.read`.
+
+### 8.5 `billing` Module
+
+1.6.a delivers the transactional core:
+
+- **Invoice** is 1:1 with `LabFile`, auto-created via an `@ApplicationModuleListener` on `BiologicalValidationDone` once all analyses on the lab-file are biologically validated. Manual override is available via `POST /api/v1/invoices` (`LAB_MANAGER` only).
+- **Invoice number** format: `<labCode><yy>-<MMdd>-<seq>` (e.g. `LTA24-0512-005`). Generated through a per-`(labCode, date)` PostgreSQL upsert counter (atomic `INSERT … ON CONFLICT DO UPDATE … RETURNING`) — no race with concurrent issuance.
+- **Pricing contexts.** Three strategies — `SelfPay`, `Insured`, `PartnerRouted` — share a `PricingEngine`. Patient share = subtotal − coverage; discount (`AMOUNT` or `PERCENT`) is applied on the patient share *after* coverage.
+- **Payment** is 1:N with `LabFile`; the `invoice_id` column is nullable and back-filled at invoice issuance via a bulk JPQL update so partial early payments link up automatically.
+- **CashRegister** has an M:N assignment to users validated through `iam::api` on assignment, and `payment.collect` requires the calling user to be assigned to the cash register being used.
+- **§VIII observation read endpoints** (3) are built as native-SQL projections in `AccountingReadModel`.
+- **Society panels** stay in `catalog` as `Analysis.kind = SOCIETY_PANEL` and are billed as a single line.
+
+Insurance and partner reference dictionaries live in `catalog` (`InsuranceApi`, `PartnerApi`); billing depends on them through the published API only.
+
+**Cross-module amendments landed in 1.7.a.**
+- `billing::api.PaymentRecorded` payload widened with `cashRegisterId` and `recordedBy` so cashbox's idempotent `@ApplicationModuleListener` can write a complete journal row from the event alone, without an extra round-trip to `PaymentApi`.
+- `billing::api.InvoiceApi.findAllByLabFileIds(Set<LabFileId>) : Map<LabFileId, InvoiceSummary>` added — a batched read used by cashbox's journal-row enrichment (§4 Journal des caisses) to attach invoice context to each row in a single round-trip.
+
+### 8.6 `cashbox` Module
+
+**Sub-project 1.7.a** delivers the full cashbox surface (CDC §VIII + Gestion comptable §2–§5).
+
+**Aggregates (5).**
+- `ExpenseCategory` — soft-deletable reference data (`active` flag), unique-by-name. CRUD by `LAB_MANAGER`.
+- `Expense` — recorded outflow with `category_id`, `amount`, `recorded_by`, `recorded_at`, optional `justification_scan_uri`, optional justification text. Posts a journal row in the same transaction.
+- `HomeCollectionFeeRecord` — per-lab-file home-collection fee. Posts a journal row AND updates `lab_files.home_collection_fee` (via `order::api.LabFileWriteApi`) in the same JPA transaction so billing's `BillingSnapshot.homeCollectionFee` and the cashbox journal stay consistent.
+- `JournalEntry` — denormalized row in `cashbox_journal_entries`. The single source of truth for §4 Journal des caisses: payments (sign +), expenses (sign −), home-collection fees (sign +). One row per source event.
+- `CashSession` — composite primary key `(cash_register_id, session_date)`. Soft close-out (`OPEN → CLOSED`), `LAB_MANAGER` may reopen with a typed reason (`CLOSED → OPEN` carries `reopened_at`, `reopened_by`, `reopen_reason`). Per-mode totals (CASH, CHEQUE, TPE, FLOOZ, MIXX_BY_YAS) are recomputed from the journal at close time, not denormalized eagerly.
+
+**Single journal table.** `cashbox_journal_entries` is the source of truth for §4. It is written synchronously by cashbox's own operations (`Expense`, `HomeCollectionFeeRecord`) and asynchronously by an `@ApplicationModuleListener` on `billing.PaymentRecorded` (AFTER_COMMIT, REQUIRES_NEW). Idempotency is enforced by a UNIQUE constraint on `(operation_kind, source_id)`; the listener uses `ON CONFLICT DO NOTHING` so duplicate event delivery is safe.
+
+**`paid_so_far` via window function.** The read endpoint `GET /api/v1/cashbox/journal` returns, for each journal row, a running `paid_so_far` per lab file computed at read time via a CTE-wrapped `SUM(...) OVER (PARTITION BY lab_file_id ORDER BY occurred_at, id)`. No denormalization, no replay-time recompute risk.
+
+**Domain events emitted (4).** `ExpenseRecorded`, `HomeCollectionFeeRecorded`, `CashSessionClosed`, `CashSessionReopened`. The first two are consumed internally to write journal rows in the same transaction. The session events are observable by `stats` (sub-project 1.9) without coupling.
+
+**Scan URIs (SP6).** `cashbox_expenses.justification_scan_uri` and `cashbox_home_collection_fees.receipt_scan_uri` are nullable and remain so until a scan is attached. Per CDC §2 the recording action is independent from the scan upload, so the columns are populated *after* recording, by the cashbox attachment controllers (`POST /api/v1/cashbox/expenses/{id}/attachments`, `…/home-collection-fees/{id}/attachments`): an in-module `@Transactional` service calls `AttachmentApi.upload` then sets the column to the returned storage URI in the same transaction. Re-uploading is allowed and simply overwrites the column with the newest URI; earlier attachment rows remain (immutable + soft-delete), so the column always points at the latest scan.
+
+**Permissions.** 9 new permissions catalogued in §9.5: read/manage on expense categories, read/record on expenses and home-collection fees, read on journal, close/reopen on sessions.
+
+### 8.7 `delivery` Module
+Three channels: print, email, online portal. The **online channel** and the staff publish use-case are **implemented** (SP2 / roadmap 1.8); print, email, and the intermediate dossier states are deferred.
+
+- **Publish use-case (implemented).** `POST /api/v1/lab-files/{id}:publish` (`dossier.publish`) transitions a dossier to `PUBLISHED` and emits a `ResultPublished` application event (consumed downstream by SP4 notifications). Since SP3 the dossier must be `SIGNED` before it can be published — `PublishService` rejects an unsigned dossier. Publication is **manual only** — there is no auto-publish on biological validation. Eligibility ("all results biologically validated") is checked in `delivery`'s `PublishService` via `result::api`'s `CompteRenduApi`; `order::api`'s `LabFileWriteApi.publish` owns the lifecycle transition.
+- **Online (implemented).** A second, stateless authentication realm for patients (RS256 portal JWT, `aud=lims-portal`, 30-min TTL, reusing the existing RSA keys). `POST /api/v1/portal/login` verifies the credentials issued at registration via `patient::api`; `GET /api/v1/portal/dossiers` and `GET /api/v1/portal/dossiers/{id}/pdf` serve the patient's own `PUBLISHED` dossiers and compte-rendu PDFs (404 otherwise — enumeration-safe). The realm is self-contained: encoder/decoder live inside `PortalTokenService` (never exposed as beans), `/api/v1/portal/**` is a `secured-x` public path, and a path-scoped servlet filter is the gate. Uses `spring-security-oauth2-jose` (Nimbus) for RS256.
+- **Print (implemented, SP7).** No server-side archival: the CR PDF is deterministically re-renderable (SP3's signature guarantees integrity), so the print channel is the **frontend printing the existing CR PDF**, then confirming via `POST /api/v1/lab-files/{id}:mark-printed`. That endpoint (`dossier.print`, ADMIN + BIOLOGIST + RECEPTIONIST) requires the dossier to be `PUBLISHED` (else `409` `NotPrintableException`), stamps `lab_files.printed_at` (re-print overwrites), and records a `dossier.print` action in the SP3 ledger. Fetching the CR PDF never auto-stamps — printing is an explicit confirmation.
+- **Email** sends the PDF as an attachment, password-protected with a per-file random password delivered via SMS or WhatsApp. *(Pending — SP4.)*
+- **Electronic signature** of the dossier (CDC §IV "signer électroniquement") is **implemented (SP3)**. `POST /api/v1/lab-files/{id}:sign` (`dossier.sign-electronically`, BIOLOGIST) binds a digest of the bio-validated dossier into the signing biologist's Ed25519 action chain, sets `lab_files.signed_by`/`signed_at`, transitions the dossier to `SIGNED`, and emits `DossierSigned`. Signing is the mandatory prerequisite for `:publish`. The signing infrastructure (key-pair store, append-only audit chain) lives in `iam` (see §9.1, §9.4); `delivery` owns the dossier-level `:sign`/`:publish` lifecycle.
+- The intermediate `PRINTED` / `SENT` dossier states and the full intermediate LabFile status machine are **deferred** (only the `PUBLISHED` transition exists today).
+
+### 8.8 `pdf` Module (1.5.c)
+Shared HTML → PDF rendering infrastructure. Consumers declare their reports as Spring beans implementing the typed SPI `PdfDocumentType<T>` — `templatePath()` points to a classpath Thymeleaf template, `buildModel(T)` builds the view model, `pageSize()` selects the page geometry. Implementers live under `<consumer>/infra/pdf/` (e.g. `result/infra/pdf/ResultReportPdfDocument`); the rule is enforced by `PdfModuleStructureTest`.
+
+Two pipelines share the same engine:
+
+- **Synchronous** — `PdfRenderingService.render(documentType, input)` returns a `RenderedPdf` (bytes + content type) inline. Used by the result compte-rendu controller (`GET /api/v1/results/{labFileId}/pdf`) for the 1–4 page case.
+- **Asynchronous** — `enqueue(documentType, input)` commits a `pdf_render_jobs` row in state `QUEUED`, serialises the model into `model_json`, publishes the in-process event `PdfRenderJobQueued` after commit, and returns the job id. Spring's `@Async` `AFTER_COMMIT` listener (`AsyncPdfWorker`) hydrates the model from JSON, renders, and updates the row to `SUCCEEDED` (bytes in BYTEA) or `FAILED` (reason). Clients poll `GET /api/v1/pdf-jobs/{id}`. The polling endpoint is gated by `pdf.read-own-jobs` (default-granted to roles holding `lab-file.read`).
+
+A JPA `pdf_render_jobs` table holds queued/inflight/terminal state with a 10 MB CHECK on the bytes column. A scheduled `PdfRenderJobCleanupScheduler` runs hourly: it deletes terminal jobs older than 1 h (TTL) and re-flags QUEUED rows older than 1 h to `FAILED` with reason `worker_timeout` (orphan reaper — handles the executor-saturation case described in §12).
+
+The engine uses OpenHTMLtoPDF with Thymeleaf 3 for templating, and a bundled DejaVu Sans font family registered at startup (`PdfFontRegistry`) for consistent rendering of Togolese/Beninese names that include diacritics.
+
+**Polling roundtrip (1.5.d).** `GET /api/v1/pdf-jobs/{id}` issues a single `findById` SELECT per request via `PdfRenderingService.findJobRecord`, which returns a `PdfRenderJobRecord` carrier (id, document-type id, status, bytes, filename, error, timestamps, requester user id). The controller performs the ownership check against `requestedByUserId` and projects to `PdfRenderJobView` (the lean response DTO) for the JSON status path, or streams `bytes` directly for the `?download=true` path. The earlier `findJob` / `findJobOwner` pair has been removed.
+
+See `docs/superpowers/specs/2026-05-20-pdf-renderer-design.md` for the full design.
+
+### 8.9 `stats` Module
+Aggregates are computed **live** with native SQL over the operational tables (the `billing/infra/AccountingReadModel` convention) — no materialized views, no nightly refresh. A single `StatsReadModel` (`@Component`, constructor-injected `JdbcTemplate`, fixed SQL constants + inline `RowMapper`s) backs the read-only `StatsController`. Filters supported match the spec (prescribers, disciplines, analyses, normal/abnormal, antibiograms, insurances, partners, new/old patients, sex, age groups) and are applied by conditionally appending fixed bound-parameter predicates. See `docs/superpowers/specs/2026-05-27-statistics-module-design.md` for the full design.
+
+---
+
+## 9. Security & Authentication
+
+### 9.1 Authentication
+Authentication is provided by the **secured-x** library (sibling project at `~/Documents/development/projects/personal/secured-x`). LIMS extends the library by:
+
+- Implementing the `LocalAuthProvider` SPI from `secured-x-provider-local` — username + password with **Argon2id** hashing (19 MB memory, 2 iterations, 1 thread).
+- Implementing the `RoleResolver` SPI from `secured-x-rbac` to map LIMS users to roles + permissions ("habilitations" per CDC §VIII / Gestion comptable).
+- Implementing the `LocalCredentialStore`, `UserKeyPairStore`, and `AuditChainStore` SPIs against LIMS PostgreSQL (`local_credentials`, `user_key_pairs`, `signed_actions` tables — see §6.2).
+- Configuring JWT lifetimes via `application.yml`: access token 15 min, refresh token 8 h, rotating.
+
+The `/auth/login`, `/auth/refresh`, `/auth/logout` endpoints come from `secured-x-spring-boot-starter`. JWT signing uses RS256 with a PEM key pair; the public key is rotatable. MFA, password reset, and brute-force lockout are **not** in CDC scope and are not implemented.
+
+### 9.2 Authorization
+Role-based with fine-grained permissions:
+
+| Role | Sample permissions |
+|---|---|
+| `RECEPTIONIST` | patient.create, lab-file.create, payment.collect |
+| `TECHNICIAN` | result.enter, result.validate-tech |
+| `BIOLOGIST` | result.validate-bio, file.publish |
+| `CASHIER` | invoice.read, payment.collect, expense.record |
+| `ACCOUNTANT` | invoice.*, expense.*, stats.read |
+| `LAB_MANAGER` | * (configuration), users.manage |
+| `ADMIN` | system, audit, backup |
+
+Method-level enforcement via `@PreAuthorize("hasAuthority('result.validate-bio')")`.
+
+### 9.3 Data Protection
+- TLS 1.3 only, HSTS enabled
+- Secrets in environment / Vault, never in code
+- Patient portal passwords are hashed (Argon2id), never stored in plaintext (CDC §I "Identifiants de connexion pour consulter les résultats")
+- Database backups encrypted at rest
+- Read access to patient files is captured automatically by the secured-x signing filter (per-request Ed25519 signature in `signed_actions`, see §9.4) — no separate `audit_access` table
+
+### 9.4 Audit Trail
+Two complementary layers:
+
+- **Row-level history (Hibernate Envers) — wired persist-only (SP8).** `@Audited` on `Patient`, `LabFile`, `Result`, `ResultLine`, `Invoice`, `User`; non-audited associations are `@NotAudited` (`User.roles`, `Result.antibiogramReadings`, `Invoice.lines`, `LabFile.samples`, `LabFile.analyses`). Captures *what* changed, when, and by whom on each row, into six hand-authored `*_aud` tables plus a `revinfo` revision table (§6.2); `LimsRevisionEntity` / `LimsRevisionListener` stamp the acting user id (same null/anonymous rule as `LimsAuditorAware`). There is **no REST surface** for Envers — it persists history for forensic queries / write reconstruction only. The `hibernate-envers` dependency is BOM-managed (resolves 7.2.x). The Envers layer has **no distinct CDC clause**; it is a deliberate tech-doc-driven inclusion recorded as a **pending CDC-amendment item** (mirroring the SP5 stats-export note in §1.4), approved by the user on 2026-06-10, until the amendment lands.
+- **Action history (secured-x signing chain) — implemented (SP3).** Every authenticated HTTP request is signed with the user's Ed25519 key pair and stored in `signed_actions`, linked into a per-user tamper-evident hash chain (`previous_hash = SHA-256(prev.signature)`, genesis link `sequence_number = 1` / `previous_hash = null`). Satisfies CDC §II "Historique des actions effectuées sur le dossier (lié aux droits d'accès suivant les comptes)". Key pairs are provisioned on first login and persisted in `user_key_pairs` with the private key AES-256-GCM-encrypted at rest (KEK `lims.signing.key-encryption-key` / `LIMS_SIGNING_KEK`). The per-request `ActionSigningFilter` is fail-open (logs on signing error, request proceeds) and matches exclusions by bare-prefix `startsWith`. The dossier e-signature (`dossier.sign-electronically` per CDC §IV) binds a digest via an explicit `ActionSigner.sign(...)` call rather than the metadata-free `@Signed` aspect, so the digest is carried in the signed `metadata`. ADMIN-only read access is exposed via `GET /api/v1/audit/actions` and `POST /api/v1/audit/verify` (both `audit.read`, see §7.3).
+
+The signing chain is append-only at the database level (PostgreSQL `RULE` blocks `UPDATE` and `DELETE` on `signed_actions`), giving the audit trail tamper-evidence on top of cryptographic integrity. The legacy `audit_event` table from earlier drafts is removed in favour of `signed_actions`.
+
+**Checkpointing (SP8).** Periodically a checkpoint freezes the whole ledger's state so later tampering can be detected even across the per-user chains. The pinned secured-x `DefaultAuditChainManager.createCheckpoint()` is a non-functional stub, so **LIMS builds checkpoints itself**: `AuditCheckpointService` gathers each subject's chain head (`SHA-256(latest signed-action signature)`), computes a SHA-256 Merkle root (`AuditMerkle`) over the heads, signs a canonical `|`-delimited payload with a dedicated `SYSTEM_AUDIT` Ed25519 identity, and persists an immutable row to `audit_checkpoints` (DB `RULE` blocks `UPDATE` / `DELETE`, §6.2). The system identity (`SystemAuditIdentity`) is provisioned through the existing `user_key_pairs` store, FK-backed by a seeded `users` row (`id = 01KSYS0AD1T000000000000000`, `enabled = false`). Checkpoints are produced nightly by an `@Scheduled` job (cron `lims.audit.checkpoint-cron` / `LIMS_AUDIT_CHECKPOINT_CRON`, default `0 0 2 * * *`) and on demand via ADMIN-only `POST /api/v1/audit/checkpoints` (`audit.checkpoint`, §7.3). `GET /api/v1/audit/checkpoints/latest` re-verifies the most recent checkpoint against the live ledger (signature valid, Merkle heads match, count of actions appended since).
+
+**Advanced audit reporting (SP8)** rounds out the read side under the existing `audit.read`: per-dossier history (`GET /audit/lab-files/{labFileId}/actions`, URI-substring scoped) and richer `GET /audit/actions` filters (`action`, `from`, `to`) — see §7.3.
+
+---
+
+### 9.5 Permissions Catalog (CDC-derived)
+
+The permission strings used in `@RequiresPermission(…)` (from `secured-x-rbac`) and `@PreAuthorize("hasAuthority(…)")` are seeded from the CDC. Each is grounded in a specific CDC clause:
+
+| Permission | CDC clause | Default role(s) |
+|---|---|---|
+| `patient.create`, `patient.update`, `patient.search`, `patient.merge` | §I Accueil et enregistrement | RECEPTIONIST, LAB_MANAGER |
+| `lab-file.create`, `lab-file.read` | §II Dossier Analyse, §IX Gestion des dossiers | RECEPTIONIST, TECHNICIAN, BIOLOGIST |
+| `sample.record-in-lab`, `sample.record-external`, `sample.record-home` | §II Prélèvements | RECEPTIONIST, TECHNICIAN |
+| `result.enter` | §IV Résultats | TECHNICIAN |
+| `result.validate-tech` | §IV "Bouton pour la validation technique", §VII | TECHNICIAN |
+| `result.validate-bio` | §X Validation biologique | BIOLOGIST |
+| `dossier.sign-electronically` | §IV "signer électroniquement le dossier" | BIOLOGIST |
+| `dossier.publish` | §IV "publier le résultat online", "envoyer par Mail" | BIOLOGIST |
+| `dossier.print` (SP7) | §IX "Dossiers imprimés" — confirm a dossier was printed (`POST :mark-printed`) | ADMIN, BIOLOGIST, RECEPTIONIST |
+| `quote.create`, `quote.send`, `quote.lock` | §III Devis | RECEPTIONIST |
+| `invoice.create`, `invoice.read` | §II Facturation, Gestion comptable §1 | RECEPTIONIST (create), CASHIER, ACCOUNTANT |
+| `payment.collect` | §II Facturation, §VIII | RECEPTIONIST, CASHIER |
+| `expense.record` | Gestion comptable §2 | CASHIER, ACCOUNTANT |
+| `cashbox.use-assigned`, `cashbox.close-day` | §VIII, Gestion comptable §3, §4 | RECEPTIONIST (own only), CASHIER, LAB_MANAGER |
+| `home-collection-fee.record` | Gestion comptable §5 | CASHIER |
+| `catalog.manage` | §VII Configurations | LAB_MANAGER |
+| `prescriber.manage`, `insurance.manage`, `partner.manage` | "Boutons de fenêtre en général" | LAB_MANAGER |
+| `users.manage` | implied (admin labo) | LAB_MANAGER, ADMIN |
+| `stats.read` | Onglet Statistiques | ADMIN, ACCOUNTANT, BIOLOGIST, LAB_MANAGER |
+| `audit.read` | implied | ADMIN |
+| `audit.checkpoint` (SP8) | implied — create an audit-chain checkpoint (`POST /audit/checkpoints`) | ADMIN |
+| `cashbox.expense-category.read` (1.7.a) | Gestion comptable §2 | RECEPTIONIST, LAB_MANAGER, BIOLOGIST, ACCOUNTANT, CASHIER |
+| `cashbox.expense-category.manage` (1.7.a) | Gestion comptable §2 | LAB_MANAGER |
+| `cashbox.expense.read` (1.7.a) | Gestion comptable §2, §4 | RECEPTIONIST, LAB_MANAGER, ACCOUNTANT, CASHIER |
+| `cashbox.expense.record` (1.7.a) | Gestion comptable §2 | RECEPTIONIST, LAB_MANAGER, CASHIER |
+| `cashbox.home-collection.read` (1.7.a) | Gestion comptable §5 | RECEPTIONIST, LAB_MANAGER, ACCOUNTANT, CASHIER |
+| `cashbox.home-collection.record` (1.7.a) | Gestion comptable §5 | RECEPTIONIST, LAB_MANAGER, CASHIER |
+| `cashbox.journal.read` (1.7.a) | Gestion comptable §4 | RECEPTIONIST, LAB_MANAGER, ACCOUNTANT, CASHIER |
+| `cashbox.session.close` (1.7.a) | §VIII, Gestion comptable §3 | RECEPTIONIST, LAB_MANAGER, CASHIER |
+| `cashbox.session.reopen` (1.7.a) | §VIII, Gestion comptable §3 | LAB_MANAGER |
+| `pdf.read-own-jobs` (1.5.c) | §IV Impression, §X Édition compte-rendu — read your own PDF render jobs (poll `/pdf-jobs/{id}`) | Default-granted to roles holding `lab-file.read`; widens per consumer in follow-on PRs |
+| `lab-settings.read` (1.5.e) | §I informations générales du laboratoire — read the lab identity (name, address, accreditation, manager) | Default-granted to every role holding `lab-file.read` |
+| `lab-settings.manage` (1.5.e) | §I informations générales du laboratoire — update the lab identity values | ADMIN |
+
+Permissions outside this catalog are not seeded; adding one requires a CDC amendment.
+
+---
+
+## 10. Cross-Cutting Concerns
+
+### 10.1 Validation
+- Bean Validation on every DTO entering the controller layer
+- Domain invariants enforced inside aggregates (compact constructors on records, factory methods on entities)
+- A custom `@LabCode` annotation validates business identifiers
+
+### 10.2 Exception Handling
+Global `@ControllerAdvice` converts:
+- `MethodArgumentNotValidException` → 422 with a list of field errors
+- `EntityNotFoundException` → 404
+- `OptimisticLockException` → 409 with retry hint
+- `AccessDeniedException` → 403
+- Uncaught exceptions → 500 with a `traceId`; the stack trace is logged but never returned
+
+### 10.3 Transactions
+- Service methods are `@Transactional` by default
+- Read endpoints use `@Transactional(readOnly = true)`
+- Long-running operations (bulk export, statistics) run outside a transaction, paginating cursors
+
+### 10.4 Concurrency
+- Optimistic locking via JPA `@Version` everywhere
+- Pessimistic locks only for the daily-counter rows
+- Virtual threads enabled via `spring.threads.virtual.enabled=true` for the Tomcat executor
+
+### 10.5 Internationalization
+User-facing free-text (clinical notes, comments, descriptions) goes through `MessageSource` only when explicitly localized. Reference-data identity codes (e.g. `BIOCHIMIE`, `SANG_TOTAL`, `TUBE_EDTA`) are language-stable; their display names are localized client-side via the `code` as the i18n bundle key. The default-locale `name` column on each catalog table is used as a fallback when no i18n bundle entry matches.
+
+---
+
+## 11. File & Document Handling
+
+### 11.1 Storage
+- Attachment bytes live behind a pluggable `BlobStore` SPI (`attachment` module, SP6) selected by `lims.attachment.storage.backend`: **filesystem** (default, sharded `ab/cd/<ulid>` under `lims.attachment.storage.fs.root`) or **S3/MinIO** for production. Generated PDFs / expense receipts reuse the same module.
+- **Database** holds only the storage backend + key (and the storage URI exposed on `AttachmentSummary`), content type, size, and SHA-256 hash — never the bytes.
+- Scans uploaded via multipart; max size 25 MB (`spring.servlet.multipart`; `server.tomcat.max-swallow-size: 30 MiB` — above `max-request-size` so an over-size upload drains to a clean `413`, but bounded so a rejected request cannot make the server drain an unbounded body). Content type is detected from magic bytes (Apache Tika) and **stored, never used to reject** — detection is permissive (spec decision #4): any detected type is accepted.
+
+### 11.2 PDF Reports
+Reports are HTML files in `templates/<consumer-module>/*.html`, rendered by Thymeleaf and converted to PDF by OpenHTMLtoPDF. The shared engine lives in the `pdf` module (§8.8); each consumer module declares its document type as a Spring bean implementing `PdfDocumentType<T>`. Synchronous calls return the bytes inline (used today by the result CR). For reports expected to exceed 5 pages, the async pipeline serialises the model into `pdf_render_jobs.model_json`, renders in a background worker, and exposes the result via `GET /pdf-jobs/{id}` for polling. Generated PDFs are short-lived (1 h TTL). CRs are **not** archived in object storage: they are deterministically re-renderable from the signed dossier (SP3 signature guarantees integrity), so the print/email channels re-render on demand rather than archive (§8.7, SP7).
+
+**Payment receipt (1.5.g).** A second `PdfDocumentType` registered at id `billing.payment-receipt`, rendered A5 portrait by `PaymentReceiptPdfDocument` (lives in `billing/infra/pdf/` alongside its `PaymentReceiptModel` and `PaymentReceiptModelAssembler`). Synchronous; endpoint `GET /api/v1/payments/{id}/receipt.pdf` guarded by `invoice.read`. Reads via `PaymentRepository` directly (same module) and the cross-module `LabFileApi` / `PatientApi` / `CashRegisterApi` / `UserApi` / `LabSettingsApi` for header data. Mode labels are French (Espèces / Chèque / Carte TPE / Flooz / Mixx by Yas); amounts formatted with `NumberFormat.getInstance(Locale.FRENCH)` + ` F CFA` suffix. Unknown / malformed payment ids surface as RFC 7807 problem details via `BillingProblemDetailAdvice`.
+
+**Quote / devis (1.5.h).** Third `PdfDocumentType` registered at id `order.quote-report`, rendered A4 portrait by `QuoteReportPdfDocument`. Synchronous; endpoint `GET /api/v1/quotes/{id}/pdf` with `quote.read`. Reads via `QuoteApi.requireById` (404 propagated via shared advice since `QuoteNotFoundException` extends `EntityNotFoundException`) plus `LabSettingsApi.get()` — patient + prescriber blocks come from `QuoteSummary`'s denormalized snapshots. All four `QuoteStatus` values render with a status banner (DRAFT → "BROUILLON — non contractuel"; LOCKED → "DEVIS"; CONVERTED → "DEVIS — converti en dossier"; EXPIRED → "DEVIS — expiré"). On DRAFT every pricing string is `"À déterminer"`; otherwise b-rates render via `NumberFormat` with grouping disabled (avoids `"1E+3"`) and amounts via `NumberFormat.getInstance(Locale.FRENCH)` + ` F CFA` suffix.
+
+### 11.3 Labels
+Label printing is delegated to the frontend or a dedicated print service. The backend exposes `GET /api/v1/lab-files/{id}/labels` (**implemented, SP7**; `lab-file.read`, assembled in `order/web/LabelService`) which returns one label record **per sample**: a `patient` block (`nom`, `prenom`, `dateNaissance` ISO or null, `age`, `sexe` = `Sex` enum `M`/`F`), the sample's `dailyId` (the barcode payload), the sample discipline, the lab file's **first 5** analysis codes (request order), and `copies` (from the sample analysis's `Analysis.labelCount`, defaulting to 1). A lab file with zero samples returns `200` with an empty `labels` array. The printer driver renders each record to a 4 cm × 2.5 cm thermal label and encodes `dailyId` as the barcode; the backend never draws the label. The response carries patient PII — never logged (`/lab-files/*` redaction rule).
+
+### 11.4 Network Scanner Discovery
+Out of scope for the backend. The frontend is responsible for SANE/TWAIN discovery; it uploads the resulting image/PDF as a multipart `file` part to whichever owner's nested-resource endpoint applies (SP6): `…/lab-files/{id}/attachments`, `…/cashbox/expenses/{id}/attachments`, or `…/cashbox/home-collection-fees/{id}/attachments`. There is no generic `POST /attachments` — every attachment hangs off a typed owner so the existing owner permission gates it (§7.3).
+
+### 11.5 Outbound document delivery (SP4)
+Two staff-initiated `:send` actions hand documents to the `notification` outbox (§12); both are manual (no auto-send on publish).
+
+**Quote — `POST /api/v1/quotes/{id}:send`** (in `order`, beside `:lock` / `:convert` on `QuoteAdminController`, guarded by the existing `quote.send`). Body `{ "channels": ["EMAIL", "WHATSAPP"] }`. Requires a sendable quote (`LOCKED` or `CONVERTED`, else `409`); renders the quote PDF (`QuoteReportPdfDocument`); resolves recipient via `PatientApi.contactFor` (`422` if a requested channel has no address); enqueues one outbox entry per distinct channel (EMAIL carries the quote PDF, WHATSAPP a short templated body); returns `202` with the notification ids.
+
+**Result — `POST /api/v1/lab-files/{id}:send`** (in `delivery`, beside `:publish` / `:sign`, guarded by the new `dossier.send` permission granted to ADMIN + BIOLOGIST). **Mail only.** `SendDossierService` requires `status == PUBLISHED` (else `NotSendableException` → `409`; re-sending is allowed, each send is a fresh ledger + action record), renders the CR PDF via `CompteRenduApi.renderCompteRendu`, generates a random per-file password and **PDFBox-encrypts** the PDF bytes (`StandardProtectionPolicy`, read-only `AccessPermission`), resolves the patient email (`MissingPatientEmailException` → `422` if absent), and enqueues an EMAIL carrying the encrypted PDF. The **password is delivered out-of-band**: via WhatsApp when a patient/guardian phone is on file, otherwise returned to the calling staff member in the `:send` response body for manual relay (the password is excluded from response-body logging per the `/lab-files/*` redaction rule). The action is recorded in the SP3 action-history ledger (`actionSigner.sign("dossier.send", labFileId, …)`).
+
+**`emailed_at` marker (CDC §IX).** On the `NotificationDelivered` event for an EMAIL with `context_type = LAB_FILE`, an `@TransactionalEventListener(AFTER_COMMIT)` in `delivery` (`EmailedAtStampingListener`) calls `LabFileWriteApi.markEmailed(labFileId, instant)`, stamping the new nullable `lab_files.emailed_at` column (§6.2). This produces the data CDC §IX needs to show / sort **« Dossiers envoyés »** / **« envoyé par Mail »**; the §IX list/sort endpoint itself is out of SP4 scope.
+
+---
+
+## 12. Notifications (Mail / WhatsApp / SMS)
+
+### 12.1 Architecture
+The `notification` leaf module (implemented in **SP4**) exposes a single API:
+```java
+public interface NotificationService {
+    NotificationId send(NotificationRequest request);   // returns the outbox ledger id
+}
+public sealed interface NotificationRequest
+    permits EmailRequest, WhatsAppRequest { }
+```
+`notification` depends only on `shared` and knows nothing about quotes or results; callers hand it fully-formed requests. `EmailRequest(recipient, subject, body, @Nullable Attachment, ContextRef)` carries exactly one optional attachment (a quote PDF or an encrypted CR PDF); `WhatsAppRequest(recipient, body, ContextRef)` carries none. `send` runs in the caller's transaction, persists a `PENDING` `notification_outbox` row (§6.2), and returns its `NotificationId` — no send happens inline, so the staff action commits fast and a provider outage never fails it. The two trigger endpoints live in their owning modules (quote `:send` in `order`, result `:send` in `delivery`, §11.5).
+
+### 12.2 Providers
+Both channel adapters currently ship as **config-toggled stubs** (`StubEmailAdapter` / `StubWhatsAppAdapter`, gated by `@ConditionalOnProperty(lims.notification.<channel>.stub = true)`, on by default in dev/test) that record the delivery intent and simulate success — they do **not** perform a real send. Real adapters slot in behind the same `ChannelAdapter` SPI (`boolean supports(Channel)` / `void dispatch(NotificationOutboxEntry)`) with no change to the outbox/poller:
+- **Email** — SMTP (Spring Mail) or SendGrid / Amazon SES — *deferred behind the SPI* (awaits SMTP credentials).
+- **WhatsApp** — Meta Cloud API (templated messages for transactional content) — *deferred behind the SPI* (awaits Meta business verification / approved templates).
+
+(SMS is not in CDC scope; the sealed type stays open to a future `SmsRequest` permit if required.)
+
+### 12.3 Reliability
+All sends go through the `notification_outbox` table (§6.2) — the authoritative per-delivery ledger (status, attempts, last_error, timestamps). A `@Scheduled` `NotificationRetryPoller` runs every **30 s** (`fixedDelayString = "${lims.notification.poll-interval:30s}"`): it claims up to `batch-size` (default 50) due entries where `status IN (PENDING, FAILED) AND next_attempt_at <= now` (ordered by `next_attempt_at`, `FOR UPDATE SKIP LOCKED`), finds the `ChannelAdapter` that `supports(channel)`, and dispatches:
+- **success** → `status = SENT`, `sent_at = now`, publishes a `NotificationDelivered(NotificationId, Channel, ContextRef, Instant)` application event.
+- **failure (adapter throws)** → `attempts++`; if `attempts >= max-attempts` (default **5**) → `status = ABANDONED` + structured error log; else → `status = FAILED`, `next_attempt_at = now + backoff(attempts)` with exponential backoff **1 → 2 → 4 → 8 → 16 min** (`backoff-base` 1 min, doubled per attempt), truncated `last_error` stored (no PII).
+
+Defaults are config-overridable via `NotificationProperties` (`lims.notification.*`). `NotificationDelivered` is consumed by `delivery` to stamp `lab_files.emailed_at` for the EMAIL + `LAB_FILE` case (§6.2, §11.5); `notification` itself never calls back into the domain. Recipient addresses, message bodies, the file-password, and attachment bytes are **never** logged — log lines carry only the ledger id / `context_id` (ULID).
+
+---
+
+## 13. Reporting & Statistics
+
+### 13.1 Online Aggregates
+The six focused endpoints under `/api/v1/stats` (§7.3, §8.9) accept a `from`/`to` date range plus optional fixed filters, each returning JSON. Implemented with live native SQL (`StatsReadModel` + `JdbcTemplate`), not a flexible `groupBy` engine — every query is fixed and bound-parameterized.
+
+### 13.2 Precomputation
+None. Aggregates are computed live per request; no materialized views and no nightly refresh (modest pilot volume; the day-oriented views must be current). Revisited only if production volume proves live SQL insufficient.
+
+### 13.3 Exports
+Implemented in **SP5 (Document exports)** via the shared `export` module (Apache POI). Three office exports ship:
+- **Devis → Word** — `GET /api/v1/quotes/{id}/export?format=docx` (CDC §III); reuses the quote PDF model.
+- **Result dossier → Word/Excel, password-protected** — `GET /api/v1/lab-files/{id}/export?format=docx|xlsx` (CDC §IV); the staff caller picks the format, a random per-export password encrypts the file (POI agile/AES), and the password is returned in the **`X-Export-Password`** response header for out-of-band relay (never logged).
+- **Statistics → XLSX** — `GET /api/v1/stats/export?format=xlsx&from=&to=`; one sheet per dataset, date-range only (unfiltered). The `stats` JSON endpoints are unchanged.
+
+The statistics export ships per a project decision (2026-05-29) that resolved a CDC-vs-tech-doc scope conflict: the CDC « Onglet statistiques » section has no export clause, so it warrants an amendment formalizing the statistics export this section now documents.
+
+---
+
+## 14. Integrations
+
+Out-of-CDC integrations are deferred and are **not** committed deliverables of this project:
+
+- Lab instrument feeds (HL7 v2 / ASTM E1394) — manual result entry remains the supported flow.
+- Mobile-money merchant APIs (Flooz / Mixx by Yas) — payment *modes* are recorded as enumerated data fields per CDC §II Facturation (`chèque`, `espèce`, `TPE`, `Flooz`, `Mixx by Yas`, …); no API call is issued.
+- Insurance carrier APIs — insurance pricing is configured locally per CDC "Boutons de fenêtre en général / Assurances" (code, taux de prise en charge, valeur indiciaire, montant total).
+
+Should any of these become required, they re-enter via a brainstorm → spec → plan cycle as a CDC-amendment proposal.
+
+---
+
+## 15. Testing Strategy
+
+The whole codebase is delivered through **Test-Driven Development**. Every behavior — domain rule, controller mapping, persistence query, security guard — exists because a failing test asked for it. No production code is written without a red test first; no test stays green without the smallest implementation that satisfies it; refactoring happens once both tests and production code are clean.
+
+### 15.1 The TDD Loop
+
+The team follows the canonical **Red → Green → Refactor** cycle, applied at three nested scopes (outside-in):
+
+1. **Acceptance test (red)** — start the slice with a failing high-level test that captures the user-visible behavior (e.g. "creating a lab file returns 201 with a registration number and persists a row"). This stays red until the whole slice is done.
+2. **Unit test (red)** — drop into the domain or service layer and write a smaller failing test for the specific collaborator the acceptance test is missing.
+3. **Implementation (green)** — write the minimum code to make the unit test pass. No speculative methods, no premature abstractions.
+4. **Refactor** — with both tests and code green, clean up duplication, naming, and structure. Run all tests after each rename.
+5. **Climb back up** — once enough unit tests are green, the acceptance test should also pass; if not, write the next failing unit test.
+
+A commit is forbidden if any test is red or skipped. CI rejects PRs whose tests were added *after* the production code in the same commit (we enforce this with a lightweight check on the diff: every PR must include test changes touching the same module as production changes).
+
+### 15.2 Test Pyramid
+
+The pyramid below is what the team writes; the percentages are rough targets, not quotas.
+
+| Level | Tooling | Speed | Share | Purpose |
+|---|---|---|---|---|
+| Unit (domain) | JUnit 5, AssertJ, Mockito | < 50 ms each | ~70% | Pure business rules: reference intervals, antibiogram math, invoice computation, daily-ID format, sample-state transitions |
+| Slice (web / persistence) | `@WebMvcTest`, `@DataJpaTest`, MockMvc, Spring Security Test | < 500 ms | ~20% | Controller routing, validation, JSON shape, JPA query correctness |
+| Integration (module) | `@SpringBootTest` + Testcontainers (PostgreSQL, MinIO) | seconds | ~8% | One end-to-end happy path and key error paths per module, hitting the real DB |
+| Architecture | ArchUnit + Spring Modulith `ApplicationModules.verify()` | seconds | ~1% | Module boundaries, layer dependencies, naming rules |
+| Acceptance / E2E | RestAssured against a running instance | seconds | ~1% | Cross-module flows: register patient → create file → enter results → validate → publish → invoice |
+
+### 15.3 Outside-In Example: "Create a lab file"
+
+**Step 1 — failing acceptance test**
+
+```java
+@SpringBootTest(webEnvironment = RANDOM_PORT)
+@Testcontainers
+class CreateLabFileAcceptanceTest {
+
+    @Test
+    void creates_lab_file_and_returns_registration_number() {
+        var patient = given.aPatient();
+
+        var response = api.post("/api/v1/lab-files", new CreateLabFileRequest(
+                patient.id(), prescriberId, false, "fasting"));
+
+        assertThat(response.statusCode()).isEqualTo(201);
+        assertThat(response.body().path("registrationNumber")).isNotBlank();
+        assertThat(db.countLabFiles()).isEqualTo(1);
+    }
+}
+```
+Fails: no controller, no service, no entity. Good.
+
+**Step 2 — drop into the unit layer**
+
+```java
+class DailyIdGeneratorTest {
+    @Test
+    void increments_per_day_and_discipline() {
+        var gen = new DailyIdGenerator(new InMemoryCounter());
+        assertThat(gen.next(BIOCHEMISTRY).format()).isEqualTo("103052026-001");
+        assertThat(gen.next(BIOCHEMISTRY).format()).isEqualTo("103052026-002");
+        assertThat(gen.next(HEMATOLOGY).format()).isEqualTo("203052026-001");
+    }
+}
+```
+Write the smallest `DailyIdGenerator` that makes these three assertions pass.
+
+**Step 3 — climb back up**, write the next failing unit test (`LabFileFactoryTest`), then `LabFileServiceTest` (with mocks), then the controller `@WebMvcTest`. The acceptance test goes green only when all collaborators are real.
+
+### 15.4 Test Doubles Policy
+
+- **Mocks** (Mockito) only at the *seam* between layers (service mocks the repository in a unit test). Do not mock value objects or pure domain functions.
+- **In-memory fakes** preferred over mocks for repositories in domain unit tests (`InMemoryLabFileRepository implements LabFileRepository`). They make tests read like specifications.
+- **Stubs** for outbound adapters (mail provider, WhatsApp). The real adapter has its own integration test against the provider's sandbox.
+- Never mock `Clock`, `UUIDProvider`, or `Counter` directly — inject deterministic test implementations.
+
+### 15.5 Test Data
+
+- A `TestDataBuilder` per aggregate (`PatientBuilder.aPatient().withSex(F).build()`) — readable, default-safe, override-explicit.
+- Seed data via Liquibase changelogs scoped to the `test` context (`db/changelog/data/*.yaml`).
+- Datafaker for bulk realistic data in performance tests.
+- A small `LimsScenarios` helper composes builders into common situations (`scenarios.aValidatedFile()`).
+
+### 15.6 Coverage Targets
+
+Coverage is a *floor*, not a goal. Targets:
+
+| Area | Line | Branch |
+|---|---|---|
+| Value objects | 100% | 100% |
+| Domain services (billing, intervals, antibiogram, daily-ID) | 95% | 90% |
+| Application services | 90% | 85% |
+| Web layer | 85% | — |
+| Overall | 80% | 75% |
+
+**Mutation testing** with PIT runs nightly on the domain packages. A killed-mutation rate below 75% breaks the nightly build.
+
+### 15.7 Definition of Done (per change)
+
+A change is considered done when:
+
+- The failing test that motivated it is green.
+- All other tests are green (unit, slice, integration, architecture).
+- The slice has at least one happy-path acceptance test and one error-path test.
+- Coverage thresholds are met.
+- Mutation score on touched files has not dropped.
+- Liquibase rollback is included for any new changeset.
+- The PR description names the test file that *first failed* and now passes.
+
+### 15.8 Performance Testing
+
+- **Gatling** scenarios for the most-hit endpoints (patient search, lab-file detail, result entry).
+- Run quarterly, on schema changes, and before any production release that includes a new index, materialized view, or query.
+- Performance budgets are themselves expressed as tests: a Gatling assertion fails the build if p95 latency or error rate crosses the threshold.
+
+---
+
+## 16. Observability
+
+### 16.1 Metrics (Micrometer → Prometheus)
+- HTTP latency histograms by endpoint
+- Database connection pool usage
+- Domain counters: `lab_files_created_total`, `results_validated_total`, `invoices_issued_total`
+- Outbox queue depth
+
+### 16.2 Logs
+- JSON to stdout
+- Correlation: `traceId`, `spanId`, `userId`, `labFileId`
+- No PII in log bodies — patient names are replaced with their UUID at the controller layer
+
+### 16.3 Tracing
+OpenTelemetry exporter to a collector (Jaeger or Tempo). Every controller call carries a trace ID echoed back in the `X-Trace-Id` response header.
+
+### 16.4 Alerts
+- API error rate > 1% over 5 min
+- p95 latency > 500 ms over 10 min
+- Outbox lag > 100 messages
+- Disk free < 20% on the database server
+- No backup taken in the last 26 hours
+
+---
+
+## 17. Deployment & DevOps
+
+### 17.1 Build
+- Maven multi-module is overkill at this scope; one Maven project with Spring Modulith is enough
+- `mvn -P prod package` builds an executable jar
+- Container image built with Cloud Native Buildpacks (`mvn spring-boot:build-image`) using the `paketobuildpacks/builder:base` and `BP_JVM_VERSION=25`
+
+### 17.2 Environments
+| Env | Purpose | Data |
+|---|---|---|
+| `local` | dev laptops | seeded fake data |
+| `dev` | integration | fake data, reset nightly |
+| `staging` | pre-prod | masked subset of prod |
+| `prod` | live | real |
+
+### 17.3 Deployment Topology (single lab)
+- 1 application container (8 GB RAM, 2 vCPU)
+- 1 PostgreSQL 17 instance (16 GB RAM, SSD, 100 GB)
+- 1 MinIO bucket
+- 1 reverse proxy (Caddy or Nginx) with Let's Encrypt
+- 1 daily backup job (`pg_dump` + S3 archival) and continuous WAL archiving
+
+### 17.4 CI/CD with Jenkins
+
+The pipeline runs on a **Jenkins** controller (LTS) with at least two agents labelled `linux-jdk25` (Maven, Docker, Java 25). Builds are declarative pipelines stored in the repository as a `Jenkinsfile`. Every pull request and every push to `main` triggers the same pipeline; release tags trigger the production deploy stage.
+
+**Pipeline stages**
+
+1. **Checkout** — full clone with tags so Liquibase status checks see history.
+2. **Format & lint** — Spotless and Checkstyle; failures block the build.
+3. **Compile** — `mvn -B compile`.
+4. **Unit tests** — fast feedback loop; runs the unit pyramid layer only. Builds fail if any test fails or is skipped.
+5. **Slice tests** — `@WebMvcTest` and `@DataJpaTest` slices.
+6. **Integration tests** — Testcontainers spins up PostgreSQL + MinIO; `mvn -B verify -Pintegration`.
+7. **Architecture tests** — ArchUnit + Spring Modulith verifier.
+8. **Mutation tests** — PIT on touched modules (PR builds) or all modules (nightly). Threshold: 75% killed.
+9. **Liquibase verification** — `mvn liquibase:status`, `liquibase:updateSQL`, and a smoke `update → rollback → update` against an ephemeral DB.
+10. **Coverage gate** — JaCoCo report; fails below thresholds in §15.6.
+11. **Security scans** — OWASP Dependency-Check, Trivy on the built image.
+12. **Package** — `mvn -B spring-boot:build-image` produces a labelled OCI image with SBOM.
+13. **Publish** — push image to the internal registry on `main`; tag as `latest` and as the git short SHA.
+14. **Deploy to staging** — automated on `main`. Includes a Liquibase `update` against the staging DB before the new app version starts.
+15. **Deploy to prod** — manual `input` step; only enabled for tagged releases. Production deploys run a *blue-green* swap behind the reverse proxy.
+
+The pipeline aborts as soon as a stage fails; the team treats a red Jenkins build as a stop-the-line event.
+
+**`Jenkinsfile`**
+
+```groovy
+pipeline {
+    agent { label 'linux-jdk25' }
+
+    options {
+        timestamps()
+        ansiColor('xterm')
+        buildDiscarder(logRotator(numToKeepStr: '30', artifactNumToKeepStr: '10'))
+        timeout(time: 45, unit: 'MINUTES')
+        disableConcurrentBuilds()
+    }
+
+    environment {
+        MAVEN_OPTS = '-Xmx2g -XX:+UseG1GC'
+        REGISTRY   = 'registry.internal/lims'
+        IMAGE_NAME = "${REGISTRY}/lims-backend"
+        SHORT_SHA  = "${GIT_COMMIT.take(8)}"
+    }
+
+    triggers {
+        // PRs and pushes via webhook; nightly mutation run at 02:00
+        cron(env.BRANCH_NAME == 'main' ? 'H 2 * * *' : '')
+    }
+
+    stages {
+
+        stage('Checkout') {
+            steps {
+                checkout scm
+                sh 'git fetch --tags'
+            }
+        }
+
+        stage('Format & Lint') {
+            steps {
+                sh 'mvn -B -ntp spotless:check checkstyle:check'
+            }
+        }
+
+        stage('Compile') {
+            steps {
+                sh 'mvn -B -ntp -DskipTests compile'
+            }
+        }
+
+        stage('Unit Tests (TDD inner loop)') {
+            steps {
+                sh 'mvn -B -ntp test -Punit'
+            }
+            post {
+                always { junit 'target/surefire-reports/*.xml' }
+            }
+        }
+
+        stage('Slice Tests') {
+            steps {
+                sh 'mvn -B -ntp test -Pslice'
+            }
+            post {
+                always { junit 'target/surefire-reports/*.xml' }
+            }
+        }
+
+        stage('Integration Tests') {
+            steps {
+                sh 'mvn -B -ntp verify -Pintegration -DskipUnit'
+            }
+            post {
+                always { junit 'target/failsafe-reports/*.xml' }
+            }
+        }
+
+        stage('Architecture Tests') {
+            steps {
+                sh 'mvn -B -ntp test -Parchitecture'
+            }
+        }
+
+        stage('Mutation Tests') {
+            when {
+                anyOf {
+                    branch 'main'
+                    triggeredBy 'TimerTrigger'
+                    changeRequest()
+                }
+            }
+            steps {
+                sh 'mvn -B -ntp org.pitest:pitest-maven:mutationCoverage'
+            }
+            post {
+                always {
+                    archiveArtifacts artifacts: 'target/pit-reports/**/*', allowEmptyArchive: true
+                }
+            }
+        }
+
+        stage('Liquibase Verification') {
+            steps {
+                sh '''
+                    mvn -B -ntp liquibase:status
+                    mvn -B -ntp liquibase:updateSQL -Dliquibase.outputFile=target/liquibase-update.sql
+                    mvn -B -ntp -Pliquibase-smoke verify
+                '''
+                archiveArtifacts artifacts: 'target/liquibase-update.sql', allowEmptyArchive: false
+            }
+        }
+
+        stage('Coverage Gate') {
+            steps {
+                sh 'mvn -B -ntp jacoco:report jacoco:check'
+                publishHTML(target: [
+                    reportDir: 'target/site/jacoco',
+                    reportFiles: 'index.html',
+                    reportName: 'JaCoCo Coverage'
+                ])
+            }
+        }
+
+        stage('Security Scans') {
+            parallel {
+                stage('Dependency-Check') {
+                    steps {
+                        sh 'mvn -B -ntp org.owasp:dependency-check-maven:check -DfailBuildOnCVSS=7'
+                    }
+                }
+                stage('Trivy (FS)') {
+                    steps {
+                        sh 'trivy fs --exit-code 1 --severity HIGH,CRITICAL .'
+                    }
+                }
+            }
+        }
+
+        stage('Package Image') {
+            steps {
+                sh 'mvn -B -ntp -DskipTests spring-boot:build-image -Dspring-boot.build-image.imageName=${IMAGE_NAME}:${SHORT_SHA}'
+                sh 'syft ${IMAGE_NAME}:${SHORT_SHA} -o spdx-json > target/sbom.spdx.json'
+                archiveArtifacts artifacts: 'target/sbom.spdx.json'
+            }
+        }
+
+        stage('Trivy (Image)') {
+            steps {
+                sh 'trivy image --exit-code 1 --severity HIGH,CRITICAL ${IMAGE_NAME}:${SHORT_SHA}'
+            }
+        }
+
+        stage('Publish Image') {
+            when { anyOf { branch 'main'; buildingTag() } }
+            steps {
+                withCredentials([usernamePassword(credentialsId: 'registry-creds',
+                                                  usernameVariable: 'REG_USER',
+                                                  passwordVariable: 'REG_PASS')]) {
+                    sh '''
+                        echo "$REG_PASS" | docker login $REGISTRY -u "$REG_USER" --password-stdin
+                        docker push ${IMAGE_NAME}:${SHORT_SHA}
+                        if [ "${BRANCH_NAME}" = "main" ]; then
+                            docker tag  ${IMAGE_NAME}:${SHORT_SHA} ${IMAGE_NAME}:latest
+                            docker push ${IMAGE_NAME}:latest
+                        fi
+                    '''
+                }
+            }
+        }
+
+        stage('Deploy: Staging') {
+            when { branch 'main' }
+            steps {
+                withCredentials([file(credentialsId: 'staging-kubeconfig', variable: 'KUBECONFIG')]) {
+                    sh '''
+                        mvn -B -ntp liquibase:update -Pstaging
+                        kubectl --kubeconfig=$KUBECONFIG \
+                            set image deployment/lims-backend \
+                            lims-backend=${IMAGE_NAME}:${SHORT_SHA} -n lims-staging
+                        kubectl --kubeconfig=$KUBECONFIG \
+                            rollout status deployment/lims-backend -n lims-staging --timeout=5m
+                    '''
+                }
+            }
+        }
+
+        stage('Deploy: Production') {
+            when { buildingTag() }
+            steps {
+                input message: "Deploy ${TAG_NAME} to PRODUCTION?", ok: 'Deploy', submitter: 'lab-manager,ops'
+                withCredentials([file(credentialsId: 'prod-kubeconfig', variable: 'KUBECONFIG')]) {
+                    sh '''
+                        mvn -B -ntp liquibase:updateSQL -Pprod -Dliquibase.outputFile=target/prod-update.sql
+                    '''
+                    archiveArtifacts artifacts: 'target/prod-update.sql'
+                    input message: "Reviewed prod-update.sql? Proceed with liquibase update + blue-green swap?", ok: 'Yes'
+                    sh '''
+                        mvn -B -ntp liquibase:update -Pprod
+                        kubectl --kubeconfig=$KUBECONFIG \
+                            set image deployment/lims-backend-green \
+                            lims-backend=${IMAGE_NAME}:${SHORT_SHA} -n lims-prod
+                        kubectl --kubeconfig=$KUBECONFIG \
+                            rollout status deployment/lims-backend-green -n lims-prod --timeout=5m
+                        kubectl --kubeconfig=$KUBECONFIG \
+                            patch service lims-backend -n lims-prod \
+                            -p '{"spec":{"selector":{"slot":"green"}}}'
+                    '''
+                }
+            }
+        }
+    }
+
+    post {
+        success {
+            slackSend channel: '#lims-ci', color: 'good',
+                      message: ":white_check_mark: ${env.JOB_NAME} #${env.BUILD_NUMBER} (${SHORT_SHA}) passed."
+        }
+        failure {
+            slackSend channel: '#lims-ci', color: 'danger',
+                      message: ":x: ${env.JOB_NAME} #${env.BUILD_NUMBER} failed at stage ${env.STAGE_NAME}."
+        }
+        always {
+            cleanWs(patterns: [[pattern: 'target/**', type: 'INCLUDE']])
+        }
+    }
+}
+```
+
+**Required Jenkins plugins**
+
+`Pipeline`, `Pipeline: Stage View`, `Pipeline Utility Steps`, `Git`, `JUnit`, `JaCoCo`, `HTML Publisher`, `Credentials Binding`, `Slack Notification`, `AnsiColor`, `Timestamper`, `Docker Pipeline`, `Kubernetes CLI`, `OWASP Dependency-Check`.
+
+**Branching & releases**
+
+- Trunk-based development on `main`.
+- PRs run the full pipeline minus deploy stages.
+- Merging to `main` triggers a staging deploy and a Jenkins-tagged build (`v<YYYY>.<0M>.<BUILD_NUMBER>`, e.g. `v2026.05.142`).
+- The production deploy is a separate stage gated by a manual approval; the approval authorizes the *ship*, not the act of tagging.
+- Hotfixes branch from a release tag, fix forward, and produce a new monotonically-numbered tag through the same pipeline.
+
+### 17.5 Configuration
+- 12-factor: every environment-specific value comes from env vars
+- Secrets in HashiCorp Vault (or simply Docker secrets for small deployments)
+- Configuration validated at boot with `@ConfigurationProperties` + Bean Validation
+
+---
+
+## 18. Performance & Scalability
+
+| Concern | Approach |
+|---|---|
+| Hot patient search | trigram index `gin (last_name gin_trgm_ops)` |
+| Statistics queries | live native SQL over operational tables (no materialized views) |
+| File listing | cursor pagination (`WHERE created_at < :cursor ORDER BY created_at DESC LIMIT 50`) |
+| Concurrent daily-ID generation | per-discipline sequences + per-day counter table |
+| PDF generation latency (Shipped capability — 1.5.c) | Sync renders 1–4 page reports inline; async `pdf_render_jobs` pipeline available for larger reports. |
+| Long writes | batched JDBC for bulk imports |
+| Read scaling (phase 2) | PostgreSQL read replica for `stats` |
+
+---
+
+## 19. Security Hardening Checklist
+
+- [ ] Default deny on all endpoints; explicit `permitAll` for `/auth/*` and Actuator health
+- [ ] Argon2id password hashing with per-environment cost
+- [ ] CSRF disabled (stateless JWT) but CORS strictly configured per origin
+- [ ] OWASP Dependency-Check in CI; fail on CVSS ≥ 7
+- [ ] Container image scanned (Trivy)
+- [ ] No SQL injection: 100% parameterized queries, no string concatenation
+- [ ] PDF reports may be password-protected per CDC §IV "mot de passe sur le fichier"; out-of-band delivery of the password (e.g. WhatsApp) is a deployment-time choice, not a hard requirement
+- [ ] Action audit chain immutable: per-user Ed25519 signature + hash-linked sequence number (secured-x), enforced append-only at the DB level (PostgreSQL `RULE` blocks `UPDATE`/`DELETE` on `signed_actions`)
+- [ ] Quarterly access review (who has which role)
+- [ ] Annual penetration test
+- [ ] GDPR-style right to be forgotten only after retention period (10 years for medical records)
+
+---
+
+## 20. Implementation Roadmap
+
+Every phase is delivered TDD-first: each module starts from an empty Liquibase changelog and a failing acceptance test. No phase is marked done until all tests are green, mutation thresholds hold, and the Jenkins pipeline ships the build to staging.
+
+### Phase 0 — Walking Skeleton (1 week)
+- Empty Spring Boot app with one `/health` endpoint, one Liquibase changelog, one Testcontainers integration test, one Jenkinsfile stage end-to-end.
+- Goal: prove the deploy pipeline before writing business code.
+
+### Phase 1 — Core (8–10 weeks)
+Five sub-projects, each shippable independently:
+
+- **1.1.a — secured-x additions** *(separate repo: `~/Documents/development/projects/personal/secured-x`)*. Add `secured-x-provider-local` (username + password, Argon2id) and `secured-x-rbac` (roles + permissions, `@RequiresPermission`). Released to a Maven repo; LIMS pins the new version.
+- **1.1.b — LIMS iam integration**. `User` aggregate, role/permission seed data per §9.5, Liquibase changesets for `users` / `local_credentials` / `user_key_pairs` / `signed_actions`, `LocalCredentialStore` + `UserKeyPairStore` + `AuditChainStore` impls (extending secured-x base classes), `AuthenticationHandler` impl, `AuditorAware` wired to secured-x security context, Hibernate Envers config, RFC 7807 `@ControllerAdvice` skeleton in `shared/web/`, admin user CRUD endpoints.
+- **1.2 — patient**. Patient aggregate, lab-code generation per §6.6, search/lookup, merge, contacts, insurance/partner FKs.
+- **1.3 — catalog**. Analyses (simple + grouped + bilan société), disciplines, matrices, techniques, récipients, antibiotiques, prescripteurs (with spécialités), préleveurs (with habilitations), reference intervals.
+- **1.4 — order**. Lab files (dossiers), samples (in-lab / external / home), daily-ID generation per §6.6, urgency, prescriber link.
+- **1.5 — result + PDF**. Result entry, sealed `ResultValue` types (Numeric / Integer / Text / Formula / FreeForm — matching CDC §"Type de résultat"), technical validation, biological validation, antibiogram interpretation per §6.4, basic PDF report (Thymeleaf + OpenHTMLtoPDF), patient portal credential issuance (CDC §I).
+
+Goal: deployable to a real lab for pilot with manual billing.
+
+### Phase 2 — Billing & Cash (4–6 weeks)
+- `billing` (invoices, insurance, partners, society panels).
+- `cashbox` (registers, journal, expenses, home-collection fees).
+- Quotes module.
+- `delivery` (print + email + online portal).
+
+### Phase 3 — Analytics & Notifications (3–4 weeks)
+- `stats` — live SQL + JSON; XLSX file export added in SP5.
+- `notification` (email + WhatsApp + SMS) with outbox.
+- Antibiogram automation polish.
+
+*Project scope ends at Phase 3 per CDC. Anything beyond (lab instrument feeds, mobile-money APIs, multi-lab tenant mode, microservice extraction) is unscoped follow-on work and is not a committed deliverable of this project.*
+
+---
+
+## Appendix A — Sample Code Skeletons
+
+### A.1 Aggregate (Patient)
+```java
+@Entity
+@Table(name = "patients")
+public class Patient {
+
+    @Id
+    @Column(columnDefinition = "uuid")
+    private UUID id;
+
+    @Column(name = "lab_code", nullable = false, unique = true)
+    private String labCode;
+
+    @Embedded
+    private PersonName name;
+
+    @Enumerated(EnumType.STRING)
+    private Civility civility;
+
+    @Enumerated(EnumType.STRING)
+    private Sex sex;
+
+    @Embedded
+    private ContactInfo contact;
+
+    @Version
+    private int version;
+
+    protected Patient() { }   // JPA
+
+    public static Patient create(NewPatient cmd, LabCode generated) {
+        var p = new Patient();
+        p.id = UUIDv7.generate();
+        p.labCode = generated.value();
+        p.name = cmd.name();
+        p.civility = cmd.civility();
+        p.sex = cmd.sex();
+        p.contact = cmd.contact();
+        return p;
+    }
+
+    public void updateContact(ContactInfo newContact) {
+        this.contact = Objects.requireNonNull(newContact);
+    }
+}
+```
+
+### A.2 Use-case service (LabFileService)
+```java
+@Service
+@Transactional
+@RequiredArgsConstructor
+public class LabFileService {
+
+    private final LabFileRepository files;
+    private final PatientApi patients;
+    private final DailyIdGenerator dailyIds;
+    private final ApplicationEventPublisher events;
+
+    public LabFileId create(CreateLabFileCommand cmd, AuthenticatedUser user) {
+        var patient = patients.requireById(cmd.patientId());
+        var dailyId = dailyIds.next(cmd.disciplinePrefix());
+
+        var file = LabFile.create(patient, dailyId, cmd, user);
+        files.save(file);
+
+        events.publishEvent(new LabFileCreated(file.id(), patient.id(), Instant.now()));
+        return file.id();
+    }
+}
+```
+
+### A.3 Antibiogram interpretation
+```java
+public enum Sensitivity { R, I, S }
+
+public final class AntibiogramInterpreter {
+    public static Sensitivity interpret(BigDecimal measured, Antibiotic ab) {
+        var ref = ab.referenceDiameter();
+        var lo  = ab.intermediateLower();
+        var hi  = ab.intermediateUpper();
+
+        if (lo != null && hi != null && measured.compareTo(lo) >= 0 && measured.compareTo(hi) <= 0) {
+            return Sensitivity.I;
+        }
+        return measured.compareTo(ref) < 0 ? Sensitivity.R : Sensitivity.S;
+    }
+}
+```
+
+### A.4 OpenAPI annotation example
+```java
+@PostMapping("/lab-files")
+@Operation(summary = "Create a lab file")
+@ApiResponses({
+    @ApiResponse(responseCode = "201", description = "Created",
+                 content = @Content(schema = @Schema(implementation = LabFileResponse.class))),
+    @ApiResponse(responseCode = "422", description = "Validation error")
+})
+public ResponseEntity<LabFileResponse> create(
+        @Valid @RequestBody CreateLabFileRequest request,
+        @AuthenticationPrincipal AuthenticatedUser user) {
+    var id = service.create(request.toCommand(), user);
+    return ResponseEntity.created(URI.create("/api/v1/lab-files/" + id))
+                         .body(LabFileResponse.of(id));
+}
+```
+
+---
+
+## Appendix B — Glossary
+
+| Term | Meaning |
+|---|---|
+| **Bilan** | A bundle of analyses sold as a package |
+| **Paillasse** | Discipline / lab bench (biochimie, hématologie, immuno-sérologie, microbiologie, biologie moléculaire) |
+| **Récipient** | Sample container (tube, vial, jar) |
+| **Préleveur** | Sample collector (a phlebotomist) |
+| **B (valeur indiciaire)** | Pricing index used by West African nomenclature |
+| **Antibiogramme** | Sensitivity test of a bacterium against antibiotics |
+| **Validation biologique** | Final clinical sign-off by a biologist before publishing |
+
+---
+
+*End of document.*

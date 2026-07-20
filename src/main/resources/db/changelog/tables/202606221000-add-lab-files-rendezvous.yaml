@@ -1,0 +1,21 @@
+databaseChangeLog:
+  - changeSet:
+      id: 202606221000-add-lab-files-rendezvous
+      author: samuel
+      contextFilter: dev,test,prod
+      labels: sp10-rendezvous
+      preconditions:
+        - onFail: HALT
+        - tableExists: { tableName: lab_files }
+      changes:
+        - addColumn:
+            tableName: lab_files
+            columns:
+              - column: { name: rendezvous_at, type: timestamptz }
+        # LabFile is @Audited (SP8 Envers); the hand-authored *_aud table must carry the new
+        # column too, or Hibernate ddl-auto=validate rejects the mapping at boot.
+        - addColumn:
+            tableName: lab_files_aud
+            columns:
+              - column: { name: rendezvous_at, type: "timestamp(6) with time zone" }
+      # rollback: AUTHORED BY USER

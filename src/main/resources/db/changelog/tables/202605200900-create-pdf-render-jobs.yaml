@@ -1,0 +1,75 @@
+databaseChangeLog:
+  - changeSet:
+      id: 202605200900-create-pdf-render-jobs
+      author: samuel
+      # TODO: author rollback block — domain semantics required.
+      # (Per CLAUDE.md, the assistant does not auto-generate rollback SQL;
+      # Samuel co-authors during PR review.)
+      changes:
+        - createTable:
+            tableName: pdf_render_jobs
+            columns:
+              - column:
+                  name: id
+                  type: VARCHAR(26)
+                  constraints:
+                    nullable: false
+                    primaryKey: true
+                    primaryKeyName: pk_pdf_render_jobs
+              - column:
+                  name: document_type_id
+                  type: VARCHAR(64)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: model_json
+                  type: JSONB
+                  constraints:
+                    nullable: false
+              - column:
+                  name: status
+                  type: VARCHAR(16)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: bytes
+                  type: BYTEA
+              - column:
+                  name: suggested_filename
+                  type: VARCHAR(255)
+              - column:
+                  name: error_message
+                  type: TEXT
+              - column:
+                  name: requested_by_user_id
+                  type: VARCHAR(26)
+              - column:
+                  name: requested_at
+                  type: TIMESTAMP(6)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: completed_at
+                  type: TIMESTAMP(6)
+        - sql:
+            sql: |
+              ALTER TABLE pdf_render_jobs
+                ADD CONSTRAINT ck_pdf_render_jobs_status
+                CHECK (status IN ('QUEUED','RUNNING','DONE','FAILED'));
+              ALTER TABLE pdf_render_jobs
+                ADD CONSTRAINT ck_pdf_render_jobs_bytes_size
+                CHECK (bytes IS NULL OR octet_length(bytes) <= 10485760);
+        - createIndex:
+            indexName: idx_pdf_render_jobs_status_requested_at
+            tableName: pdf_render_jobs
+            columns:
+              - column:
+                  name: status
+              - column:
+                  name: requested_at
+        - createIndex:
+            indexName: idx_pdf_render_jobs_requested_by
+            tableName: pdf_render_jobs
+            columns:
+              - column:
+                  name: requested_by_user_id

@@ -1,0 +1,26 @@
+databaseChangeLog:
+  - changeSet:
+      id: 202605120822-create-cash-register-users
+      author: samuel
+      preconditions:
+        - onFail: HALT
+        - tableExists: { tableName: cash_registers }
+      changes:
+        - createTable:
+            tableName: cash_register_users
+            columns:
+              - column: { name: cash_register_id, type: "varchar(26)", constraints: { nullable: false } }
+              - column: { name: user_id, type: "varchar(26)", constraints: { nullable: false } }
+              - column: { name: assigned_at, type: TIMESTAMP WITH TIME ZONE, constraints: { nullable: false } }
+        - addPrimaryKey:
+            tableName: cash_register_users
+            columnNames: cash_register_id, user_id
+            constraintName: cash_register_users_pk
+        - addForeignKeyConstraint:
+            baseTableName: cash_register_users
+            baseColumnNames: cash_register_id
+            referencedTableName: cash_registers
+            referencedColumnNames: id
+            constraintName: cash_register_users_register_fk
+            onDelete: CASCADE
+      # rollback: AUTHORED BY USER

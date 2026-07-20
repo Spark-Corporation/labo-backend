@@ -1,0 +1,47 @@
+# TODO: author rollback block — domain semantics required (CLAUDE.md rule)
+databaseChangeLog:
+  - changeSet:
+      id: 202605180910-create-cashbox-home-collection-fees
+      author: samuel
+      changes:
+        - createTable:
+            tableName: cashbox_home_collection_fees
+            columns:
+              - column: { name: id, type: "varchar(26)", constraints: { primaryKey: true, nullable: false } }
+              - column: { name: patient_id, type: "varchar(26)", constraints: { nullable: false } }
+              - column: { name: lab_file_id, type: "varchar(26)", constraints: { nullable: false } }
+              - column: { name: distance_km, type: "numeric(8,2)" }
+              - column: { name: amount, type: "numeric(18,2)", constraints: { nullable: false } }
+              - column: { name: receipt_scan_uri, type: TEXT }
+              - column: { name: cash_register_id, type: "varchar(26)", constraints: { nullable: false } }
+              - column: { name: recorded_by, type: "varchar(26)", constraints: { nullable: false } }
+              - column: { name: recorded_at, type: TIMESTAMP WITH TIME ZONE, constraints: { nullable: false } }
+              - column: { name: created_at, type: TIMESTAMP WITH TIME ZONE, constraints: { nullable: false } }
+              - column: { name: updated_at, type: TIMESTAMP WITH TIME ZONE, constraints: { nullable: false } }
+              - column: { name: created_by, type: "varchar(26)" }
+              - column: { name: updated_by, type: "varchar(26)" }
+              - column: { name: version, type: BIGINT, constraints: { nullable: false }, defaultValueNumeric: 0 }
+        - createIndex:
+            indexName: idx_cashbox_home_collection_fees_register_recorded
+            tableName: cashbox_home_collection_fees
+            columns:
+              - column: { name: cash_register_id }
+              - column: { name: recorded_at }
+        - createIndex:
+            indexName: idx_cashbox_home_collection_fees_lab_file
+            tableName: cashbox_home_collection_fees
+            columns:
+              - column: { name: lab_file_id }
+        - createIndex:
+            indexName: idx_cashbox_home_collection_fees_patient
+            tableName: cashbox_home_collection_fees
+            columns:
+              - column: { name: patient_id }
+        - sql:
+            sql: |
+              ALTER TABLE cashbox_home_collection_fees
+                ADD CONSTRAINT cashbox_home_collection_fees_distance_chk
+                  CHECK (distance_km IS NULL OR distance_km >= 0);
+              ALTER TABLE cashbox_home_collection_fees
+                ADD CONSTRAINT cashbox_home_collection_fees_amount_chk
+                  CHECK (amount > 0);

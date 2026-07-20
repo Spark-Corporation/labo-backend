@@ -1,0 +1,37 @@
+databaseChangeLog:
+  - changeSet:
+      id: 202605120835-create-invoice-lines
+      author: samuel
+      preconditions:
+        - onFail: HALT
+        - tableExists: { tableName: invoices }
+      changes:
+        - createTable:
+            tableName: invoice_lines
+            columns:
+              - column: { name: id,                          type: varchar(26),  constraints: { primaryKey: true,  nullable: false } }
+              - column: { name: invoice_id,                  type: varchar(26),  constraints: { nullable: false } }
+              - column: { name: position,                    type: INTEGER,      constraints: { nullable: false } }
+              - column: { name: analysis_id,                 type: varchar(26),  constraints: { nullable: false } }
+              - column: { name: analysis_code_snapshot,      type: varchar(8),   constraints: { nullable: false } }
+              - column: { name: analysis_name_snapshot,      type: varchar(255), constraints: { nullable: false } }
+              - column: { name: indiciary_value_b_snapshot,  type: "numeric(10,2)", constraints: { nullable: false } }
+              - column: { name: b_rate_snapshot,             type: "numeric(18,2)", constraints: { nullable: false } }
+              - column: { name: label_count_snapshot,        type: INTEGER,      constraints: { nullable: false } }
+              - column: { name: line_total,                  type: "numeric(18,2)", constraints: { nullable: false } }
+        - addForeignKeyConstraint:
+            baseTableName: invoice_lines
+            baseColumnNames: invoice_id
+            referencedTableName: invoices
+            referencedColumnNames: id
+            onDelete: CASCADE
+            constraintName: fk_invoice_lines_invoice
+        - addUniqueConstraint:
+            tableName: invoice_lines
+            columnNames: invoice_id, position
+            constraintName: uq_invoice_lines_invoice_position
+        - createIndex:
+            tableName: invoice_lines
+            indexName: ix_invoice_lines_invoice
+            columns: [{ column: { name: invoice_id } }]
+      # rollback: AUTHORED BY USER

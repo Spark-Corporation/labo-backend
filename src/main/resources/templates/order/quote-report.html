@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="fr" xmlns:th="http://www.thymeleaf.org">
+<head>
+  <meta charset="UTF-8"/>
+  <title>Devis</title>
+  <style>
+    @page { size: A4 portrait; margin: 18mm 15mm 18mm 15mm; }
+    body  { font-family: 'DejaVu Sans', sans-serif; font-size: 10pt; color: #111; }
+    h1    { font-size: 14pt; margin: 0 0 4mm 0; }
+    h2    { font-size: 11pt; margin: 6mm 0 2mm 0;
+            border-bottom: 0.4pt solid #999; padding-bottom: 1mm; }
+    .lab-header { display: flex; justify-content: space-between; margin-bottom: 5mm; }
+    .lab-name   { font-size: 13pt; font-weight: bold; }
+    .meta       { font-size: 9pt; color: #555; }
+    .banner { text-align: center; padding: 3mm; margin: 3mm 0;
+              border: 0.6pt solid #444; font-weight: bold; }
+    .banner-draft { background: #fff3cd; border-color: #b58105; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { text-align: left; vertical-align: top; padding: 1.5mm 2mm;
+             border-bottom: 0.3pt solid #ddd; font-size: 9.5pt; }
+    th    { font-weight: bold; background: #f4f4f4; }
+    td.num { text-align: right; font-variant-numeric: tabular-nums; }
+    .totals { margin-top: 4mm; font-size: 11pt; font-weight: bold; text-align: right; }
+    .footer { position: fixed; bottom: 0; left: 0; right: 0;
+              font-size: 8pt; color: #888; text-align: center; }
+  </style>
+</head>
+<body>
+
+  <div class="lab-header">
+    <div>
+      <div class="lab-name" th:text="${labIdentity.name}">Laboratoire</div>
+      <div class="meta"     th:text="${labIdentity.address}">Adresse</div>
+      <div class="meta" th:text="'Accréditation : ' + ${labIdentity.accreditationNumber}">Accr.</div>
+    </div>
+    <div class="meta" style="text-align: right;">
+      <div th:text="'Devis N° ' + ${header.quoteNumber}">Devis N°</div>
+      <div th:text="'Créé le ' + ${header.createdAtDisplay}">Créé le</div>
+      <div th:if="${header.lockedAtDisplay != null}"
+           th:text="'Verrouillé le ' + ${header.lockedAtDisplay}">Verrouillé</div>
+      <div th:if="${header.expiresAtDisplay != null}"
+           th:text="'Expire le ' + ${header.expiresAtDisplay}">Expire</div>
+      <div th:if="${header.convertedAtDisplay != null}"
+           th:text="'Converti le ' + ${header.convertedAtDisplay}">Converti</div>
+    </div>
+  </div>
+
+  <div th:class="${statusBanner.isDraft} ? 'banner banner-draft' : 'banner'">
+    <span th:text="${statusBanner.title}">DEVIS</span>
+    <span th:if="${statusBanner.subtitle != null}"
+          th:text="' — ' + ${statusBanner.subtitle}"> — sous-titre</span>
+  </div>
+
+  <h2>Patient</h2>
+  <table>
+    <tr>
+      <th>Nom</th>
+      <td th:text="${patient.lastName} + ' ' + ${patient.firstName}">Nom</td>
+      <th>Sexe</th><td th:text="${patient.sex}">M/F</td>
+    </tr>
+    <tr>
+      <th>Code labo</th>
+      <td th:text="${patient.labCode}" colspan="3">labCode</td>
+    </tr>
+    <tr th:if="${prescriber != null}">
+      <th>Médecin prescripteur</th>
+      <td colspan="3" th:text="${prescriber.fullName}">Dr.</td>
+    </tr>
+  </table>
+
+  <h2>Analyses</h2>
+  <table>
+    <thead>
+      <tr>
+        <th style="width:18%;">Code</th>
+        <th style="width:42%;">Libellé</th>
+        <th style="width:12%;">B</th>
+        <th style="width:8%;" class="num">Qté</th>
+        <th style="width:20%;" class="num">Total</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr th:each="row : ${lines}">
+        <td th:text="${row.code}">CODE</td>
+        <td th:text="${row.label}">Libellé</td>
+        <td th:text="${row.bRateDisplay}">B…</td>
+        <td class="num" th:text="${row.labelCount}">1</td>
+        <td class="num" th:text="${row.lineTotalDisplay}">…</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="totals" th:text="'Total : ' + ${totals.totalAmountDisplay}">Total : …</div>
+
+  <div class="footer">
+    <span th:text="'— ' + ${labIdentity.name} +
+                   ' — Accréditation : ' + ${labIdentity.accreditationNumber} +
+                   ' — Directeur : ' + ${labIdentity.managerName} + ' —'">— pied —</span>
+  </div>
+
+</body>
+</html>

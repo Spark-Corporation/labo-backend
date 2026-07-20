@@ -1,0 +1,47 @@
+databaseChangeLog:
+  - changeSet:
+      id: 202605281405-create-signed-actions
+      author: samuel
+      preConditions:
+        - onFail: HALT
+        - not:
+            - tableExists: { tableName: signed_actions }
+      changes:
+        - createTable:
+            tableName: signed_actions
+            columns:
+              - column: { name: action_id,        type: varchar(36),  constraints: { primaryKey: true, nullable: false } }
+              - column: { name: subject,          type: varchar(26),  constraints: { nullable: false } }
+              - column: { name: action,           type: varchar(120), constraints: { nullable: false } }
+              - column: { name: resource,         type: varchar(255) }
+              - column: { name: timestamp,        type: text,         constraints: { nullable: false } }
+              - column: { name: correlation_id,   type: varchar(64) }
+              - column: { name: key_id,           type: varchar(36),  constraints: { nullable: false } }
+              - column: { name: metadata,         type: jsonb }
+              - column: { name: previous_hash,    type: varchar(64) }
+              - column: { name: sequence_number,  type: bigint,       constraints: { nullable: false } }
+              - column: { name: signature,        type: text,         constraints: { nullable: false } }
+        - addUniqueConstraint:
+            tableName: signed_actions
+            columnNames: subject, sequence_number
+            constraintName: uq_signed_actions_subject_seq
+        - addForeignKeyConstraint:
+            baseTableName: signed_actions
+            baseColumnNames: key_id
+            referencedTableName: user_key_pairs
+            referencedColumnNames: key_id
+            constraintName: fk_signed_actions_key
+        - createIndex:
+            tableName: signed_actions
+            indexName: ix_signed_actions_subject_seq
+            columns: [{ column: { name: subject } }, { column: { name: sequence_number } }]
+        - createIndex:
+            tableName: signed_actions
+            indexName: ix_signed_actions_resource
+            columns: [{ column: { name: resource } }]
+        - sql:
+            sql: |
+              CREATE RULE no_update_signed_actions AS ON UPDATE TO signed_actions DO INSTEAD NOTHING;
+              CREATE RULE no_delete_signed_actions AS ON DELETE TO signed_actions DO INSTEAD NOTHING;
+      # rollback: AUTHORED BY USER  (proposed: DROP RULE no_update_signed_actions; DROP RULE
+      # no_delete_signed_actions; dropTable signed_actions)

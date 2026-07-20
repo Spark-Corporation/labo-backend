@@ -1,0 +1,15 @@
+databaseChangeLog:
+  - changeSet:
+      id: 202605281200-widen-invoice-line-analysis-code
+      author: samuel
+      preconditions:
+        - onFail: HALT
+        - columnExists: { tableName: invoice_lines, columnName: analysis_code_snapshot }
+      changes:
+        - modifyDataType:
+            tableName: invoice_lines
+            columnName: analysis_code_snapshot
+            newDataType: varchar(30)
+      # rollback: AUTHORED BY USER — modifyDataType has no auto-rollback. Revert is
+      # `modifyDataType ... newDataType: varchar(8)`; CAVEAT: that truncates/fails if any
+      # analysis_code_snapshot value already exceeds 8 chars. See chat/PR notes.

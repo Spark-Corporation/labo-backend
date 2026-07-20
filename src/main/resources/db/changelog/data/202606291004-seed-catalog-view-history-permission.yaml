@@ -1,0 +1,33 @@
+# catalog.view-history = 01KSP12CATVHST00000000000A
+databaseChangeLog:
+  - changeSet:
+      id: 202606291004-seed-catalog-view-history-permission
+      author: samuel
+      contextFilter: dev,test,prod
+      labels: sp12-catalog-audit
+      preConditions:
+        - onFail: MARK_RAN
+        - sqlCheck:
+            expectedResult: 0
+            sql: SELECT COUNT(*) FROM permissions WHERE name = 'catalog.view-history'
+      changes:
+        - insert:
+            tableName: permissions
+            columns:
+              - column: { name: id, value: "01KSP12CATVHST00000000000A" }
+              - column: { name: name, value: "catalog.view-history" }
+              - column:
+                  name: description
+                  value: "Consulter l'historique des modifications de configuration d'une analyse"
+              - column: { name: cdc_clause, value: "CFG" }
+        - insert: # ADMIN -> catalog.view-history
+            tableName: role_permissions
+            columns:
+              - column: { name: role_id, value: "01KQZ0WPVNGGWQ1HKC18A0ABSX" }
+              - column: { name: permission_id, value: "01KSP12CATVHST00000000000A" }
+        - insert: # LAB_MANAGER -> catalog.view-history (same roles that hold catalog.manage)
+            tableName: role_permissions
+            columns:
+              - column: { name: role_id, value: "01KQZ0WPVP2EM2DF5E5RKVE7GP" }
+              - column: { name: permission_id, value: "01KSP12CATVHST00000000000A" }
+      # rollback: AUTHORED BY USER

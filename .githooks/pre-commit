@@ -1,0 +1,10 @@
+#!/usr/bin/env sh
+# LIMS pre-commit hook. Activate once per clone:
+#   git config core.hooksPath .githooks
+#
+# Runs the fast gate stack: Spotless format check, Checkstyle, and
+# Surefire-only unit tests (the `unit` profile skips Failsafe so this
+# never starts Docker). Slow gates (Failsafe integration suite, JaCoCo
+# threshold, PIT, OWASP, Trivy, Sonar) live in CI only.
+set -e
+exec ./mvnw -B spotless:check checkstyle:check test -Punit

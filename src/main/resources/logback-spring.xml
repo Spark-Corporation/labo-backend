@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration>
+  <include resource="org/springframework/boot/logging/logback/defaults.xml"/>
+
+  <!-- Log directory: relative "logs/" for local `mvnw` runs, overridden to /var/log/lims
+       in the container via LOGGING_FILE_PATH (-> logging.file.path). -->
+  <springProperty name="LIMS_LOG_DIR" source="logging.file.path" defaultValue="logs"/>
+
+  <!-- Human-readable console (no ANSI colour, safe for redirected/non-TTY output). Carries the
+       mandatory MDC fields; structured JSON lives in the file appender below. -->
+  <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+    <encoder>
+      <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} %-5level [traceId=%X{traceId:-} userId=%X{userId:-} labFileId=%X{labFileId:-}] %logger{36} - %msg%n</pattern>
+    </encoder>
+  </appender>
+
+  <!-- Structured JSON to a rolling file. Retains the path-based masking decorator (the plain
+       console cannot apply it); PII redaction is otherwise enforced at the controller layer. -->
+  <appender name="JSON_FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
+    <file>${LIMS_LOG_DIR}/lims-backend.json</file>
+    <rollingPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy">
+      <fileNamePattern>${LIMS_LOG_DIR}/lims-backend-%d{yyyy-MM-dd}.%i.json.gz</fileNamePattern>
+      <maxFileSize>100MB</maxFileSize>
+      <maxHistory>14</maxHistory>
+      <totalSizeCap>1GB</totalSizeCap>
+    </rollingPolicy>
+    <encoder class="net.logstash.logback.encoder.LogstashEncoder">
+      <includeMdcKeyName>traceId</includeMdcKeyName>
+      <includeMdcKeyName>userId</includeMdcKeyName>
+      <includeMdcKeyName>labFileId</includeMdcKeyName>
+      <fieldNames>
+        <timestamp>ts</timestamp>
+        <message>msg</message>
+        <thread>thread</thread>
+        <level>level</level>
+        <logger>logger</logger>
+      </fieldNames>
+      <customFields>{"service":"lims-backend"}</customFields>
+      <jsonGeneratorDecorator class="net.logstash.logback.mask.MaskingJsonGeneratorDecorator">
+        <path>$..password</path>
+        <path>$..jwt</path>
+        <path>$..dob</path>
+        <defaultMask>***</defaultMask>
+      </jsonGeneratorDecorator>
+    </encoder>
+  </appender>
+
+  <root level="INFO">
+    <appender-ref ref="CONSOLE"/>
+    <appender-ref ref="JSON_FILE"/>
+  </root>
+</configuration>

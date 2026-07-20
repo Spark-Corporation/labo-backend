@@ -1,0 +1,47 @@
+# 1.6.a follow-up: extend billing-permission grants to match spec §9.1.
+# Closes review gaps:
+#   - accounting.read must reach CASHIER and ACCOUNTANT (not just ADMIN + LAB_MANAGER).
+#   - invoice.read must reach LAB_MANAGER and RECEPTIONIST.
+#
+# Role ULIDs (existing, from 202605061001-seed-iam-catalog):
+#   ADMIN       = 01KQZ0WPVNGGWQ1HKC18A0ABSX
+#   LAB_MANAGER = 01KQZ0WPVP2EM2DF5E5RKVE7GP
+#   CASHIER     = 01KQZ0WPVPKM5QMKSEGP9REH7X
+#   ACCOUNTANT  = 01KQZ0WPVP2ZCER149WMN014CB
+#   RECEPTIONIST= 01KQZ0WPVPT1RA89KGHRZE3RSF
+#
+# Permission ULIDs:
+#   accounting.read = 01KRA1NC4DXE6F7G8H9JKMNRST  (chunk 8)
+#   invoice.read    = 01KQZ0WPVQ6V1T8X3Z67YK1VF4  (1.1.b)
+databaseChangeLog:
+  - changeSet:
+      id: 202605131000-extend-billing-permissions
+      author: samuel
+      contextFilter: dev,test,prod
+      labels: phase-1-6-a
+      changes:
+        # accounting.read → CASHIER
+        - insert:
+            tableName: role_permissions
+            columns:
+              - column: { name: role_id, value: "01KQZ0WPVPKM5QMKSEGP9REH7X" }
+              - column: { name: permission_id, value: "01KRA1NC4DXE6F7G8H9JKMNRST" }
+        # accounting.read → ACCOUNTANT
+        - insert:
+            tableName: role_permissions
+            columns:
+              - column: { name: role_id, value: "01KQZ0WPVP2ZCER149WMN014CB" }
+              - column: { name: permission_id, value: "01KRA1NC4DXE6F7G8H9JKMNRST" }
+        # invoice.read → LAB_MANAGER
+        - insert:
+            tableName: role_permissions
+            columns:
+              - column: { name: role_id, value: "01KQZ0WPVP2EM2DF5E5RKVE7GP" }
+              - column: { name: permission_id, value: "01KQZ0WPVQ6V1T8X3Z67YK1VF4" }
+        # invoice.read → RECEPTIONIST
+        - insert:
+            tableName: role_permissions
+            columns:
+              - column: { name: role_id, value: "01KQZ0WPVPT1RA89KGHRZE3RSF" }
+              - column: { name: permission_id, value: "01KQZ0WPVQ6V1T8X3Z67YK1VF4" }
+      # rollback: AUTHORED BY USER

@@ -1,0 +1,23 @@
+databaseChangeLog:
+  - changeSet:
+      id: 202605120820-create-cash-registers
+      author: samuel
+      changes:
+        - createTable:
+            tableName: cash_registers
+            columns:
+              - column: { name: id, type: "varchar(26)", constraints: { primaryKey: true, nullable: false } }
+              - column: { name: code, type: "varchar(2)", constraints: { nullable: false, unique: true, uniqueConstraintName: uq_cash_registers_code } }
+              - column: { name: label, type: "varchar(255)", constraints: { nullable: false } }
+              - column: { name: sequence_number, type: int, constraints: { nullable: false, unique: true, uniqueConstraintName: uq_cash_registers_sequence_number } }
+              - column: { name: disabled_at, type: TIMESTAMP WITH TIME ZONE }
+              - column: { name: created_at, type: TIMESTAMP WITH TIME ZONE, constraints: { nullable: false } }
+              - column: { name: updated_at, type: TIMESTAMP WITH TIME ZONE, constraints: { nullable: false } }
+              - column: { name: created_by, type: "varchar(26)" }
+              - column: { name: updated_by, type: "varchar(26)" }
+              - column: { name: version, type: BIGINT, constraints: { nullable: false }, defaultValueNumeric: 0 }
+        - sql:
+            sql: |
+              ALTER TABLE cash_registers
+                ADD CONSTRAINT cash_registers_code_chk CHECK (code ~ '^[A-Z0-9]{2}$');
+      # rollback: AUTHORED BY USER

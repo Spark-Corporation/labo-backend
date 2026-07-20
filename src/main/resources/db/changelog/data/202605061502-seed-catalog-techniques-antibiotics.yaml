@@ -1,0 +1,226 @@
+# Seed catalog reference data: 10 techniques + 15 antibiotics (per CDC §6 + tech doc §6.4).
+#
+# ULID assignments captured from UlidGenerator throwaway helper (deleted before commit).
+# TECHNIQUES (10):
+#   MANUEL                = 01KQZDGMTN3ZHP6YNVG3F0QMJY
+#   AUTOMATE_CHIMIE       = 01KQZDGMTN9YAS16NQ4BVK4PHH
+#   AUTOMATE_HEMATO       = 01KQZDGMTN4YMFAZX90VGWMR2M
+#   ELISA                 = 01KQZDGMTNTXZ5EDG9VQXWW48G
+#   PCR_RT                = 01KQZDGMTNCZF2F5QK83VQW4QA
+#   IMMUNOCHROMATOGRAPHIE = 01KQZDGMTNK5GF75ZYA1VJJVQZ
+#   MICROSCOPIE           = 01KQZDGMTNMJM9AHA87371TKN5
+#   CULTURE               = 01KQZDGMTNVB3W2X5QDNZPK11G
+#   COLORATION_GRAM       = 01KQZDGMTNGC7MMMZAB8G2E6GC
+#   AUTRE_TECHNIQUE       = 01KQZDGMTNVRS4VDDRX1PQ5S6W
+# ANTIBIOTICS (15):
+#   AMX     = 01KQZDGMTNZZ0ZQHQTVPD5KDAT
+#   AMC     = 01KQZDGMTNCY807Q393XHNFSRR
+#   CIP     = 01KQZDGMTND1A517JGWN9XW7R0
+#   GEN     = 01KQZDGMTP1F1R2DNRFKM182NH
+#   OXA     = 01KQZDGMTPG24Q4VJRDGZZ21XR
+#   CTX     = 01KQZDGMTP2SH7VB8Y01367GFC
+#   CRO     = 01KQZDGMTPK66JHKB2QGGR6Q4Y
+#   IPM     = 01KQZDGMTP08MX7EKFC3X7HGZ9
+#   VAN     = 01KQZDGMTP8KADF4VMB9DDNBQC
+#   ERY     = 01KQZDGMTPQ6WRRMN6FN01TX7F
+#   TET     = 01KQZDGMTPS1VNV5TJ9SXTMRRK
+#   TMP_SMX = 01KQZDGMTP7SPYFSJQRAAYAZ3K
+#   MTZ     = 01KQZDGMTPYP9RA813605E4WX2
+#   CHL     = 01KQZDGMTPV8263NWQS3B5C9T4
+#   NIT     = 01KQZDGMTP07KXY8M99R0BBKPM
+
+databaseChangeLog:
+  - changeSet:
+      id: 202605061502-seed-catalog-techniques-antibiotics
+      author: samuel
+      contextFilter: dev,test,prod
+      labels: phase-1-3-a
+      preConditions:
+        - onFail: MARK_RAN
+        - sqlCheck:
+            expectedResult: 0
+            sql: SELECT COUNT(*) FROM techniques
+      changes:
+        # ---- Techniques (10) ----
+        - insert:
+            tableName: techniques
+            columns:
+              - column: { name: id, value: "01KQZDGMTN3ZHP6YNVG3F0QMJY" }
+              - column: { name: code, value: "MANUEL" }
+              - column: { name: name, value: "Manuel" }
+        - insert:
+            tableName: techniques
+            columns:
+              - column: { name: id, value: "01KQZDGMTN9YAS16NQ4BVK4PHH" }
+              - column: { name: code, value: "AUTOMATE_CHIMIE" }
+              - column: { name: name, value: "Automate chimie" }
+        - insert:
+            tableName: techniques
+            columns:
+              - column: { name: id, value: "01KQZDGMTN4YMFAZX90VGWMR2M" }
+              - column: { name: code, value: "AUTOMATE_HEMATO" }
+              - column: { name: name, value: "Automate hématologie" }
+        - insert:
+            tableName: techniques
+            columns:
+              - column: { name: id, value: "01KQZDGMTNTXZ5EDG9VQXWW48G" }
+              - column: { name: code, value: "ELISA" }
+              - column: { name: name, value: "ELISA" }
+        - insert:
+            tableName: techniques
+            columns:
+              - column: { name: id, value: "01KQZDGMTNCZF2F5QK83VQW4QA" }
+              - column: { name: code, value: "PCR_RT" }
+              - column: { name: name, value: "PCR temps réel" }
+        - insert:
+            tableName: techniques
+            columns:
+              - column: { name: id, value: "01KQZDGMTNK5GF75ZYA1VJJVQZ" }
+              - column: { name: code, value: "IMMUNOCHROMATOGRAPHIE" }
+              - column: { name: name, value: "Immunochromatographie" }
+        - insert:
+            tableName: techniques
+            columns:
+              - column: { name: id, value: "01KQZDGMTNMJM9AHA87371TKN5" }
+              - column: { name: code, value: "MICROSCOPIE" }
+              - column: { name: name, value: "Microscopie" }
+        - insert:
+            tableName: techniques
+            columns:
+              - column: { name: id, value: "01KQZDGMTNVB3W2X5QDNZPK11G" }
+              - column: { name: code, value: "CULTURE" }
+              - column: { name: name, value: "Culture" }
+        - insert:
+            tableName: techniques
+            columns:
+              - column: { name: id, value: "01KQZDGMTNGC7MMMZAB8G2E6GC" }
+              - column: { name: code, value: "COLORATION_GRAM" }
+              - column: { name: name, value: "Coloration de Gram" }
+        - insert:
+            tableName: techniques
+            columns:
+              - column: { name: id, value: "01KQZDGMTNVRS4VDDRX1PQ5S6W" }
+              - column: { name: code, value: "AUTRE_TECHNIQUE" }
+              - column: { name: name, value: "Autre technique" }
+
+        # ---- Antibiotics (15) ----
+        - insert:
+            tableName: antibiotics
+            columns:
+              - column: { name: id, value: "01KQZDGMTNZZ0ZQHQTVPD5KDAT" }
+              - column: { name: code, value: "AMX" }
+              - column: { name: name, value: "Amoxicilline" }
+              - column: { name: family, value: "Beta-lactamines pénicillines" }
+              - column: { name: reference_diameter, valueNumeric: "0.00" }
+        - insert:
+            tableName: antibiotics
+            columns:
+              - column: { name: id, value: "01KQZDGMTNCY807Q393XHNFSRR" }
+              - column: { name: code, value: "AMC" }
+              - column: { name: name, value: "Amoxicilline+ac.clavulanique" }
+              - column: { name: family, value: "Beta-lactamines pénicillines" }
+              - column: { name: reference_diameter, valueNumeric: "0.00" }
+        - insert:
+            tableName: antibiotics
+            columns:
+              - column: { name: id, value: "01KQZDGMTND1A517JGWN9XW7R0" }
+              - column: { name: code, value: "CIP" }
+              - column: { name: name, value: "Ciprofloxacine" }
+              - column: { name: family, value: "Fluoroquinolones" }
+              - column: { name: reference_diameter, valueNumeric: "0.00" }
+        - insert:
+            tableName: antibiotics
+            columns:
+              - column: { name: id, value: "01KQZDGMTP1F1R2DNRFKM182NH" }
+              - column: { name: code, value: "GEN" }
+              - column: { name: name, value: "Gentamicine" }
+              - column: { name: family, value: "Aminosides" }
+              - column: { name: reference_diameter, valueNumeric: "0.00" }
+        - insert:
+            tableName: antibiotics
+            columns:
+              - column: { name: id, value: "01KQZDGMTPG24Q4VJRDGZZ21XR" }
+              - column: { name: code, value: "OXA" }
+              - column: { name: name, value: "Oxacilline" }
+              - column: { name: family, value: "Beta-lactamines pénicillines" }
+              - column: { name: reference_diameter, valueNumeric: "0.00" }
+        - insert:
+            tableName: antibiotics
+            columns:
+              - column: { name: id, value: "01KQZDGMTP2SH7VB8Y01367GFC" }
+              - column: { name: code, value: "CTX" }
+              - column: { name: name, value: "Céfotaxime" }
+              - column: { name: family, value: "Céphalosporines C3G" }
+              - column: { name: reference_diameter, valueNumeric: "0.00" }
+        - insert:
+            tableName: antibiotics
+            columns:
+              - column: { name: id, value: "01KQZDGMTPK66JHKB2QGGR6Q4Y" }
+              - column: { name: code, value: "CRO" }
+              - column: { name: name, value: "Ceftriaxone" }
+              - column: { name: family, value: "Céphalosporines C3G" }
+              - column: { name: reference_diameter, valueNumeric: "0.00" }
+        - insert:
+            tableName: antibiotics
+            columns:
+              - column: { name: id, value: "01KQZDGMTP08MX7EKFC3X7HGZ9" }
+              - column: { name: code, value: "IPM" }
+              - column: { name: name, value: "Imipénème" }
+              - column: { name: family, value: "Carbapénèmes" }
+              - column: { name: reference_diameter, valueNumeric: "0.00" }
+        - insert:
+            tableName: antibiotics
+            columns:
+              - column: { name: id, value: "01KQZDGMTP8KADF4VMB9DDNBQC" }
+              - column: { name: code, value: "VAN" }
+              - column: { name: name, value: "Vancomycine" }
+              - column: { name: family, value: "Glycopeptides" }
+              - column: { name: reference_diameter, valueNumeric: "0.00" }
+        - insert:
+            tableName: antibiotics
+            columns:
+              - column: { name: id, value: "01KQZDGMTPQ6WRRMN6FN01TX7F" }
+              - column: { name: code, value: "ERY" }
+              - column: { name: name, value: "Erythromycine" }
+              - column: { name: family, value: "Macrolides" }
+              - column: { name: reference_diameter, valueNumeric: "0.00" }
+        - insert:
+            tableName: antibiotics
+            columns:
+              - column: { name: id, value: "01KQZDGMTPS1VNV5TJ9SXTMRRK" }
+              - column: { name: code, value: "TET" }
+              - column: { name: name, value: "Tétracycline" }
+              - column: { name: family, value: "Cyclines" }
+              - column: { name: reference_diameter, valueNumeric: "0.00" }
+        - insert:
+            tableName: antibiotics
+            columns:
+              - column: { name: id, value: "01KQZDGMTP7SPYFSJQRAAYAZ3K" }
+              - column: { name: code, value: "TMP_SMX" }
+              - column: { name: name, value: "Cotrimoxazole" }
+              - column: { name: family, value: "Sulfamides" }
+              - column: { name: reference_diameter, valueNumeric: "0.00" }
+        - insert:
+            tableName: antibiotics
+            columns:
+              - column: { name: id, value: "01KQZDGMTPYP9RA813605E4WX2" }
+              - column: { name: code, value: "MTZ" }
+              - column: { name: name, value: "Métronidazole" }
+              - column: { name: family, value: "Imidazolés" }
+              - column: { name: reference_diameter, valueNumeric: "0.00" }
+        - insert:
+            tableName: antibiotics
+            columns:
+              - column: { name: id, value: "01KQZDGMTPV8263NWQS3B5C9T4" }
+              - column: { name: code, value: "CHL" }
+              - column: { name: name, value: "Chloramphénicol" }
+              - column: { name: family, value: "Phénicolés" }
+              - column: { name: reference_diameter, valueNumeric: "0.00" }
+        - insert:
+            tableName: antibiotics
+            columns:
+              - column: { name: id, value: "01KQZDGMTP07KXY8M99R0BBKPM" }
+              - column: { name: code, value: "NIT" }
+              - column: { name: name, value: "Nitrofurantoïne" }
+              - column: { name: family, value: "Nitrofuranes" }
+              - column: { name: reference_diameter, valueNumeric: "0.00" }

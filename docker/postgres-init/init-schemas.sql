@@ -1,0 +1,11 @@
+-- Pre-create the liquibase metadata schema before Liquibase runs.
+-- The application schema (lims) is created by changeset 202605041030-create-lims-schema.
+--
+-- Liquibase cannot create its own metadata schema: its DATABASECHANGELOG tracking
+-- table lives in lims_liquibase and is created before any changeset runs, so the
+-- schema must pre-exist. The Testcontainers integration tests do this via
+-- src/test/resources/init-schemas.sql (IntegrationTestBase#withInitScript); this
+-- file is the docker-compose equivalent, mounted into the postgres container's
+-- /docker-entrypoint-initdb.d/ and executed once on first initialisation of an
+-- empty data directory.
+CREATE SCHEMA IF NOT EXISTS lims_liquibase;

@@ -1,0 +1,121 @@
+# Seed 7 test users (one per role) — context: test ONLY.
+#
+# Password for all: "test-password"
+# Argon2id hash (with {argon2id} prefix for DelegatingPasswordEncoder dispatch) captured
+# from the throwaway TestSeedHelper (deleted before commit).
+#
+# USERS (7) — captured ULIDs:
+#   USER_ADMIN_ID         = 01KQZ0WPVQA364NMRAJMKRQC84
+#   USER_LAB_MANAGER_ID   = 01KQZ0WPVQ876E63V9QFFMXQZF
+#   USER_BIOLOGIST_ID     = 01KQZ0WPVQAT4D23A4YZ433YJ4
+#   USER_TECHNICIAN_ID    = 01KQZ0WPVQ6QRT1E1M6PMG327N
+#   USER_RECEPTIONIST_ID  = 01KQZ0WPVQVB1NQ66KSPC7QXWN
+#   USER_CASHIER_ID       = 01KQZ0WPVQ9EKB5AZXKWS0AYYJ
+#   USER_ACCOUNTANT_ID    = 01KQZ0WPVQWZ7WD3AD2QHGVPKB
+
+databaseChangeLog:
+  - changeSet:
+      id: 202605061002-seed-iam-test-users
+      author: samuel
+      contextFilter: test
+      labels: phase-1-1-b,test-fixture
+      preConditions:
+        - onFail: MARK_RAN
+        - sqlCheck:
+            expectedResult: 0
+            sql: SELECT COUNT(*) FROM users
+      changes:
+        # ---- Users (7) ----
+        - insert:
+            tableName: users
+            columns:
+              - column: { name: id, value: "01KQZ0WPVQA364NMRAJMKRQC84" }
+              - column: { name: email, value: "admin@test.local" }
+              - column: { name: full_name, value: "Test Admin" }
+              - column: { name: password_hash, value: "{argon2id}$argon2id$v=19$m=16384,t=2,p=1$REPVUhN5l1HLuFGrtBnG9Q$XjEa/biOPYna88kWa2USMBxgTNGZXKWQ12Jn5TcNCig" }
+              - column: { name: enabled, valueBoolean: true }
+        - insert:
+            tableName: users
+            columns:
+              - column: { name: id, value: "01KQZ0WPVQ876E63V9QFFMXQZF" }
+              - column: { name: email, value: "lab-manager@test.local" }
+              - column: { name: full_name, value: "Test Lab Manager" }
+              - column: { name: password_hash, value: "{argon2id}$argon2id$v=19$m=16384,t=2,p=1$REPVUhN5l1HLuFGrtBnG9Q$XjEa/biOPYna88kWa2USMBxgTNGZXKWQ12Jn5TcNCig" }
+              - column: { name: enabled, valueBoolean: true }
+        - insert:
+            tableName: users
+            columns:
+              - column: { name: id, value: "01KQZ0WPVQAT4D23A4YZ433YJ4" }
+              - column: { name: email, value: "biologist@test.local" }
+              - column: { name: full_name, value: "Test Biologist" }
+              - column: { name: password_hash, value: "{argon2id}$argon2id$v=19$m=16384,t=2,p=1$REPVUhN5l1HLuFGrtBnG9Q$XjEa/biOPYna88kWa2USMBxgTNGZXKWQ12Jn5TcNCig" }
+              - column: { name: enabled, valueBoolean: true }
+        - insert:
+            tableName: users
+            columns:
+              - column: { name: id, value: "01KQZ0WPVQ6QRT1E1M6PMG327N" }
+              - column: { name: email, value: "technician@test.local" }
+              - column: { name: full_name, value: "Test Technician" }
+              - column: { name: password_hash, value: "{argon2id}$argon2id$v=19$m=16384,t=2,p=1$REPVUhN5l1HLuFGrtBnG9Q$XjEa/biOPYna88kWa2USMBxgTNGZXKWQ12Jn5TcNCig" }
+              - column: { name: enabled, valueBoolean: true }
+        - insert:
+            tableName: users
+            columns:
+              - column: { name: id, value: "01KQZ0WPVQVB1NQ66KSPC7QXWN" }
+              - column: { name: email, value: "receptionist@test.local" }
+              - column: { name: full_name, value: "Test Receptionist" }
+              - column: { name: password_hash, value: "{argon2id}$argon2id$v=19$m=16384,t=2,p=1$REPVUhN5l1HLuFGrtBnG9Q$XjEa/biOPYna88kWa2USMBxgTNGZXKWQ12Jn5TcNCig" }
+              - column: { name: enabled, valueBoolean: true }
+        - insert:
+            tableName: users
+            columns:
+              - column: { name: id, value: "01KQZ0WPVQ9EKB5AZXKWS0AYYJ" }
+              - column: { name: email, value: "cashier@test.local" }
+              - column: { name: full_name, value: "Test Cashier" }
+              - column: { name: password_hash, value: "{argon2id}$argon2id$v=19$m=16384,t=2,p=1$REPVUhN5l1HLuFGrtBnG9Q$XjEa/biOPYna88kWa2USMBxgTNGZXKWQ12Jn5TcNCig" }
+              - column: { name: enabled, valueBoolean: true }
+        - insert:
+            tableName: users
+            columns:
+              - column: { name: id, value: "01KQZ0WPVQWZ7WD3AD2QHGVPKB" }
+              - column: { name: email, value: "accountant@test.local" }
+              - column: { name: full_name, value: "Test Accountant" }
+              - column: { name: password_hash, value: "{argon2id}$argon2id$v=19$m=16384,t=2,p=1$REPVUhN5l1HLuFGrtBnG9Q$XjEa/biOPYna88kWa2USMBxgTNGZXKWQ12Jn5TcNCig" }
+              - column: { name: enabled, valueBoolean: true }
+
+        # ---- User-role mappings (one role per user) ----
+        - insert:
+            tableName: user_roles
+            columns:
+              - column: { name: user_id, value: "01KQZ0WPVQA364NMRAJMKRQC84" }
+              - column: { name: role_id, value: "01KQZ0WPVNGGWQ1HKC18A0ABSX" }
+        - insert:
+            tableName: user_roles
+            columns:
+              - column: { name: user_id, value: "01KQZ0WPVQ876E63V9QFFMXQZF" }
+              - column: { name: role_id, value: "01KQZ0WPVP2EM2DF5E5RKVE7GP" }
+        - insert:
+            tableName: user_roles
+            columns:
+              - column: { name: user_id, value: "01KQZ0WPVQAT4D23A4YZ433YJ4" }
+              - column: { name: role_id, value: "01KQZ0WPVPH1378BY4T3Y8QBB1" }
+        - insert:
+            tableName: user_roles
+            columns:
+              - column: { name: user_id, value: "01KQZ0WPVQ6QRT1E1M6PMG327N" }
+              - column: { name: role_id, value: "01KQZ0WPVPN6YX8WNVSCS08QB9" }
+        - insert:
+            tableName: user_roles
+            columns:
+              - column: { name: user_id, value: "01KQZ0WPVQVB1NQ66KSPC7QXWN" }
+              - column: { name: role_id, value: "01KQZ0WPVPT1RA89KGHRZE3RSF" }
+        - insert:
+            tableName: user_roles
+            columns:
+              - column: { name: user_id, value: "01KQZ0WPVQ9EKB5AZXKWS0AYYJ" }
+              - column: { name: role_id, value: "01KQZ0WPVPKM5QMKSEGP9REH7X" }
+        - insert:
+            tableName: user_roles
+            columns:
+              - column: { name: user_id, value: "01KQZ0WPVQWZ7WD3AD2QHGVPKB" }
+              - column: { name: role_id, value: "01KQZ0WPVP2ZCER149WMN014CB" }

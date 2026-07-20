@@ -1,0 +1,13 @@
+package org.sparkcorporation.lims.catalog.domain;
+
+import java.math.BigDecimal;
+
+import org.jspecify.annotations.Nullable;
+
+public record NewInsurance(
+        String code,
+        String name,
+        @Nullable String responsibleEmail,
+        @Nullable String responsibleContact,
+        BigDecimal bRate,
+        BigDecimal coverageRate) {}

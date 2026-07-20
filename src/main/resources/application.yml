@@ -1,0 +1,148 @@
+spring:
+  application:
+    name: lims-backend
+  profiles:
+    active: ${LIMS_PROFILES:dev}
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/lims}
+    username: ${DB_USER:lims}
+    password: ${DB_PASSWORD:lims}
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        default_schema: lims
+      # Retain the full entity state on DEL revisions (SP12). Without this, Envers stores only the
+      # id on a delete, leaving FK columns (e.g. reference_intervals_aud.analysis_id) null — which
+      # makes it impossible to associate a deleted row with its owning analysis when building the
+      # config-history timeline. Full Envers key (not under `hibernate.*`). Applies to all @Audited
+      # entities.
+      "[org.hibernate.envers.store_data_at_delete]": true
+  liquibase:
+    change-log: classpath:db/changelog/master.changelog.yaml
+    default-schema: lims
+    liquibase-schema: lims_liquibase
+  modulith:
+    events:
+      # Schema for event_publication / event_publication_archive is managed by
+      # Liquibase (changeset 202605120825-create-event-publication-tables).
+      jdbc-schema-initialization:
+        enabled: false
+  thymeleaf:
+    # Programmatic-only via SpringTemplateEngine in pdf/infra; no MVC view resolution.
+    enabled: false
+  servlet:
+    multipart:
+      # Spec §8: 25 MiB attachment cap. Boot's default (1MB) would 413 every real scan.
+      max-file-size: 25MB
+      max-request-size: 26MB
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus
+  endpoint:
+    health:
+      show-details: when-authorized
+  metrics:
+    distribution:
+      percentiles-histogram:
+        http.server.requests: true
+
+secured-x:
+  jwt:
+    private-key: ${SECURED_X_JWT_PRIVATE_KEY:classpath:keys/dev/private.pem}
+    public-key: ${SECURED_X_JWT_PUBLIC_KEY:classpath:keys/dev/public.pem}
+    issuer: lims
+    audience: lims
+    expiration: 86400000
+    refresh-expiration: 604800000
+  security:
+    public-paths:
+      - /auth/**
+      - /actuator/health
+      - /actuator/info
+      - /actuator/prometheus
+      - /api/v1/portal/**
+  rbac:
+    resolution-mode: RESOLVER
+  signing:
+    enabled: true
+    aop:
+      enabled: true
+    filter:
+      enabled: true
+      exclude-paths:
+        - /auth
+        - /actuator
+        - /v3/api-docs
+        - /swagger-ui
+        - /api/v1/portal
+
+lims:
+  lab:
+    code-prefix: LAB
+    code: LAB
+  pricing:
+    b-rate: 400
+  iam:
+    bootstrap:
+      enabled: true
+      admin-email: ${LIMS_BOOTSTRAP_ADMIN_EMAIL:}
+      admin-password: ${LIMS_BOOTSTRAP_ADMIN_PASSWORD:}
+  signing:
+    # Dev/test default ONLY (env-overridable). NOT a production key — prod sets LIMS_SIGNING_KEK.
+    key-encryption-key: ${LIMS_SIGNING_KEK:JWXambyHFFJDRYinx8ctOXiJhU9fTZo0s9hqmfWXTa0=}
+  audit:
+    # Cron for the nightly AuditCheckpointScheduler (default 02:00 daily).
+    checkpoint-cron: ${LIMS_AUDIT_CHECKPOINT_CRON:0 0 2 * * *}
+  conservation:
+    # Cron for the daily destruction-alert scan (default 07:00).
+    alert-cron: ${LIMS_CONSERVATION_ALERT_CRON:0 0 7 * * *}
+    # Ops email receiving the overdue-destruction digest; blank disables the push.
+    alert-recipient: ${LIMS_CONSERVATION_ALERT_RECIPIENT:}
+  notification:
+    poll-interval: 30s
+    max-attempts: 5
+    batch-size: 50
+    backoff-base: 1m
+    email:
+      # Stub adapter logs delivery intent (no real send). Production toggles this off once a real
+      # SMTP adapter lands behind the ChannelAdapter SPI.
+      stub: true
+    whatsapp:
+      stub: true
+  attachment:
+    storage:
+      # filesystem | s3 (S3BlobStore lands in chunk 4; selection via this key)
+      backend: ${LIMS_ATTACHMENT_STORAGE_BACKEND:filesystem}
+      fs:
+        root: ${LIMS_ATTACHMENT_FS_ROOT:var/attachments}
+      s3:
+        bucket: ${LIMS_ATTACHMENT_S3_BUCKET:lims-attachments}
+        region: ${LIMS_ATTACHMENT_S3_REGION:us-east-1}
+        # endpoint override is for S3-compatible stores (MinIO); empty = real AWS
+        endpoint: ${LIMS_ATTACHMENT_S3_ENDPOINT:}
+        access-key: ${LIMS_ATTACHMENT_S3_ACCESS_KEY:}
+        secret-key: ${LIMS_ATTACHMENT_S3_SECRET_KEY:}
+        path-style: ${LIMS_ATTACHMENT_S3_PATH_STYLE:true}
+
+server:
+  port: ${SERVER_PORT:8080}
+  shutdown: graceful
+  tomcat:
+    # SP6 spec §8: when a multipart upload exceeds max-request-size Tomcat raises 413, but by
+    # default only swallows 2 MiB of the unread body before resetting the connection — a 26 MiB
+    # over-size upload then reaches the client as an opaque connection reset, not the 413
+    # ProblemDetail. 30 MiB: above max-request-size (26 MB) so a real over-size multipart drains
+    # cleanly to a 413, but bounded so a rejected request can't make the server drain an
+    # unbounded body (-1 would be a cheap DoS lever).
+    max-swallow-size: 31457280
+
+logging:
+  level:
+    root: INFO
+    org.springframework: INFO
+    org.sparkcorporation.lims: DEBUG

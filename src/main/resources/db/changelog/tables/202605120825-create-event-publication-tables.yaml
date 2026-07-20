@@ -1,0 +1,45 @@
+databaseChangeLog:
+  - changeSet:
+      id: 202605120825-create-event-publication-tables
+      author: samuel
+      changes:
+        # Spring Modulith 2.0.x JPA event-publication store. Mirrors the entity mapping in
+        # org.springframework.modulith.events.jpa.JpaEventPublication and its subtype
+        # DefaultJpaEventPublication (@Table name "EVENT_PUBLICATION"). Hibernate's default
+        # implicit-naming snake-cases the camelCase fields, so columns are
+        # last_resubmission_date / completion_attempts. We host both tables in the application
+        # schema (`lims`) since the rest of the app schema lives there.
+        - sql:
+            sql: |
+              CREATE TABLE event_publication (
+                  id UUID NOT NULL PRIMARY KEY,
+                  listener_id VARCHAR(512) NOT NULL,
+                  event_type VARCHAR(512) NOT NULL,
+                  serialized_event TEXT NOT NULL,
+                  publication_date TIMESTAMP WITH TIME ZONE NOT NULL,
+                  completion_date TIMESTAMP WITH TIME ZONE,
+                  status VARCHAR(20) NOT NULL,
+                  last_resubmission_date TIMESTAMP WITH TIME ZONE,
+                  completion_attempts INTEGER NOT NULL DEFAULT 0
+              );
+              CREATE INDEX event_publication_serialized_event_hash_idx
+                  ON event_publication USING hash(serialized_event);
+              CREATE INDEX event_publication_by_listener_id_and_event_type
+                  ON event_publication(listener_id, event_type);
+
+              CREATE TABLE event_publication_archive (
+                  id UUID NOT NULL PRIMARY KEY,
+                  listener_id VARCHAR(512) NOT NULL,
+                  event_type VARCHAR(512) NOT NULL,
+                  serialized_event TEXT NOT NULL,
+                  publication_date TIMESTAMP WITH TIME ZONE NOT NULL,
+                  completion_date TIMESTAMP WITH TIME ZONE,
+                  status VARCHAR(20) NOT NULL,
+                  last_resubmission_date TIMESTAMP WITH TIME ZONE,
+                  completion_attempts INTEGER NOT NULL DEFAULT 0
+              );
+              CREATE INDEX event_publication_archive_serialized_event_hash_idx
+                  ON event_publication_archive USING hash(serialized_event);
+              CREATE INDEX event_publication_archive_by_listener_id_and_event_type
+                  ON event_publication_archive(listener_id, event_type);
+      # rollback: AUTHORED BY USER

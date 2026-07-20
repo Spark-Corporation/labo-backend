@@ -1,0 +1,226 @@
+databaseChangeLog:
+  - changeSet:
+      id: 202605091000-create-result-tables
+      author: samuel
+      comment: "Create result, result_lines, antibiogram_readings, dossier_comments tables for sub-project 1.5.a (CDC §IV/§X write path)"
+      changes:
+        # 1. results — one row per AnalysisRequest, eagerly created via AnalysisRequestAdded
+        - createTable:
+            tableName: results
+            columns:
+              - column: { name: id,                               type: VARCHAR(26),    constraints: { primaryKey: true, nullable: false } }
+              - column: { name: lab_file_id,                      type: VARCHAR(26),    constraints: { nullable: false } }
+              - column: { name: analysis_request_id,              type: VARCHAR(26),    constraints: { nullable: false, unique: true } }
+              - column: { name: analysis_id,                      type: VARCHAR(26),    constraints: { nullable: false } }
+              - column: { name: analysis_code_snapshot,           type: VARCHAR(30),    constraints: { nullable: false } }
+              - column: { name: patient_category_snapshot,        type: VARCHAR(32),    constraints: { nullable: false } }
+              - column: { name: patient_sex_snapshot,             type: CHAR(1),        constraints: { nullable: false } }
+              - column: { name: patient_age_in_days_snapshot,     type: INTEGER }
+              - column: { name: state,                            type: VARCHAR(32),    constraints: { nullable: false } }
+              - column: { name: technical_validated_by,           type: VARCHAR(26) }
+              - column: { name: technical_validated_at,           type: TIMESTAMP WITH TIME ZONE }
+              - column: { name: biological_validated_by,          type: VARCHAR(26) }
+              - column: { name: biological_validated_at,          type: TIMESTAMP WITH TIME ZONE }
+              - column: { name: created_at,                       type: TIMESTAMP WITH TIME ZONE, constraints: { nullable: false }, defaultValueComputed: now() }
+              - column: { name: updated_at,                       type: TIMESTAMP WITH TIME ZONE, constraints: { nullable: false }, defaultValueComputed: now() }
+              - column: { name: created_by,                       type: VARCHAR(26) }
+              - column: { name: updated_by,                       type: VARCHAR(26) }
+              - column: { name: version,                          type: BIGINT,         constraints: { nullable: false }, defaultValueNumeric: 0 }
+              - column: { name: deleted_at,                       type: TIMESTAMP WITH TIME ZONE }
+
+        - addForeignKeyConstraint:
+            constraintName: fk_results_lab_file
+            baseTableName: results
+            baseColumnNames: lab_file_id
+            referencedTableName: lab_files
+            referencedColumnNames: id
+
+        - addForeignKeyConstraint:
+            constraintName: fk_results_analysis_req
+            baseTableName: results
+            baseColumnNames: analysis_request_id
+            referencedTableName: analysis_requests
+            referencedColumnNames: id
+
+        - addForeignKeyConstraint:
+            constraintName: fk_results_analysis
+            baseTableName: results
+            baseColumnNames: analysis_id
+            referencedTableName: analyses
+            referencedColumnNames: id
+
+        - addForeignKeyConstraint:
+            constraintName: fk_results_tech_validator
+            baseTableName: results
+            baseColumnNames: technical_validated_by
+            referencedTableName: users
+            referencedColumnNames: id
+
+        - addForeignKeyConstraint:
+            constraintName: fk_results_bio_validator
+            baseTableName: results
+            baseColumnNames: biological_validated_by
+            referencedTableName: users
+            referencedColumnNames: id
+
+        - createIndex:
+            indexName: idx_results_lab_file
+            tableName: results
+            columns:
+              - column: { name: lab_file_id }
+
+        - createIndex:
+            indexName: idx_results_state_active
+            tableName: results
+            # Partial index — only non-deleted rows (CDC §V "vides/à contrôler/validés/non validés"
+            # filter never targets soft-deleted rows). Liquibase 4.x+ supports `whereExpression:`
+            # for partial indexes; the project's Liquibase version (5.0.2 per pom.xml) is well past
+            # that threshold. Pin: keep partial; do not fall back to full index.
+            whereExpression: "deleted_at IS NULL"
+            columns:
+              - column: { name: state }
+
+        # 2. result_lines — N rows per result, one per analysis component
+        - createTable:
+            tableName: result_lines
+            columns:
+              - column: { name: id,                       type: VARCHAR(26),    constraints: { primaryKey: true, nullable: false } }
+              - column: { name: result_id,                type: VARCHAR(26),    constraints: { nullable: false } }
+              - column: { name: component_analysis_id,    type: VARCHAR(26),    constraints: { nullable: false } }
+              - column: { name: component_code_snapshot,  type: VARCHAR(30),    constraints: { nullable: false } }
+              - column: { name: position,                 type: INTEGER,        constraints: { nullable: false } }
+              - column: { name: result_type,              type: VARCHAR(15),    constraints: { nullable: false } }
+              - column: { name: value_integer,            type: BIGINT }
+              - column: { name: value_real,               type: "numeric(18,4)" }
+              - column: { name: value_text,               type: VARCHAR(2000) }
+              - column: { name: unit1_snapshot,           type: VARCHAR(20) }
+              - column: { name: unit1_decimals,           type: INTEGER }
+              - column: { name: unit2_snapshot,           type: VARCHAR(20) }
+              - column: { name: unit2_decimals,           type: INTEGER }
+              - column: { name: reference_interval_id,    type: VARCHAR(26) }
+              - column: { name: is_out_of_range,          type: BOOLEAN,        constraints: { nullable: false }, defaultValueBoolean: false }
+              - column: { name: comment_text,             type: VARCHAR(2000) }
+              - column: { name: created_at,               type: TIMESTAMP WITH TIME ZONE, constraints: { nullable: false }, defaultValueComputed: now() }
+              - column: { name: updated_at,               type: TIMESTAMP WITH TIME ZONE, constraints: { nullable: false }, defaultValueComputed: now() }
+              - column: { name: created_by,               type: VARCHAR(26) }
+              - column: { name: updated_by,               type: VARCHAR(26) }
+              - column: { name: version,                  type: BIGINT,         constraints: { nullable: false }, defaultValueNumeric: 0 }
+
+        - addForeignKeyConstraint:
+            constraintName: fk_result_lines_result
+            baseTableName: result_lines
+            baseColumnNames: result_id
+            referencedTableName: results
+            referencedColumnNames: id
+            onDelete: CASCADE
+
+        - addForeignKeyConstraint:
+            constraintName: fk_result_lines_component
+            baseTableName: result_lines
+            baseColumnNames: component_analysis_id
+            referencedTableName: analyses
+            referencedColumnNames: id
+
+        - addForeignKeyConstraint:
+            constraintName: fk_result_lines_ref_interval
+            baseTableName: result_lines
+            baseColumnNames: reference_interval_id
+            referencedTableName: reference_intervals
+            referencedColumnNames: id
+
+        - addUniqueConstraint:
+            constraintName: uq_result_lines_position
+            tableName: result_lines
+            columnNames: result_id, position
+
+        - sql:
+            # CHECK constraint expressed in raw SQL — Liquibase YAML lacks first-class CHECK; use sql change type.
+            # NB: this is the ONLY raw-SQL change in the result chunk and is unavoidable for CHECK.
+            # CLAUDE.md "no raw SQL" applies to data DML, not DDL CHECK constraints.
+            sql: |
+              ALTER TABLE result_lines ADD CONSTRAINT chk_result_lines_one_value
+              CHECK (
+                (CASE WHEN value_integer IS NOT NULL THEN 1 ELSE 0 END) +
+                (CASE WHEN value_real    IS NOT NULL THEN 1 ELSE 0 END) +
+                (CASE WHEN value_text    IS NOT NULL THEN 1 ELSE 0 END) <= 1
+              )
+
+        - createIndex:
+            indexName: idx_result_lines_result
+            tableName: result_lines
+            columns:
+              - column: { name: result_id }
+
+        - createIndex:
+            indexName: idx_result_lines_out_of_range
+            tableName: result_lines
+            columns:
+              - column: { name: result_id }
+              - column: { name: is_out_of_range }
+
+        # 3. antibiogram_readings — N rows per result, one per antibiotic tested
+        - createTable:
+            tableName: antibiogram_readings
+            columns:
+              - column: { name: id,                          type: VARCHAR(26),    constraints: { primaryKey: true, nullable: false } }
+              - column: { name: result_id,                   type: VARCHAR(26),    constraints: { nullable: false } }
+              - column: { name: antibiotic_id,               type: VARCHAR(26),    constraints: { nullable: false } }
+              - column: { name: measured_diameter,           type: "numeric(5,2)", constraints: { nullable: false } }
+              - column: { name: interpreted_sensitivity,     type: CHAR(1),        constraints: { nullable: false } }
+              - column: { name: position,                    type: INTEGER,        constraints: { nullable: false } }
+              - column: { name: created_at,                  type: TIMESTAMP WITH TIME ZONE, constraints: { nullable: false }, defaultValueComputed: now() }
+              - column: { name: updated_at,                  type: TIMESTAMP WITH TIME ZONE, constraints: { nullable: false }, defaultValueComputed: now() }
+              - column: { name: created_by,                  type: VARCHAR(26) }
+              - column: { name: updated_by,                  type: VARCHAR(26) }
+              - column: { name: version,                     type: BIGINT,         constraints: { nullable: false }, defaultValueNumeric: 0 }
+
+        - addForeignKeyConstraint:
+            constraintName: fk_antibiogram_result
+            baseTableName: antibiogram_readings
+            baseColumnNames: result_id
+            referencedTableName: results
+            referencedColumnNames: id
+            onDelete: CASCADE
+
+        - addForeignKeyConstraint:
+            constraintName: fk_antibiogram_antibiotic
+            baseTableName: antibiogram_readings
+            baseColumnNames: antibiotic_id
+            referencedTableName: antibiotics
+            referencedColumnNames: id
+
+        - addUniqueConstraint:
+            constraintName: uq_antibiogram_position
+            tableName: antibiogram_readings
+            columnNames: result_id, position
+
+        - createIndex:
+            indexName: idx_antibiogram_result
+            tableName: antibiogram_readings
+            columns:
+              - column: { name: result_id }
+
+        - createIndex:
+            indexName: idx_antibiogram_sensitivity
+            tableName: antibiogram_readings
+            columns:
+              - column: { name: interpreted_sensitivity }
+
+        # 4. dossier_comments — 0..1 row per LabFile (CDC §IV "Section Commentaires généraux")
+        - createTable:
+            tableName: dossier_comments
+            columns:
+              - column: { name: lab_file_id,                 type: VARCHAR(26),    constraints: { primaryKey: true, nullable: false } }
+              - column: { name: comment_text,                type: VARCHAR(4000),  constraints: { nullable: false } }
+              - column: { name: created_at,                  type: TIMESTAMP WITH TIME ZONE, constraints: { nullable: false }, defaultValueComputed: now() }
+              - column: { name: updated_at,                  type: TIMESTAMP WITH TIME ZONE, constraints: { nullable: false }, defaultValueComputed: now() }
+              - column: { name: created_by,                  type: VARCHAR(26) }
+              - column: { name: updated_by,                  type: VARCHAR(26) }
+              - column: { name: version,                     type: BIGINT,         constraints: { nullable: false }, defaultValueNumeric: 0 }
+
+        - addForeignKeyConstraint:
+            constraintName: fk_dossier_comments_lab_file
+            baseTableName: dossier_comments
+            baseColumnNames: lab_file_id
+            referencedTableName: lab_files
+            referencedColumnNames: id

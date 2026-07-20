@@ -1,0 +1,34 @@
+# Seed the pdf.read-own-jobs permission introduced in 1.5.c chunk 5.
+# Granted to every role that already holds lab-file.read (so any user able to read a lab file can
+# also poll a PDF job they themselves enqueued). The grant is data-driven via the sqlFile below
+# so we do not have to hard-code the role ULIDs here — the join self-discovers them from
+# role_permissions where lab-file.read is already granted.
+#
+# ULID:
+#   pdf.read-own-jobs            = 01HZX0PERMPDF00000000000A1   (26 chars)
+#
+# TODO: author rollback block — domain semantics required (CLAUDE.md rule).
+databaseChangeLog:
+  - changeSet:
+      id: 202605200905-seed-pdf-permission
+      author: samuel
+      contextFilter: dev,test,prod
+      labels: phase-1-5-c,permissions
+      preConditions:
+        - onFail: MARK_RAN
+        - sqlCheck:
+            expectedResult: 0
+            sql: SELECT COUNT(*) FROM permissions WHERE name = 'pdf.read-own-jobs'
+      changes:
+        - insert:
+            tableName: permissions
+            columns:
+              - column: { name: id, value: "01HZX0PERMPDF00000000000A1" }
+              - column: { name: name, value: "pdf.read-own-jobs" }
+              - column: { name: description, value: "Read own PDF render jobs (poll /pdf-jobs/{id})" }
+              - column: { name: cdc_clause, value: "VII" }
+        - sqlFile:
+            path: db/changelog/data/sql/202605200905-grant-pdf-permission-to-lab-file-read-roles.sql
+            relativeToChangelogFile: false
+            splitStatements: true
+            stripComments: true

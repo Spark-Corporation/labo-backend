@@ -1,0 +1,25 @@
+databaseChangeLog:
+  - changeSet:
+      id: 202606101001-seed-system-audit-user
+      author: samuel
+      contextFilter: dev,test,prod
+      labels: sp8-audit
+      preConditions:
+        - onFail: MARK_RAN
+        - sqlCheck:
+            expectedResult: 0
+            sql: SELECT COUNT(*) FROM users WHERE id = '01KSYS0AD1T000000000000000'
+      changes:
+        # Column set matches 202605061000-create-iam-tables `users`: the NOT NULL columns without a
+        # DB default are id/email/full_name/password_hash/enabled; created_at/updated_at default to
+        # now() and version defaults to 0. No deviation from the template.
+        - insert:
+            tableName: users
+            columns:
+              - column: { name: id,            value: "01KSYS0AD1T000000000000000" }
+              - column: { name: email,         value: "system-audit@lims.local" }
+              - column: { name: full_name,     value: "System Audit" }
+              - column: { name: password_hash, value: "{noop}disabled" }
+              - column: { name: enabled,       valueBoolean: false }
+              - column: { name: version,       valueNumeric: 0 }
+      # rollback: AUTHORED BY USER

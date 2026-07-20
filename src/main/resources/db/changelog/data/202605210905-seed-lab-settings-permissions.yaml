@@ -1,0 +1,41 @@
+# Seed the two lab-settings.{read,manage} permissions introduced in 1.5.e.
+# Granted to:
+#  - lab-settings.read   → every role that already holds lab-file.read.
+#  - lab-settings.manage → ROLE_ADMIN only.
+#
+# ULIDs:
+#   lab-settings.read   = 01HZX0PERMLABSET00000000R1   (26 chars)
+#   lab-settings.manage = 01HZX0PERMLABSET00000000M1   (26 chars)
+#
+# TODO: author rollback block — domain semantics required (CLAUDE.md rule).
+databaseChangeLog:
+  - changeSet:
+      id: 202605210905-seed-lab-settings-permissions
+      author: samuel
+      contextFilter: dev,test,prod
+      labels: phase-1-5-e,permissions
+      preConditions:
+        - onFail: MARK_RAN
+        - sqlCheck:
+            expectedResult: 0
+            sql: SELECT COUNT(*) FROM permissions WHERE name IN ('lab-settings.read', 'lab-settings.manage')
+      changes:
+        - insert:
+            tableName: permissions
+            columns:
+              - column: { name: id,          value: "01HZX0PERMLABSET00000000R1" }
+              - column: { name: name,        value: "lab-settings.read" }
+              - column: { name: description, value: "Read the lab identity (name, address, accreditation, manager)" }
+              - column: { name: cdc_clause,  value: "I" }
+        - insert:
+            tableName: permissions
+            columns:
+              - column: { name: id,          value: "01HZX0PERMLABSET00000000M1" }
+              - column: { name: name,        value: "lab-settings.manage" }
+              - column: { name: description, value: "Update the lab identity values" }
+              - column: { name: cdc_clause,  value: "I" }
+        - sqlFile:
+            path: db/changelog/data/sql/202605210905-grant-lab-settings-permissions.sql
+            relativeToChangelogFile: false
+            splitStatements: true
+            stripComments: true

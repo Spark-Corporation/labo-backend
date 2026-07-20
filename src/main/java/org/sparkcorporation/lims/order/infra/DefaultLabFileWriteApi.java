@@ -1,0 +1,76 @@
+package org.sparkcorporation.lims.order.infra;
+
+import java.math.BigDecimal;
+import java.time.Clock;
+import java.time.Instant;
+
+import lombok.RequiredArgsConstructor;
+import org.jspecify.annotations.Nullable;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import org.sparkcorporation.lims.iam.api.UserId;
+import org.sparkcorporation.lims.order.api.LabFileId;
+import org.sparkcorporation.lims.order.api.LabFileWriteApi;
+import org.sparkcorporation.lims.order.domain.LabFile;
+import org.sparkcorporation.lims.order.domain.LabFileNotFoundException;
+import org.sparkcorporation.lims.order.domain.UpdateLabFile;
+
+@Service
+@RequiredArgsConstructor
+class DefaultLabFileWriteApi implements LabFileWriteApi {
+
+    private final LabFileRepository labFileRepository;
+    private final Clock clock;
+
+    @Override
+    @Transactional
+    public void setHomeCollectionFee(LabFileId labFileId, BigDecimal amount, UserId recordedBy) {
+        LabFile labFile =
+                labFileRepository
+                        .findActiveById(labFileId.value())
+                        .orElseThrow(() -> new LabFileNotFoundException(labFileId));
+        labFile.update(
+                new UpdateLabFile(null, null, null, null, null, amount, null, null, null), clock);
+    }
+
+    @Override
+    @Transactional
+    public void publish(LabFileId labFileId) {
+        LabFile labFile =
+                labFileRepository
+                        .findActiveById(labFileId.value())
+                        .orElseThrow(() -> new LabFileNotFoundException(labFileId));
+        labFile.publish();
+    }
+
+    @Override
+    @Transactional
+    public void markSigned(LabFileId labFileId, @Nullable String signedBy) {
+        LabFile labFile =
+                labFileRepository
+                        .findActiveById(labFileId.value())
+                        .orElseThrow(() -> new LabFileNotFoundException(labFileId));
+        labFile.markSigned(signedBy, clock);
+    }
+
+    @Override
+    @Transactional
+    public void markEmailed(LabFileId labFileId, Instant emailedAt) {
+        LabFile labFile =
+                labFileRepository
+                        .findActiveById(labFileId.value())
+                        .orElseThrow(() -> new LabFileNotFoundException(labFileId));
+        labFile.markEmailed(emailedAt);
+    }
+
+    @Override
+    @Transactional
+    public void markPrinted(LabFileId labFileId, Instant printedAt) {
+        LabFile labFile =
+                labFileRepository
+                        .findActiveById(labFileId.value())
+                        .orElseThrow(() -> new LabFileNotFoundException(labFileId));
+        labFile.markPrinted(printedAt);
+    }
+}
