@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.ByteArrayInputStream;
 import java.time.LocalDate;
+import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 
 import org.apache.pdfbox.pdmodel.PDDocument;
@@ -79,7 +80,9 @@ class PaillasseWorksheetPdfAcceptanceIT extends IntegrationTestBase {
         assertThat(pdfBytes).isNotNull();
         assertThat(new String(pdfBytes, 0, 4)).isEqualTo("%PDF");
         var disposition = response.getHeaders().getFirst("Content-Disposition");
-        var today = LocalDate.now().format(ISO);
+        // The endpoint's default window is "today (UTC)" — assert in the same zone, or the
+        // filename check breaks whenever the local calendar day differs from the UTC one.
+        var today = LocalDate.now(ZoneOffset.UTC).format(ISO);
         assertThat(disposition)
                 .contains(
                         "paillasse-%s-%s-%s.pdf"
@@ -100,8 +103,8 @@ class PaillasseWorksheetPdfAcceptanceIT extends IntegrationTestBase {
     @Test
     void GET_withExplicitRange_includesYesterday() throws Exception {
         var fixture = seedFixture();
-        var yesterday = LocalDate.now().minusDays(1).format(ISO);
-        var today = LocalDate.now().format(ISO);
+        var yesterday = LocalDate.now(ZoneOffset.UTC).minusDays(1).format(ISO);
+        var today = LocalDate.now(ZoneOffset.UTC).format(ISO);
 
         var response =
                 biologist
@@ -121,8 +124,8 @@ class PaillasseWorksheetPdfAcceptanceIT extends IntegrationTestBase {
     @Test
     void GET_returns400_whenFromAfterTo() {
         var fixture = seedFixture();
-        var yesterday = LocalDate.now().minusDays(1).format(ISO);
-        var today = LocalDate.now().format(ISO);
+        var yesterday = LocalDate.now(ZoneOffset.UTC).minusDays(1).format(ISO);
+        var today = LocalDate.now(ZoneOffset.UTC).format(ISO);
 
         assertThatThrownBy(
                         () ->
