@@ -5,7 +5,9 @@ import static org.awaitility.Awaitility.await;
 
 import java.math.BigDecimal;
 import java.time.Duration;
+import java.time.Instant;
 import java.time.LocalDate;
+import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
@@ -121,6 +123,29 @@ class CashboxSessionCloseoutIT extends IntegrationTestBase {
         assertThat(asBigDecimal(closed.get("expensesTotal"))).isEqualByComparingTo("2000");
         assertThat(asBigDecimal(closed.get("homeCollectionTotal"))).isEqualByComparingTo("3000");
         assertThat(asBigDecimal(closed.get("grandTotal"))).isEqualByComparingTo("16000");
+    }
+
+    @Test
+    void closeoutBucketsJournalEntriesByUtcDate() {
+        var registerId = seedCashRegisterAndAssignCashier("S4", 54);
+        var date = LocalDate.of(2026, 1, 15);
+        // 00:30Z and 23:30Z on the session date: each lands on a different calendar day in
+        // any non-UTC session timezone (west resp. east of UTC), so a session-timezone date
+        // cast in the totals query drops one of them while UTC bucketing keeps both.
+        seedCashJournalEntry(registerId, 7000, date.atTime(0, 30).toInstant(ZoneOffset.UTC));
+        seedCashJournalEntry(registerId, 3000, date.atTime(23, 30).toInstant(ZoneOffset.UTC));
+
+        var cashier = restClientFor(port, "CASHIER");
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> closed =
+                cashier.post()
+                        .uri("/api/v1/cashbox/sessions/{r}/{d}:close", registerId, date.toString())
+                        .retrieve()
+                        .body(Map.class);
+
+        assertThat(closed.get("status")).isEqualTo("CLOSED");
+        assertThat(asBigDecimal(closed.get("cashTotal"))).isEqualByComparingTo("10000");
     }
 
     @Test
@@ -254,6 +279,19 @@ class CashboxSessionCloseoutIT extends IntegrationTestBase {
                                 registerId))
                 .retrieve()
                 .toBodilessEntity();
+    }
+
+    private void seedCashJournalEntry(String registerId, int amount, Instant occurredAt) {
+        jdbc.update(
+                "INSERT INTO cashbox_journal_entries (id, operation_kind, source_id,"
+                        + " cash_register_id, user_id, payment_mode, amount, occurred_at)"
+                        + " VALUES (?, 'PAYMENT', ?, ?, ?, 'CASH', ?, ?)",
+                Ulid.generate(),
+                Ulid.generate(),
+                registerId,
+                CASHIER_USER_ID,
+                amount,
+                OffsetDateTime.ofInstant(occurredAt, ZoneOffset.UTC));
     }
 
     private String seedCashRegisterAndAssignCashier(String code, int sequenceNumber) {

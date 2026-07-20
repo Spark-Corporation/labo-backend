@@ -39,7 +39,7 @@ public interface CashSessionRepository extends JpaRepository<CashSession, CashSe
                                                                          THEN amount ELSE 0 END), 0) AS home_collection
                     FROM   cashbox_journal_entries
                     WHERE  cash_register_id = CAST(:registerId AS varchar)
-                      AND  occurred_at::date = CAST(:date AS date)
+                      AND  (occurred_at AT TIME ZONE 'UTC')::date = CAST(:date AS date)
                     """,
             nativeQuery = true)
     CashSessionTotalsProjection computeTotals(
