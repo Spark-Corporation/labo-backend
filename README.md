@@ -49,12 +49,10 @@ docker compose up -d postgres minio    # dependencies only
 
 ## Where to look next
 
-| What | Where |
-|---|---|
-| What the system *is* (architecture, domain, DB, REST) | `LIMS-Backend-Technical-Documentation.md` |
-| How we work (commits, reviews, releases, DoD) | `CONTRIBUTING.md` |
-| AI-assistant directive (distilled rules) | `CLAUDE.md` |
-| Active design specs and plans | `docs/superpowers/specs/`, `docs/superpowers/plans/` |
+| What                                                  | Where                                     |
+| ----------------------------------------------------- | ----------------------------------------- |
+| What the system _is_ (architecture, domain, DB, REST) | `LIMS-Backend-Technical-Documentation.md` |
+| How we work (commits, reviews, releases, DoD)         | `CONTRIBUTING.md`                         |
 
 ## License
 
