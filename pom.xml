@@ -33,6 +33,8 @@
     <archunit.version>1.3.0</archunit.version>
     <testcontainers.version>1.21.4</testcontainers.version>
     <secured-x.version>2026.05.09.2</secured-x.version>
+    <!-- springdoc 3.x is the Boot 4 / Spring Framework 7 line (2.x targets Boot 3). -->
+    <springdoc.version>3.0.1</springdoc.version>
     <!-- Override Spring Boot 4.0.6 BOM (42.7.10) — patches CVE-2026-42198
          (GHSA-98qh-xjc8-98pq, SCRAM PBKDF2 unbounded DoS, CVSS 7.5). -->
     <postgresql.version>42.7.11</postgresql.version>
@@ -153,6 +155,16 @@
       <groupId>dev.sparksam.securedx</groupId>
       <artifactId>secured-x-rbac</artifactId>
       <version>${secured-x.version}</version>
+    </dependency>
+
+    <!--
+      OpenAPI schema + Swagger UI. Disabled by default (see application.yml) and switched
+      on only in the dev/test profiles, so a production boot never advertises its API shape.
+    -->
+    <dependency>
+      <groupId>org.springdoc</groupId>
+      <artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
+      <version>${springdoc.version}</version>
     </dependency>
 
     <dependency>

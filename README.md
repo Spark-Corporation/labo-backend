@@ -47,12 +47,35 @@ docker compose up -d postgres minio    # dependencies only
 # -> http://localhost:8080/actuator/health  =>  {"status":"UP"}
 ```
 
+## API documentation
+
+With the app running under the `dev` profile:
+
+| What                       | Where                                         |
+| -------------------------- | --------------------------------------------- |
+| Swagger UI (try-it console) | <http://localhost:8080/swagger-ui.html>       |
+| OpenAPI 3.1 schema          | <http://localhost:8080/v3/api-docs>           |
+| Schema as a file            | `target/openapi.json`, written by `./mvnw verify` |
+
+Operations are grouped by module and each one carries an `x-lims-permissions`
+extension naming the permission its caller must hold — drive frontend gating off
+those rather than off role names.
+
+**Both endpoints are disabled unless the profile enables them** (`dev` turns on
+the UI and the schema, `test` the schema only). A production boot exposes
+neither. See §7.5 of the technical documentation.
+
+`docs/API.md` is a hand-written snapshot of the same surface, kept for now as a
+reference for readers without a running backend. The generated schema is
+authoritative where the two disagree.
+
 ## Where to look next
 
 | What                                                  | Where                                     |
 | ----------------------------------------------------- | ----------------------------------------- |
 | What the system _is_ (architecture, domain, DB, REST) | `LIMS-Backend-Technical-Documentation.md` |
 | How we work (commits, reviews, releases, DoD)         | `CONTRIBUTING.md`                         |
+| Every endpoint, hand-written                          | `docs/API.md`                             |
 
 ## License
 

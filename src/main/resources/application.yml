@@ -66,6 +66,11 @@ secured-x:
       - /actuator/info
       - /actuator/prometheus
       - /api/v1/portal/**
+      # Read-only API schema + console. Inert unless springdoc is enabled for the active
+      # profile (see the `springdoc` block below), which it is not by default.
+      - /v3/api-docs/**
+      - /swagger-ui/**
+      - /swagger-ui.html
   rbac:
     resolution-mode: RESOLVER
   signing:
@@ -80,6 +85,15 @@ secured-x:
         - /v3/api-docs
         - /swagger-ui
         - /api/v1/portal
+
+# API schema / Swagger UI. OFF by default so that any deployment which does not explicitly
+# opt in (i.e. production, which runs without a profile-specific override) does not expose
+# an enumeration of its endpoints. The dev and test profiles turn both back on.
+springdoc:
+  api-docs:
+    enabled: false
+  swagger-ui:
+    enabled: false
 
 lims:
   lab:

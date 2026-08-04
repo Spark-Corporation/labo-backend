@@ -4,13 +4,19 @@ Audience: the LIMS frontend team. This document describes **every** HTTP endpoin
 backend exposes — 188 application endpoints across 11 modules, plus the 3 authentication
 endpoints contributed by the `secured-x` starter.
 
-> **Provenance.** Hand-derived from the controller sources at commit `9244f34`
-> (2026-08-04). There is no OpenAPI generator wired into the build yet, so this file is
-> maintained by hand and *can* drift. If a response disagrees with this document, the code
-> wins — please report the drift. A follow-up change to adopt `springdoc-openapi` and serve
-> a live Swagger UI is specced in
-> `docs/superpowers/specs/2026-08-04-openapi-springdoc-adoption-design.md`; this file is
-> retired the day that lands.
+> **Provenance and status.** Hand-derived from the controller sources at commit `9244f34`
+> (2026-08-04), then superseded the same day: `springdoc-openapi` is now wired into the
+> build, so a **generated** schema is available and is authoritative wherever the two
+> disagree.
+>
+> - Swagger UI (`dev` profile): <http://localhost:8080/swagger-ui.html>
+> - Schema: <http://localhost:8080/v3/api-docs>, or `target/openapi.json` after `./mvnw verify`
+>
+> This file is kept as a readable offline reference — it carries narrative the generated
+> schema does not (integration order, the discount-fraction trap, the two pagination
+> shapes, the permission→role matrix). It is **not** regenerated automatically and *will*
+> drift as endpoints change. Retire it once the frontend team confirms the Swagger console
+> covers their needs.
 
 ---
 
@@ -121,7 +127,8 @@ Two consequences for the frontend:
    Appendix A gives the full permission → role matrix.
 2. **`403` is a normal, expected response**, not an error to log loudly. It means the token
    is fine but this user cannot perform this action. Prefer hiding or disabling the control
-   rather than letting the user discover it via a `403`.
+   rather than letting the user discover it via a `403`. Note the `403` body is *not* the
+   RFC 7807 envelope the rest of the API uses — see §5.1.
 
 `GET /api/v1/me` returns the current user including their `roles`, but the *permission* set
 is not currently exposed on that response — if you need permission-driven UI gating and
@@ -145,7 +152,8 @@ Every resource id is a **26-character Crockford-base32 ULID**, e.g.
 `01KQZ0WPVQF61G08X2040B5EYA`. They are lexicographically sortable by creation time. Treat
 them as opaque strings — never parse, never assume numeric. Several endpoints validate the
 shape with `^[0-9A-HJKMNP-TV-Z]{26}$`: a malformed id **in a request body** is a `422`; in a
-query parameter it is a `400`.
+query parameter it is a `400` on a `@Validated` controller and, per the caveat in §4.3, a
+`500` on the others.
 
 Human-facing codes are separate from ids and are **not** interchangeable with them:
 `registrationNumber` on a lab file, `number` on an invoice, `labCode` on a patient.
@@ -178,13 +186,24 @@ envelope in the response:
 most endpoints, `200` on the worklist/queue endpoints (`/dossiers`, `/results/search`, the
 `queues/*` family, `/samples/queues/destruction-due`).
 
-> ⚠ **Don't rely on the cap's error shape.** Only 7 of the 19 controllers that declare
-> `@Min`/`@Max` on their paging params also carry `@Validated`. Under Spring Framework 7's
-> built-in controller method validation the bounds are still checked, but the resulting
-> `HandlerMethodValidationException` is not mapped by any `@RestControllerAdvice` in this
-> codebase — so an over-cap `size` most likely surfaces as a `500`, not a clean `400`. No
-> test covers this and it has not been verified against a running server. **Clamp `size`
-> client-side** and treat the server cap as a backstop. Tracked as a backend follow-up.
+> ⚠ **An over-cap `size` returns `500` on most endpoints.** Verified against a running
+> server on 2026-08-04. Only 7 of the 19 controllers that declare `@Min`/`@Max` on their
+> paging params also carry `@Validated`; on those you get a clean `400`:
+>
+> ```
+> GET /api/v1/dossiers?size=99999   → 400  "list.size: must be less than or equal to 200"
+> ```
+>
+> On the other 12 — including `/api/v1/patients` and `/api/v1/admin/users` — the bound
+> still fires but the exception is unmapped and falls through to the generic handler:
+>
+> ```
+> GET /api/v1/patients?size=99999   → 500  {"detail":"internal error", …}
+> ```
+>
+> **Clamp `size` client-side.** Never send an unbounded page size expecting a validation
+> error back. This is a backend bug, tracked as a follow-up; when it is fixed all endpoints
+> will return `400` and nothing you built against the clamp will break.
 
 **Shape B (6 endpoints).** Spring `Pageable` binding — `GET /api/v1/cash-registers`,
 `/api/v1/insurances`, `/api/v1/partners`, `/api/v1/cashbox/expenses`,
@@ -269,7 +288,9 @@ files, cashbox expenses, and home-collection fees.
 
 ## 5. Error model
 
-Every error is [RFC 7807](https://www.rfc-editor.org/rfc/rfc7807) `application/problem+json`:
+**Most** errors are [RFC 7807](https://www.rfc-editor.org/rfc/rfc7807)
+`application/problem+json` — the two exceptions, `401` and `403`, are covered in §5.1. A
+real `422` response, copied verbatim from a running server:
 
 ```jsonc
 {
@@ -278,10 +299,10 @@ Every error is [RFC 7807](https://www.rfc-editor.org/rfc/rfc7807) `application/p
   "status":   422,
   "detail":   "2 field(s) invalid",
   "instance": "/api/v1/patients",
-  "traceId":  "3f7a1c9e2b8d4a05",
+  "traceId":  "unknown",                        // always "unknown" today — see §5.2
   "errors": [                                   // validation only
-    { "field": "name.lastName", "code": "NotBlank", "message": "must not be blank" },
-    { "field": "birthDate",     "code": "Past",     "message": "must be a past date" }
+    { "field": "contact",  "code": "NotNull", "message": "must not be null" },
+    { "field": "civility", "code": "NotNull", "message": "must not be null" }
   ]
 }
 ```
@@ -289,17 +310,44 @@ Every error is [RFC 7807](https://www.rfc-editor.org/rfc/rfc7807) `application/p
 | Status | `type` | When |
 |---|---|---|
 | `400` | `…/errors/bad-request` | Malformed input: bad enum name, missing required query param, wrong parameter type, constraint violation |
-| `401` | *(from the security filter)* | Missing, malformed, or expired token |
-| `403` | `…/errors/forbidden` | Valid token, missing permission. `detail` is always `"missing required permission"` — it deliberately does not name which one |
 | `404` | `…/errors/not-found` | Unknown id. `detail` carries a human-readable message |
 | `409` | `…/errors/conflict` | Optimistic-lock race, or a domain-state conflict (e.g. printing a CR whose results aren't biologically validated) |
 | `413` | `/problems/attachment/too-large` | Upload over the 25 MiB cap |
 | `422` | `…/errors/validation` | Request body failed bean validation. **This is where field-level errors live**, not `400` |
 | `500` | `…/errors/internal` | `detail` is always the literal `"internal error"`; stack traces are logged server-side, never returned |
 
-**`traceId` is on every problem response.** Surface it in your error UI (a copyable
-correlation id in a toast or error page) — it is the only way to tie a user's report to the
-server logs.
+### 5.1 `401` and `403` do NOT use this envelope
+
+Both are produced by the `secured-x` security layer before the application's exception
+advice runs, so they look nothing like the table above. Verified 2026-08-04:
+
+**`401`** — status line only. **Empty body**, `Content-Length: 0`. Do not try to parse it.
+
+**`403`** — a different JSON shape, with no `type`, no `instance`, and no `traceId`:
+
+```jsonc
+{
+  "error":   "authorization_denied",
+  "message": "Required permission(s): catalog.manage (match=ANY)",
+  "status":  403
+}
+```
+
+Note it *does* name the missing permission, which is useful for debugging but means the
+message is not safe to show a user verbatim. Branch on the HTTP status, and read `message`
+only for developer-facing diagnostics.
+
+### 5.2 `traceId` is currently always `"unknown"`
+
+Every RFC 7807 body carries a `traceId`, but the MDC field that feeds it is not populated
+on request threads today — every response comes back with the literal string `"unknown"`,
+and server log lines show an empty `traceId=`. Verified 2026-08-04.
+
+Read the field and display it if present, but **do not build a support workflow around it
+yet** and do not tell users it identifies their request. This is a backend gap; once fixed,
+the field becomes meaningful with no client change.
+
+### 5.3 Branch on `status`, not on `type`
 
 Module-specific advices add finer `type` URIs under the same envelope. Be aware the `type`
 namespace is **not consistent**: the shared advice emits absolute URIs
