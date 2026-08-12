@@ -74,6 +74,24 @@
     <homelab.jenkins.sonarFailOnQualityGate>true</homelab.jenkins.sonarFailOnQualityGate>
   </properties>
 
+  <!--
+    dev.sparksam.securedx artifacts live in a private Nexus; they are vendored
+    under lib/ (Maven repository layout) so the project builds without Nexus
+    credentials. Refresh lib/ when bumping ${secured-x.version}.
+  -->
+  <repositories>
+    <repository>
+      <id>project-lib</id>
+      <url>file://${project.basedir}/lib</url>
+      <releases>
+        <enabled>true</enabled>
+      </releases>
+      <snapshots>
+        <enabled>false</enabled>
+      </snapshots>
+    </repository>
+  </repositories>
+
   <dependencyManagement>
     <dependencies>
       <dependency>
