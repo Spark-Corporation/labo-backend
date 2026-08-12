@@ -122,7 +122,7 @@ Anything not traceable to a CDC clause is **out of scope** and requires a CDC am
 - **Spotless / Checkstyle** — formatting and lint
 
 ### 2.4 API & Documentation
-- **springdoc-openapi** — OpenAPI 3 / Swagger UI
+- **springdoc-openapi 3.0.1** — OpenAPI 3.1 / Swagger UI. The 3.x line is the Boot 4 / Spring Framework 7 line; 2.x targets Boot 3. Off by default, on in `dev`/`test` — see §7.5.
 - **Problem Details (RFC 7807)** — error representation
 
 ### 2.5 Observability
@@ -815,7 +815,15 @@ ADMIN-only access to the per-user signed-action chain (CDC §II). The read endpo
 Major version in URL (`/v1`). Breaking changes ship as `/v2`; old versions stay alive for at least one release cycle.
 
 ### 7.5 OpenAPI
-Every controller is annotated; the schema is generated at `/v3/api-docs` and rendered at `/swagger-ui.html`. CI fails the build if a non-trivial API change has no matching OpenAPI snapshot diff.
+`springdoc-openapi-starter-webmvc-ui` generates the schema at `/v3/api-docs` and renders it at `/swagger-ui.html`.
+
+**Disabled by default.** `springdoc.api-docs.enabled` and `springdoc.swagger-ui.enabled` are `false` in `application.yml`; the `dev` profile enables both and the `test` profile enables the schema only. A production boot therefore never advertises its API shape. The two path patterns (`/v3/api-docs/**`, `/swagger-ui/**`) are listed in `secured-x.security.public-paths` so the schema is reachable without a token when it *is* enabled.
+
+**No per-controller annotations.** Rather than annotating 60 controllers, `shared/web/OpenApiConfig` contributes one `OperationCustomizer` that reflects over each handler and:
+- projects its `@RequiresPermission` into an `x-lims-permissions` vendor extension (and into the operation description), so the published permission and the *enforced* permission cannot drift; and
+- replaces springdoc's default per-controller tag with the owning Modulith module, collapsing 60 groups onto 12.
+
+`OpenApiDocumentIT` is the guard: it asserts every `/api/v1/**` handler mapping appears in the document and that every permission-gated operation publishes its permissions. Both expectations are derived from the running application's own handler mappings, not from a hard-coded count, so a controller added without reaching the document fails the build. The same IT writes `target/openapi.json` as the frontend hand-off artefact.
 
 ---
 
