@@ -18,10 +18,10 @@ git config core.hooksPath .githooks    # one-time: enable pre-commit hook
 ### Run the whole stack in containers
 
 `docker compose up` runs the full stack: the backend, Postgres, and MinIO.
-The image is built from a pre-built jar, so package it first:
+The image builds the jar itself (multi-stage Dockerfile), so no local JDK or
+Maven run is needed — only Docker:
 
 ```bash
-./mvnw clean package          # produces target/lims-backend-*.jar
 docker compose up --build -d  # app + postgres + minio
 # -> http://localhost:8080/actuator/health  =>  {"status":"UP"}
 

@@ -1,6 +1,4 @@
 target/
-!target/lims-backend-*.jar
-!target/dependency/
 .git/
 .idea/
 .mvn/wrapper/maven-wrapper.jar

@@ -1,13 +1,21 @@
 # syntax=docker/dockerfile:1.6
 ARG CUSTOM_JDK_VERSION=25
 
+FROM eclipse-temurin:${CUSTOM_JDK_VERSION}-jdk-alpine AS builder
+WORKDIR /project
+
+COPY pom.xml mvnw ./
+COPY .mvn/ .mvn/
+COPY lib/ lib/
+COPY src/ src/
+RUN --mount=type=cache,target=/root/.m2 ./mvnw -B clean package -DskipTests
+
 FROM eclipse-temurin:${CUSTOM_JDK_VERSION}-jdk-alpine AS jre-builder
 ARG CUSTOM_JDK_VERSION
 ENV JAVA_HOME=/opt/java/openjdk
 WORKDIR /project
 
-ARG JAR_FILE=target/lims-backend-*.jar
-COPY ${JAR_FILE} runner.jar
+COPY --from=builder /project/target/lims-backend-*.jar runner.jar
 
 RUN java -Djarmode=layertools -jar runner.jar extract --destination extracted
 
