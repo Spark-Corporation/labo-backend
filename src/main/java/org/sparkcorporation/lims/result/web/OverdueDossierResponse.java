@@ -2,14 +2,21 @@ package org.sparkcorporation.lims.result.web;
 
 import java.util.List;
 
+import io.swagger.v3.oas.annotations.media.Schema;
 import org.springframework.data.domain.Page;
 
 /**
  * Page envelope for {@link OverdueDossierRow}. Shape mirrors {@link UrgentDossierResponse} for
  * frontend consistency across the {@code /queues/*} surface family.
  */
+@Schema(description = "Page of dossiers with at least one analysis past its turnaround deadline")
 public record OverdueDossierResponse(
-        List<OverdueDossierRow> content, int page, int size, long totalElements, int totalPages) {
+        @Schema(description = "Overdue dossiers on this page") List<OverdueDossierRow> content,
+        @Schema(description = "Zero-based page index") int page,
+        @Schema(description = "Requested page size") int size,
+        @Schema(description = "Total number of overdue dossiers, across all pages")
+                long totalElements,
+        @Schema(description = "Total number of pages") int totalPages) {
 
     public OverdueDossierResponse {
         content = List.copyOf(content);

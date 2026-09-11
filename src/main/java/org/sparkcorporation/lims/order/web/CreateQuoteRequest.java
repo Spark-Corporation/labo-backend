@@ -7,6 +7,7 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.Size;
 
+import io.swagger.v3.oas.annotations.media.Schema;
 import org.jspecify.annotations.Nullable;
 
 /**
@@ -16,8 +17,20 @@ import org.jspecify.annotations.Nullable;
  * list of analysis codes (catalog reference) that the service resolves via {@code
  * AnalysisApi.findByCode} and dedup-checks before bumping the quote-number counter.
  */
+@Schema(description = "Request to open a new price quote (devis) for a patient, at status DRAFT.")
 public record CreateQuoteRequest(
-        @NotBlank @Size(max = 26) String patientId,
-        @Size(max = 26) @Nullable String prescriberId,
-        @NotEmpty @Size(max = 50) List<@NotBlank @Size(max = 32) String> analyses,
-        @Nullable Instant expiresAt) {}
+        @Schema(description = "Identifier of the patient this quote is drawn up for. Required.")
+                @NotBlank
+                @Size(max = 26)
+                String patientId,
+        @Schema(description = "Identifier of the prescribing doctor, if any.") @Size(max = 26)
+                @Nullable String prescriberId,
+        @Schema(
+                        description =
+                                "Catalog analysis codes to quote; resolved and dedup-checked before"
+                                        + " persistence. Must not be empty.")
+                @NotEmpty
+                @Size(max = 50)
+                List<@NotBlank @Size(max = 32) String> analyses,
+        @Schema(description = "Date after which this quote is no longer valid, if any.")
+                @Nullable Instant expiresAt) {}

@@ -3,6 +3,7 @@ package org.sparkcorporation.lims.order.web;
 import jakarta.validation.Valid;
 
 import dev.sparksam.securedx.rbac.RequiresPermission;
+import io.swagger.v3.oas.annotations.Operation;
 import lombok.RequiredArgsConstructor;
 import org.jspecify.annotations.Nullable;
 import org.springframework.http.HttpStatus;
@@ -35,6 +36,11 @@ public class SampleAdminController {
     private final SampleService service;
 
     @PostMapping("/{labFileId}/samples:in-lab")
+    @Operation(
+            summary = "Record an in-lab sample",
+            description =
+                    "Records a sample collected in-lab, at the reception counter, for an analysis"
+                            + " on this dossier. Returns 201 with the created sample.")
     @RequiresPermission("sample.record-in-lab")
     public ResponseEntity<SampleResponse> recordInLab(
             @PathVariable String labFileId,
@@ -46,6 +52,12 @@ public class SampleAdminController {
     }
 
     @PostMapping("/{labFileId}/samples:home")
+    @Operation(
+            summary = "Record a home-collected sample",
+            description =
+                    "Records a sample collected at the patient's home by a Préleveur, including the"
+                        + " address, collection window, and préleveur reference. Returns 201 with"
+                        + " the created sample.")
     @RequiresPermission("sample.record-home")
     public ResponseEntity<SampleResponse> recordHome(
             @PathVariable String labFileId,
@@ -56,6 +68,12 @@ public class SampleAdminController {
     }
 
     @PostMapping("/{labFileId}/samples:external")
+    @Operation(
+            summary = "Record an externally-received sample",
+            description =
+                    "Records a sample that was collected externally (at a partner site) and"
+                        + " received at the lab, including origin and reception metadata. Returns"
+                        + " 201 with the created sample.")
     @RequiresPermission("sample.record-external")
     public ResponseEntity<SampleResponse> recordExternal(
             @PathVariable String labFileId,

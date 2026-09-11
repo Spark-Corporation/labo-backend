@@ -3,6 +3,7 @@ package org.sparkcorporation.lims.catalog.web;
 import java.time.Instant;
 import java.util.List;
 
+import io.swagger.v3.oas.annotations.media.Schema;
 import org.jspecify.annotations.Nullable;
 
 /**
@@ -15,13 +16,28 @@ import org.jspecify.annotations.Nullable;
  * scopes it is a {@code List<}{@link ChildChange}{@code >} of the rows that changed in that
  * revision.
  */
+@Schema(description = "One audited change to an analysis's configuration.")
 public record AnalysisHistoryEntry(
-        long revision,
-        Instant timestamp,
-        @Nullable String userId,
-        Scope scope,
-        List<String> changedFields,
-        @Nullable Object snapshot) {
+        @Schema(description = "Revision number this entry represents, increasing per change.")
+                long revision,
+        @Schema(description = "When this revision was recorded.") Instant timestamp,
+        @Nullable
+                @Schema(
+                        description =
+                                "Id of the user who made the change; absent for system"
+                                        + " or anonymous writes.")
+                String userId,
+        @Schema(description = "Which part of the analysis configuration this entry describes.")
+                Scope scope,
+        @Schema(description = "Names of the fields that changed in this revision.")
+                List<String> changedFields,
+        @Nullable
+                @Schema(
+                        description =
+                                "Post-change state: an AnalysisSnapshot object when scope is"
+                                    + " ANALYSIS, or a list of ChildChange objects for the other"
+                                    + " scopes.")
+                Object snapshot) {
 
     /** Which part of the analysis configuration a history entry describes. */
     public enum Scope {

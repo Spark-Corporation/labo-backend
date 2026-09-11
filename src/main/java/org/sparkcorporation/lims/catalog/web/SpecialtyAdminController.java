@@ -8,6 +8,8 @@ import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 
 import dev.sparksam.securedx.rbac.RequiresPermission;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
 import lombok.RequiredArgsConstructor;
 import org.jspecify.annotations.Nullable;
 import org.springframework.data.domain.Page;
@@ -37,6 +39,9 @@ public class SpecialtyAdminController {
 
     @PostMapping
     @RequiresPermission("prescriber.manage")
+    @Operation(
+            summary = "Create a specialty",
+            description = "Registers a new medical specialty that prescribers can be tagged with.")
     public ResponseEntity<SpecialtyResponse> create(
             @Valid @RequestBody CreateSpecialtyRequest req) {
         var resp = service.create(mapper.toCommand(req));
@@ -46,16 +51,28 @@ public class SpecialtyAdminController {
 
     @GetMapping
     @RequiresPermission("prescriber.manage")
+    @Operation(summary = "List specialties", description = "Lists medical specialties, paginated.")
     public SpecialtySearchResponse list(
-            @RequestParam(defaultValue = "0") @Min(0) int page,
-            @RequestParam(defaultValue = "20") @Min(1) @Max(100) int size) {
+            @Parameter(description = "Zero-based page number.")
+                    @RequestParam(defaultValue = "0")
+                    @Min(0)
+                    int page,
+            @Parameter(description = "Page size (1-100).")
+                    @RequestParam(defaultValue = "20")
+                    @Min(1)
+                    @Max(100)
+                    int size) {
         Page<SpecialtyResponse> result = service.list(page, size);
         return new SpecialtySearchResponse(result.getContent());
     }
 
     @GetMapping("/{id}")
     @RequiresPermission("prescriber.manage")
-    public SpecialtyResponse get(@PathVariable String id) {
+    @Operation(
+            summary = "Get a specialty",
+            description = "Returns a single medical specialty by its id.")
+    public SpecialtyResponse get(
+            @Parameter(description = "ULID of the specialty.") @PathVariable String id) {
         return service.get(SpecialtyId.of(id));
     }
 
@@ -66,8 +83,15 @@ public class SpecialtyAdminController {
      */
     @PatchMapping("/{id}")
     @RequiresPermission("prescriber.manage")
+    @Operation(
+            summary = "Update a specialty",
+            description =
+                    "Partially updates a specialty's name/description; null fields are left"
+                            + " unchanged. The 'code' field is immutable and the request is"
+                            + " rejected with 422 if it is present in the body.")
     public SpecialtyResponse update(
-            @PathVariable String id, @RequestBody Map<String, Object> body) {
+            @Parameter(description = "ULID of the specialty.") @PathVariable String id,
+            @RequestBody Map<String, Object> body) {
         if (body.containsKey("code")) {
             throw new ImmutableCodeException(
                     "specialty code is immutable; remove the 'code' field from the PATCH body");
@@ -80,7 +104,8 @@ public class SpecialtyAdminController {
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     @RequiresPermission("prescriber.manage")
-    public void delete(@PathVariable String id) {
+    @Operation(summary = "Delete a specialty", description = "Soft-deletes the specialty.")
+    public void delete(@Parameter(description = "ULID of the specialty.") @PathVariable String id) {
         service.delete(SpecialtyId.of(id));
     }
 

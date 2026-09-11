@@ -3,6 +3,8 @@ package org.sparkcorporation.lims.stats.web;
 import java.time.LocalDate;
 
 import dev.sparksam.securedx.rbac.RequiresPermission;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
 import lombok.RequiredArgsConstructor;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.MediaType;
@@ -34,10 +36,25 @@ public class StatsExportController {
 
     @GetMapping("/export")
     @RequiresPermission("stats.read")
+    @Operation(
+            summary = "Export statistics as an XLSX workbook",
+            description =
+                    "Assembles the statistics dashboard for the given date range into an XLSX"
+                        + " workbook and returns it as a file download. Unlike other lab-file"
+                        + " exports this one is not password-protected, since statistics exports"
+                        + " are not patient-sensitive documents. Only format=xlsx is supported.")
     public ResponseEntity<byte[]> export(
-            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
-            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
-            @RequestParam String format) {
+            @Parameter(description = "Inclusive start date of the range.")
+                    @RequestParam
+                    @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
+                    LocalDate from,
+            @Parameter(description = "Inclusive end date of the range.")
+                    @RequestParam
+                    @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
+                    LocalDate to,
+            @Parameter(description = "Export format; only 'xlsx' is currently supported.")
+                    @RequestParam
+                    String format) {
         if (!"xlsx".equalsIgnoreCase(format)) {
             throw new UnsupportedExportFormatException(format, "xlsx");
         }

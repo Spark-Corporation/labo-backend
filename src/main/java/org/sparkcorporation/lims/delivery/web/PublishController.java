@@ -1,6 +1,7 @@
 package org.sparkcorporation.lims.delivery.web;
 
 import dev.sparksam.securedx.rbac.RequiresPermission;
+import io.swagger.v3.oas.annotations.Operation;
 import lombok.RequiredArgsConstructor;
 import org.jspecify.annotations.Nullable;
 import org.springframework.http.ResponseEntity;
@@ -26,6 +27,13 @@ public class PublishController {
     private final PublishService publishService;
 
     @PostMapping("/{id}:publish")
+    @Operation(
+            summary = "Publish a dossier's results",
+            description =
+                    "Transitions a fully bio-validated dossier to PUBLISHED, making its"
+                        + " compte-rendu available for delivery to the patient. Idempotent (200 on"
+                        + " repeat calls); returns 409 when the dossier is not fully"
+                        + " bio-validated.")
     @RequiresPermission("dossier.publish")
     public ResponseEntity<Void> publish(
             @PathVariable String id, @Nullable Authentication authentication) {

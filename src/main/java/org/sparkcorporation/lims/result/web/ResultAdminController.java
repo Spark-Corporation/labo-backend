@@ -5,6 +5,7 @@ import java.util.List;
 import jakarta.validation.Valid;
 
 import dev.sparksam.securedx.rbac.RequiresPermission;
+import io.swagger.v3.oas.annotations.Operation;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -43,12 +44,22 @@ public class ResultAdminController {
 
     @GetMapping("/{id}")
     @RequiresPermission("result.enter")
+    @Operation(
+            summary = "Get a result by id",
+            description =
+                    "Returns the full result aggregate (lines + antibiogram readings) for the given"
+                            + " result id.")
     public ResultResponse get(@PathVariable String id) {
         return ResultMapper.toResponse(service.get(new ResultId(id)));
     }
 
     @GetMapping(params = "labFileId")
     @RequiresPermission("result.enter")
+    @Operation(
+            summary = "List results for a lab file",
+            description =
+                    "Returns every active result (one per analysis request) attached to the given"
+                            + " lab file, each with its lines and antibiogram readings.")
     public List<ResultResponse> findByLabFile(@RequestParam String labFileId) {
         return service.findByLabFile(new LabFileId(labFileId)).stream()
                 .map(ResultMapper::toResponse)
@@ -57,6 +68,13 @@ public class ResultAdminController {
 
     @PatchMapping("/{id}/lines/{lineId}")
     @RequiresPermission("result.enter")
+    @Operation(
+            summary = "Set a result line's value and/or comment",
+            description =
+                    "Updates a result line's value and/or free-text comment; at least one of the"
+                        + " two must be present or the request is rejected with 400. Setting the"
+                        + " value on a FORMULA line is rejected — those are computed server-side."
+                        + " Saving all lines flips the result from DRAFT to ENTERED automatically.")
     public ResultResponse patchLine(
             @PathVariable String id,
             @PathVariable String lineId,
@@ -72,6 +90,11 @@ public class ResultAdminController {
     @DeleteMapping("/{id}/lines/{lineId}/value")
     @RequiresPermission("result.enter")
     @ResponseStatus(HttpStatus.NO_CONTENT)
+    @Operation(
+            summary = "Clear a result line's value",
+            description =
+                    "Removes the value (and out-of-range flag) previously set on the line, which"
+                            + " may regress the parent result's state from ENTERED back to DRAFT.")
     public void clearLineValue(@PathVariable String id, @PathVariable String lineId) {
         service.clearLineValue(new ResultId(id), new ResultLineId(lineId));
     }
@@ -79,6 +102,12 @@ public class ResultAdminController {
     @PostMapping("/{id}/antibiogram")
     @RequiresPermission("result.enter")
     @ResponseStatus(HttpStatus.CREATED)
+    @Operation(
+            summary = "Add an antibiogram reading",
+            description =
+                    "Records a measured inhibition diameter for one antibiotic against this result,"
+                            + " and computes its sensitivity interpretation (S/I/R) from the"
+                            + " antibiotic's catalog breakpoints.")
     public ResultResponse.AntibiogramReadingResponse addAntibiogramReading(
             @PathVariable String id, @Valid @RequestBody AddAntibiogramReadingRequest req) {
         return ResultMapper.toAntibiogramReadingResponse(
@@ -88,12 +117,21 @@ public class ResultAdminController {
     @DeleteMapping("/{id}/antibiogram/{readingId}")
     @RequiresPermission("result.enter")
     @ResponseStatus(HttpStatus.NO_CONTENT)
+    @Operation(
+            summary = "Remove an antibiogram reading",
+            description = "Deletes one previously recorded antibiotic reading from the result.")
     public void removeAntibiogramReading(@PathVariable String id, @PathVariable String readingId) {
         service.removeAntibiogramReading(new ResultId(id), new AntibiogramReadingId(readingId));
     }
 
     @PostMapping("/{id}:validate-technical")
     @RequiresPermission("result.validate-tech")
+    @Operation(
+            summary = "Technically validate a result",
+            description =
+                    "Transitions the result from ENTERED to TECHNICAL_VALIDATED, recording the"
+                            + " validating technician and timestamp. Rejected if the result is not"
+                            + " currently ENTERED.")
     public ResultResponse validateTechnical(@PathVariable String id) {
         return ResultMapper.toResponse(
                 service.validateTechnical(new ResultId(id), currentUserId()));
@@ -101,6 +139,13 @@ public class ResultAdminController {
 
     @PostMapping("/{id}:validate-biological")
     @RequiresPermission("result.validate-bio")
+    @Operation(
+            summary = "Biologically validate a result",
+            description =
+                    "Transitions the result from TECHNICAL_VALIDATED to the terminal"
+                        + " BIOLOGICAL_VALIDATED state, recording the validating biologist and"
+                        + " timestamp, and triggers downstream billing/delivery/stats processing."
+                        + " Rejected if the result is not currently TECHNICAL_VALIDATED.")
     public ResultResponse validateBiological(@PathVariable String id) {
         return ResultMapper.toResponse(
                 service.validateBiological(new ResultId(id), currentUserId()));
@@ -109,6 +154,11 @@ public class ResultAdminController {
     @DeleteMapping("/{id}")
     @RequiresPermission("result.enter")
     @ResponseStatus(HttpStatus.NO_CONTENT)
+    @Operation(
+            summary = "Delete a result",
+            description =
+                    "Soft-deletes the result. Only allowed while the result is still in DRAFT"
+                            + " state; validated or entered results cannot be deleted.")
     public void delete(@PathVariable String id) {
         service.delete(new ResultId(id));
     }

@@ -10,6 +10,8 @@ import jakarta.validation.constraints.Min;
 
 import dev.sparksam.securedx.core.signing.ActionSignatureVerifier;
 import dev.sparksam.securedx.rbac.RequiresPermission;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
 import lombok.RequiredArgsConstructor;
 import org.jspecify.annotations.Nullable;
 import org.springframework.data.domain.Page;
@@ -59,14 +61,45 @@ public class AuditController {
      */
     @GetMapping("/actions")
     @RequiresPermission("audit.read")
+    @Operation(
+            summary = "Search the signed-action audit ledger",
+            description =
+                    "Returns a page of signed actions from the tamper-evident audit ledger. When"
+                        + " 'action', 'from' or 'to' is supplied the query is AND-composed across"
+                        + " every supplied criterion; otherwise, if 'subject' is supplied it wins"
+                        + " over 'resource', and with none supplied the full ledger is returned. A"
+                        + " malformed 'from' or 'to' yields 400.")
     public AuditActionSearchResponse actions(
-            @RequestParam(required = false) @Nullable String subject,
-            @RequestParam(required = false) @Nullable String resource,
-            @RequestParam(required = false) @Nullable String action,
-            @RequestParam(required = false) @Nullable String from,
-            @RequestParam(required = false) @Nullable String to,
-            @RequestParam(defaultValue = "0") @Min(0) int page,
-            @RequestParam(defaultValue = "20") @Min(1) @Max(100) int size) {
+            @Parameter(description = "Exact match on the acting user's ULID.")
+                    @RequestParam(required = false)
+                    @Nullable String subject,
+            @Parameter(description = "Exact match on the signed request's resource URI.")
+                    @RequestParam(required = false)
+                    @Nullable String resource,
+            @Parameter(description = "Exact match on the recorded action name.")
+                    @RequestParam(required = false)
+                    @Nullable String action,
+            @Parameter(
+                            description =
+                                    "Inclusive lower bound (ISO-8601 instant) on the action"
+                                            + " timestamp.")
+                    @RequestParam(required = false)
+                    @Nullable String from,
+            @Parameter(
+                            description =
+                                    "Inclusive upper bound (ISO-8601 instant) on the action"
+                                            + " timestamp.")
+                    @RequestParam(required = false)
+                    @Nullable String to,
+            @Parameter(description = "Zero-based page index.")
+                    @RequestParam(defaultValue = "0")
+                    @Min(0)
+                    int page,
+            @Parameter(description = "Page size, 1-100.")
+                    @RequestParam(defaultValue = "20")
+                    @Min(1)
+                    @Max(100)
+                    int size) {
         var pageable = PageRequest.of(page, size);
         Page<SignedActionEntity> result;
         if (hasText(action) || hasText(from) || hasText(to)) {
@@ -128,10 +161,27 @@ public class AuditController {
      */
     @GetMapping("/lab-files/{labFileId}/actions")
     @RequiresPermission("audit.read")
+    @Operation(
+            summary = "List a dossier's audit trail",
+            description =
+                    "Returns, newest first, the signed actions whose resource URI embeds the given"
+                        + " lab-file ULID. The scope is URI-derived: it captures every"
+                        + " /api/v1/lab-files/{labFileId}/... request but misses actions that"
+                        + " concern the same dossier without embedding its ULID in the URI (e.g. a"
+                        + " result reached only via a join).")
     public AuditActionSearchResponse dossierActions(
-            @PathVariable String labFileId,
-            @RequestParam(defaultValue = "0") @Min(0) int page,
-            @RequestParam(defaultValue = "20") @Min(1) @Max(100) int size) {
+            @Parameter(description = "ULID of the lab file (dossier) whose actions to list.")
+                    @PathVariable
+                    String labFileId,
+            @Parameter(description = "Zero-based page index.")
+                    @RequestParam(defaultValue = "0")
+                    @Min(0)
+                    int page,
+            @Parameter(description = "Page size, 1-100.")
+                    @RequestParam(defaultValue = "20")
+                    @Min(1)
+                    @Max(100)
+                    int size) {
         var pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "timestamp"));
         Page<AuditActionResponse> mapped =
                 repo.findByResourceContaining(labFileId, pageable).map(AuditActionResponse::from);
@@ -151,7 +201,17 @@ public class AuditController {
      */
     @PostMapping("/verify")
     @RequiresPermission("audit.read")
-    public Map<String, Object> verify(@RequestParam String subject) {
+    @Operation(
+            summary = "Verify a subject's hash-chain",
+            description =
+                    "Verifies the integrity of the given subject's entire signed-action hash-chain"
+                        + " (each link's signature plus its previousHash linkage). Returns"
+                        + " valid=false for a tampered or broken chain; a subject with no signed"
+                        + " actions verifies as valid=true, since an empty chain is trivially"
+                        + " consistent.")
+    public Map<String, Object> verify(
+            @Parameter(description = "ULID of the user whose action chain to verify.") @RequestParam
+                    String subject) {
         boolean valid = verifier.verifyChain(subject);
         return Map.of("subject", subject, "valid", valid);
     }
@@ -165,6 +225,13 @@ public class AuditController {
      */
     @GetMapping("/checkpoints/latest")
     @RequiresPermission("audit.read")
+    @Operation(
+            summary = "Re-verify the latest audit checkpoint",
+            description =
+                    "Re-verifies the most recent audit checkpoint against the live ledger: whether"
+                        + " its signature still verifies, whether its Merkle root still matches the"
+                        + " current chain heads, and how many signed actions have been appended"
+                        + " since. Returns 404 when no checkpoint has ever been created.")
     public CheckpointVerifyResponse latestCheckpoint() {
         return checkpointVerifier
                 .verifyLatest()

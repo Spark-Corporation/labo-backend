@@ -1,6 +1,8 @@
 package org.sparkcorporation.lims.pdf.web;
 
 import dev.sparksam.securedx.rbac.RequiresPermission;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
 import lombok.RequiredArgsConstructor;
 import org.jspecify.annotations.Nullable;
 import org.springframework.http.HttpStatus;
@@ -34,10 +36,23 @@ public class PdfJobController {
     private final PdfRenderingService renderingService;
 
     @GetMapping("/{id}")
+    @Operation(
+            summary = "Poll or download an async PDF render job",
+            description =
+                    "By default returns the job's status row (QUEUED, RUNNING, DONE or FAILED) with"
+                        + " the PDF bytes stripped, for polling. With download=true, streams the"
+                        + " rendered PDF bytes once the job is DONE. Returns 409 when the job is"
+                        + " not yet DONE, 410 when it FAILED, and 403 when the caller is not the"
+                        + " original requester of a job that has a recorded owner.")
     @RequiresPermission("pdf.read-own-jobs")
     public ResponseEntity<?> view(
             @PathVariable String id,
-            @RequestParam(value = "download", defaultValue = "false") boolean download) {
+            @Parameter(
+                            description =
+                                    "When true, streams the rendered PDF bytes instead of the job"
+                                            + " status row; only valid once the job is DONE.")
+                    @RequestParam(value = "download", defaultValue = "false")
+                    boolean download) {
 
         var record =
                 renderingService

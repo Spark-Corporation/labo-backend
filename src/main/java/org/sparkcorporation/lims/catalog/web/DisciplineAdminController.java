@@ -8,6 +8,8 @@ import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 
 import dev.sparksam.securedx.rbac.RequiresPermission;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
 import lombok.RequiredArgsConstructor;
 import org.jspecify.annotations.Nullable;
 import org.springframework.data.domain.Page;
@@ -35,6 +37,12 @@ public class DisciplineAdminController {
 
     @PostMapping
     @RequiresPermission("catalog.manage")
+    @Operation(
+            summary = "Create a discipline",
+            description =
+                    "Registers a new medical discipline (e.g. Biochimie, Hématologie), tying it to"
+                            + " one of the five regulatory discipline prefixes used to build sample"
+                            + " label ids.")
     public ResponseEntity<DisciplineResponse> create(
             @Valid @RequestBody CreateDisciplineRequest req) {
         var resp = service.create(req);
@@ -44,10 +52,22 @@ public class DisciplineAdminController {
 
     @GetMapping
     @RequiresPermission("catalog.manage")
+    @Operation(
+            summary = "Search disciplines",
+            description = "Lists disciplines, paginated, optionally including disabled ones.")
     public DisciplineSearchResponse search(
-            @RequestParam(defaultValue = "true") boolean activeOnly,
-            @RequestParam(defaultValue = "0") @Min(0) int page,
-            @RequestParam(defaultValue = "20") @Min(1) @Max(100) int size) {
+            @Parameter(description = "When true (default), excludes soft-deleted disciplines.")
+                    @RequestParam(defaultValue = "true")
+                    boolean activeOnly,
+            @Parameter(description = "Zero-based page number.")
+                    @RequestParam(defaultValue = "0")
+                    @Min(0)
+                    int page,
+            @Parameter(description = "Page size (1-100).")
+                    @RequestParam(defaultValue = "20")
+                    @Min(1)
+                    @Max(100)
+                    int size) {
         Page<DisciplineResponse> result = service.search(activeOnly, page, size);
         return new DisciplineSearchResponse(
                 result.getContent(),
@@ -59,7 +79,9 @@ public class DisciplineAdminController {
 
     @GetMapping("/{id}")
     @RequiresPermission("catalog.manage")
-    public DisciplineResponse get(@PathVariable String id) {
+    @Operation(summary = "Get a discipline", description = "Returns a single discipline by its id.")
+    public DisciplineResponse get(
+            @Parameter(description = "ULID of the discipline.") @PathVariable String id) {
         return service.get(new DisciplineId(id));
     }
 
@@ -72,8 +94,16 @@ public class DisciplineAdminController {
      */
     @PatchMapping("/{id}")
     @RequiresPermission("catalog.manage")
+    @Operation(
+            summary = "Update a discipline",
+            description =
+                    "Partially updates a discipline's name/description; null fields are left"
+                            + " unchanged. The 'disciplinePrefix' field is immutable — captured at"
+                            + " create time — and the request is rejected with 422 if it is"
+                            + " present in the body.")
     public DisciplineResponse update(
-            @PathVariable String id, @RequestBody Map<String, Object> body) {
+            @Parameter(description = "ULID of the discipline.") @PathVariable String id,
+            @RequestBody Map<String, Object> body) {
         if (body.containsKey("disciplinePrefix")) {
             throw new ImmutableDisciplinePrefixException(
                     "disciplinePrefix is immutable; remove the 'disciplinePrefix' field from the"
@@ -88,7 +118,9 @@ public class DisciplineAdminController {
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     @RequiresPermission("catalog.manage")
-    public void delete(@PathVariable String id) {
+    @Operation(summary = "Delete a discipline", description = "Soft-deletes the discipline.")
+    public void delete(
+            @Parameter(description = "ULID of the discipline.") @PathVariable String id) {
         service.delete(new DisciplineId(id));
     }
 

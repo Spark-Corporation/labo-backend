@@ -3,6 +3,8 @@ package org.sparkcorporation.lims.delivery.web.portal;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -29,6 +31,14 @@ public class PortalLoginController {
     private final PortalTokenService tokenService;
 
     @PostMapping("/login")
+    @Operation(
+            summary = "Log in to the patient portal",
+            description =
+                    "Authenticates a patient with their portal login and password and, on success,"
+                        + " mints a short-lived (30-minute) RS256 token for the patient-facing"
+                        + " portal endpoints. This is a public, unauthenticated endpoint distinct"
+                        + " from staff login; returns 401 for both an unknown login and a bad"
+                        + " password, to avoid account enumeration.")
     public ResponseEntity<PortalLoginResponse> login(@Valid @RequestBody PortalLoginRequest req) {
         return patientPortalApi
                 .authenticate(req.portalLogin(), req.password())
@@ -40,7 +50,20 @@ public class PortalLoginController {
                 .orElseGet(() -> ResponseEntity.status(HttpStatus.UNAUTHORIZED).build());
     }
 
-    public record PortalLoginRequest(@NotBlank String portalLogin, @NotBlank String password) {}
+    @Schema(description = "Patient portal login credentials.")
+    public record PortalLoginRequest(
+            @Schema(description = "The patient's portal login identifier (not a staff username).")
+                    @NotBlank
+                    String portalLogin,
+            @Schema(description = "The patient's portal password.") @NotBlank String password) {}
 
-    public record PortalLoginResponse(String token, long expiresInSeconds) {}
+    @Schema(description = "A minted patient-portal session token.")
+    public record PortalLoginResponse(
+            @Schema(
+                            description =
+                                    "Short-lived RS256 bearer token to use on subsequent"
+                                            + " /api/v1/portal/** requests.")
+                    String token,
+            @Schema(description = "Number of seconds until the token expires (30 minutes).")
+                    long expiresInSeconds) {}
 }

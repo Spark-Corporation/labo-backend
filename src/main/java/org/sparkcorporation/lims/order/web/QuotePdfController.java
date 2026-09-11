@@ -1,6 +1,7 @@
 package org.sparkcorporation.lims.order.web;
 
 import dev.sparksam.securedx.rbac.RequiresPermission;
+import io.swagger.v3.oas.annotations.Operation;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -33,6 +34,11 @@ public class QuotePdfController {
     private final PdfRenderingService pdfService;
 
     @GetMapping("/{id}/pdf")
+    @Operation(
+            summary = "Get a quote as PDF",
+            description =
+                    "Synchronously renders a price quote (devis) as an A4 PDF and streams it as an"
+                            + " attachment. Returns 404 when the quote id is unknown.")
     @RequiresPermission("quote.read")
     public ResponseEntity<byte[]> get(@PathVariable String id) {
         var model = assembler.assemble(new QuoteId(id));

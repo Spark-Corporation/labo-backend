@@ -5,6 +5,8 @@ import java.net.URI;
 import jakarta.validation.Valid;
 
 import dev.sparksam.securedx.rbac.RequiresPermission;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
 import lombok.RequiredArgsConstructor;
 import org.jspecify.annotations.Nullable;
 import org.springframework.data.domain.Pageable;
@@ -36,6 +38,13 @@ public class PartnerController {
 
     @PostMapping
     @RequiresPermission("partner.manage")
+    @Operation(
+            summary = "Create a partner",
+            description =
+                    "Registers a new corporate/institutional partner (society, partner lab or"
+                            + " health center) that bills the entire patient invoice at the given"
+                            + " bRate (XOF per indiciary point B), unlike an insurance which only"
+                            + " covers a fraction.")
     public ResponseEntity<PartnerResponse> create(@Valid @RequestBody PartnerRequest.Create req) {
         var summary = api.create(mapper.toCommand(req));
         var resp = mapper.toResponse(summary);
@@ -44,10 +53,27 @@ public class PartnerController {
 
     @GetMapping
     @RequiresPermission("lab-file.read")
+    @Operation(
+            summary = "Search partners",
+            description =
+                    "Lists partners matching an optional free-text query, kind and/or"
+                            + " disabled-status filter.")
     public PartnerSearchResponse list(
-            @RequestParam(required = false) @Nullable String q,
-            @RequestParam(required = false) @Nullable PartnerKind kind,
-            @RequestParam(required = false) @Nullable Boolean disabled,
+            @Parameter(description = "Free-text search on the partner code and name.")
+                    @RequestParam(required = false)
+                    @Nullable String q,
+            @Parameter(
+                            description =
+                                    "Restrict results to this partner kind (SOCIETY, PARTNER_LAB,"
+                                            + " HEALTH_CENTER).")
+                    @RequestParam(required = false)
+                    @Nullable PartnerKind kind,
+            @Parameter(
+                            description =
+                                    "Filter by disabled status; omit to return both active and"
+                                            + " disabled partners.")
+                    @RequestParam(required = false)
+                    @Nullable Boolean disabled,
             Pageable pageable) {
         var page = api.search(q, kind, disabled, pageable);
         var items = page.map(mapper::toResponse).getContent();
@@ -56,7 +82,9 @@ public class PartnerController {
 
     @GetMapping("/{id}")
     @RequiresPermission("lab-file.read")
-    public PartnerResponse get(@PathVariable String id) {
+    @Operation(summary = "Get a partner", description = "Returns a single partner by its id.")
+    public PartnerResponse get(
+            @Parameter(description = "ULID of the partner.") @PathVariable String id) {
         var pid = PartnerId.of(id);
         return api.findById(pid)
                 .map(mapper::toResponse)
@@ -65,8 +93,14 @@ public class PartnerController {
 
     @PutMapping("/{id}")
     @RequiresPermission("partner.manage")
+    @Operation(
+            summary = "Update a partner",
+            description =
+                    "Updates a partner's kind, contact details and/or bRate; null fields are left"
+                            + " unchanged.")
     public PartnerResponse update(
-            @PathVariable String id, @Valid @RequestBody PartnerRequest.Update req) {
+            @Parameter(description = "ULID of the partner.") @PathVariable String id,
+            @Valid @RequestBody PartnerRequest.Update req) {
         var summary = api.update(PartnerId.of(id), mapper.toCommand(req));
         return mapper.toResponse(summary);
     }
@@ -74,7 +108,12 @@ public class PartnerController {
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     @RequiresPermission("partner.manage")
-    public void delete(@PathVariable String id) {
+    @Operation(
+            summary = "Disable a partner",
+            description =
+                    "Soft-deletes (disables) the partner; it is excluded from active listings and"
+                            + " lookups thereafter.")
+    public void delete(@Parameter(description = "ULID of the partner.") @PathVariable String id) {
         api.disable(PartnerId.of(id));
     }
 }

@@ -3,6 +3,8 @@ package org.sparkcorporation.lims.billing.web;
 import java.math.BigDecimal;
 import java.util.List;
 
+import io.swagger.v3.oas.annotations.media.Schema;
+
 import org.sparkcorporation.lims.billing.infra.OutstandingResult;
 import org.sparkcorporation.lims.billing.infra.OutstandingRow;
 
@@ -11,11 +13,25 @@ import org.sparkcorporation.lims.billing.infra.OutstandingRow;
  * into two buckets and reports per-bucket totals so the UI can summarize "customer still owes" vs
  * "clinic still owes" at a glance.
  */
+@Schema(
+        description =
+                "Open balances, split into what customers still owe the lab and what the lab"
+                        + " still owes customers (overpayments).")
 public record AccountingOutstandingResponse(
-        List<AccountingDailyResponse.FileRow> unpaid,
-        List<AccountingDailyResponse.FileRow> refundsOwed,
-        AccountingDailyResponse.Totals unpaidTotals,
-        AccountingDailyResponse.Totals refundsOwedTotals) {
+        @Schema(
+                        description =
+                                "Lab files with a positive remaining balance (customer owes the"
+                                        + " lab).")
+                List<AccountingDailyResponse.FileRow> unpaid,
+        @Schema(
+                        description =
+                                "Lab files with a negative remaining balance (the lab owes the"
+                                        + " customer a refund).")
+                List<AccountingDailyResponse.FileRow> refundsOwed,
+        @Schema(description = "Totals across the unpaid rows.")
+                AccountingDailyResponse.Totals unpaidTotals,
+        @Schema(description = "Totals across the refundsOwed rows.")
+                AccountingDailyResponse.Totals refundsOwedTotals) {
 
     /** Build a response from native-SQL rows, computing both bucket totals. */
     public static AccountingOutstandingResponse from(OutstandingResult result) {

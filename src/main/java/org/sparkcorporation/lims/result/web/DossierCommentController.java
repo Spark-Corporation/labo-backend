@@ -3,6 +3,7 @@ package org.sparkcorporation.lims.result.web;
 import jakarta.validation.Valid;
 
 import dev.sparksam.securedx.rbac.RequiresPermission;
+import io.swagger.v3.oas.annotations.Operation;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -32,6 +33,11 @@ public class DossierCommentController {
 
     @GetMapping
     @RequiresPermission("result.enter")
+    @Operation(
+            summary = "Get the dossier's general comment",
+            description =
+                    "Returns the single general comment attached to the lab file's dossier, or 204"
+                            + " No Content if none has been recorded yet.")
     public ResponseEntity<DossierCommentResponse> get(@PathVariable String labFileId) {
         return service.get(new LabFileId(labFileId))
                 .map(DossierCommentMapper::toResponse)
@@ -41,6 +47,12 @@ public class DossierCommentController {
 
     @PutMapping
     @RequiresPermission("result.enter")
+    @Operation(
+            summary = "Create or replace the dossier's general comment",
+            description =
+                    "Idempotent upsert of the single general-comment row attached 1:1 to the lab"
+                            + " file's dossier. Creates the row on first call, replaces its text on"
+                            + " subsequent calls.")
     public DossierCommentResponse upsert(
             @PathVariable String labFileId, @Valid @RequestBody UpsertDossierCommentRequest req) {
         return DossierCommentMapper.toResponse(service.upsert(new LabFileId(labFileId), req));
@@ -49,6 +61,11 @@ public class DossierCommentController {
     @DeleteMapping
     @RequiresPermission("result.enter")
     @ResponseStatus(HttpStatus.NO_CONTENT)
+    @Operation(
+            summary = "Delete the dossier's general comment",
+            description =
+                    "Removes the general-comment row attached to the lab file's dossier, if one"
+                            + " exists. Returns 204 whether or not a comment was present.")
     public void delete(@PathVariable String labFileId) {
         service.delete(new LabFileId(labFileId));
     }

@@ -7,6 +7,8 @@ import java.util.Set;
 import jakarta.validation.Valid;
 
 import dev.sparksam.securedx.rbac.RequiresPermission;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
 import lombok.RequiredArgsConstructor;
 import org.jspecify.annotations.Nullable;
 import org.springframework.data.domain.Pageable;
@@ -42,6 +44,9 @@ public class CashRegisterController {
 
     @PostMapping
     @RequiresPermission("cash-register.manage")
+    @Operation(
+            summary = "Create a cash register",
+            description = "Creates a new cash register that payments can be recorded against.")
     public ResponseEntity<CashRegisterResponse> create(
             @Valid @RequestBody CashRegisterRequest.Create req) {
         var summary = api.create(mapper.toCommand(req));
@@ -51,9 +56,18 @@ public class CashRegisterController {
 
     @GetMapping
     @RequiresPermission("cash-register.manage")
+    @Operation(
+            summary = "Search cash registers",
+            description =
+                    "Lists cash registers, optionally filtered by free-text query and "
+                            + "disabled state.")
     public CashRegisterSearchResponse list(
-            @RequestParam(required = false) @Nullable String q,
-            @RequestParam(required = false) @Nullable Boolean disabled,
+            @Parameter(description = "Free-text search on code/label; omit to match all.")
+                    @RequestParam(required = false)
+                    @Nullable String q,
+            @Parameter(description = "Filter by disabled state; omit to include both.")
+                    @RequestParam(required = false)
+                    @Nullable Boolean disabled,
             Pageable pageable) {
         var page = api.search(q, disabled, pageable);
         var items = page.map(mapper::toResponse).getContent();
@@ -62,6 +76,9 @@ public class CashRegisterController {
 
     @GetMapping("/{id}")
     @RequiresPermission("cash-register.manage")
+    @Operation(
+            summary = "Get a cash register",
+            description = "Fetches a single cash register by id.")
     public CashRegisterResponse get(@PathVariable String id) {
         var cid = CashRegisterId.of(id);
         return api.findById(cid)
@@ -71,6 +88,11 @@ public class CashRegisterController {
 
     @PutMapping("/{id}")
     @RequiresPermission("cash-register.manage")
+    @Operation(
+            summary = "Rename a cash register",
+            description =
+                    "Updates a cash register's label. code and sequenceNumber are "
+                            + "immutable and cannot be changed here.")
     public CashRegisterResponse update(
             @PathVariable String id, @Valid @RequestBody CashRegisterRequest.Update req) {
         var summary = api.update(CashRegisterId.of(id), mapper.toCommand(req));
@@ -80,12 +102,22 @@ public class CashRegisterController {
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     @RequiresPermission("cash-register.manage")
+    @Operation(
+            summary = "Disable a cash register",
+            description =
+                    "Soft-disables a cash register so it can no longer be used for new "
+                            + "payments; existing payments recorded through it are unaffected.")
     public void delete(@PathVariable String id) {
         api.disable(CashRegisterId.of(id));
     }
 
     @PutMapping("/{id}/users")
     @RequiresPermission("cash-register.manage")
+    @Operation(
+            summary = "Assign users to a cash register",
+            description =
+                    "Replaces the full set of users allowed to record payments through "
+                            + "this register.")
     public CashRegisterResponse assignUsers(
             @PathVariable String id, @Valid @RequestBody CashRegisterUserAssignmentRequest req) {
         var cid = CashRegisterId.of(id);

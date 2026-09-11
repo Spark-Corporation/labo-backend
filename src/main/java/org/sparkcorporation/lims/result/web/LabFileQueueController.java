@@ -4,6 +4,7 @@ import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 
 import dev.sparksam.securedx.rbac.RequiresPermission;
+import io.swagger.v3.oas.annotations.Operation;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.validation.annotation.Validated;
@@ -22,6 +23,12 @@ public class LabFileQueueController {
 
     @GetMapping("/urgent")
     @RequiresPermission("lab-file.read")
+    @Operation(
+            summary = "List urgent dossiers",
+            description =
+                    "Returns a paginated queue of dossiers flagged urgent, each carrying the CDC"
+                            + " §X visual marker (green/red/pen) computed from result completeness"
+                            + " and out-of-range lines.")
     public UrgentDossierResponse urgent(
             @RequestParam(defaultValue = "0") @Min(0) int page,
             @RequestParam(defaultValue = "20") @Min(1) @Max(200) int size) {
@@ -30,6 +37,12 @@ public class LabFileQueueController {
 
     @GetMapping("/overdue")
     @RequiresPermission("lab-file.read")
+    @Operation(
+            summary = "List overdue dossiers",
+            description =
+                    "Returns a paginated queue of dossiers with at least one analysis past its"
+                            + " turnaround deadline, each row carrying the earliest-deadline"
+                            + " (\"canary\") analysis and how far past deadline it is.")
     public OverdueDossierResponse overdue(
             @RequestParam(defaultValue = "0") @Min(0) int page,
             @RequestParam(defaultValue = "20") @Min(1) @Max(200) int size) {

@@ -1,6 +1,7 @@
 package org.sparkcorporation.lims.iam.web;
 
 import dev.sparksam.securedx.rbac.RequiresPermission;
+import io.swagger.v3.oas.annotations.Operation;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -29,6 +30,13 @@ public class AuditCheckpointController {
     @PostMapping("/checkpoints")
     @ResponseStatus(HttpStatus.CREATED)
     @RequiresPermission("audit.checkpoint")
+    @Operation(
+            summary = "Create an audit checkpoint",
+            description =
+                    "Snapshots every subject's current hash-chain head, computes a Merkle root over"
+                        + " them, signs the canonical payload with the system audit identity, and"
+                        + " persists the checkpoint. The underlying hash-chain itself is never"
+                        + " mutated.")
     public AuditCheckpointResponse create() {
         return AuditCheckpointResponse.from(service.createCheckpoint());
     }

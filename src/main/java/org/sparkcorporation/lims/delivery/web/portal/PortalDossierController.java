@@ -3,6 +3,8 @@ package org.sparkcorporation.lims.delivery.web.portal;
 import java.time.Instant;
 import java.util.List;
 
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -33,6 +35,13 @@ public class PortalDossierController {
     private final CompteRenduApi compteRenduApi;
 
     @GetMapping
+    @Operation(
+            summary = "List my published dossiers",
+            description =
+                    "Returns the authenticated patient's own PUBLISHED lab files (dossiers). The"
+                        + " patient identity comes from the short-lived portal token, not staff"
+                        + " authentication; dossiers not owned by the caller or not yet PUBLISHED"
+                        + " are never listed.")
     public List<PortalDossierResponse> list(
             @RequestAttribute(PortalAuthFilter.PATIENT_ID_ATTR) String patientId) {
         return labFileApi.findActiveByPatient(patientId).stream()
@@ -48,6 +57,13 @@ public class PortalDossierController {
     }
 
     @GetMapping("/{labFileId}/pdf")
+    @Operation(
+            summary = "Download my compte-rendu PDF",
+            description =
+                    "Streams the compte-rendu PDF for one of the authenticated patient's own"
+                        + " PUBLISHED dossiers. Returns 404 both when the dossier does not exist,"
+                        + " belongs to another patient, or is not yet PUBLISHED — the portal never"
+                        + " confirms the existence of another patient's dossier.")
     public ResponseEntity<byte[]> pdf(
             @RequestAttribute(PortalAuthFilter.PATIENT_ID_ATTR) String patientId,
             @PathVariable String labFileId) {
@@ -65,6 +81,15 @@ public class PortalDossierController {
                 .body(cr.bytes());
     }
 
+    @Schema(
+            description =
+                    "Summary of one of the patient's own published dossiers, as shown in the"
+                            + " patient portal.")
     public record PortalDossierResponse(
-            String id, String registrationNumber, Instant createdAt, int analysesCount) {}
+            @Schema(description = "Identifier of the lab file (dossier).") String id,
+            @Schema(description = "Human-readable registration number of the dossier.")
+                    String registrationNumber,
+            @Schema(description = "Timestamp at which the dossier was opened.") Instant createdAt,
+            @Schema(description = "Number of catalog analyses requested on the dossier.")
+                    int analysesCount) {}
 }

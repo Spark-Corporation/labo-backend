@@ -2,6 +2,7 @@ package org.sparkcorporation.lims.iam.web;
 
 import jakarta.validation.Valid;
 
+import io.swagger.v3.oas.annotations.Operation;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -23,12 +24,20 @@ public class SelfController {
     private final UserService service;
 
     @GetMapping
+    @Operation(
+            summary = "Get the current user's profile",
+            description = "Returns the profile of the currently authenticated user.")
     public UserResponse me() {
         return service.getCurrent();
     }
 
     @PatchMapping("/password")
     @ResponseStatus(HttpStatus.NO_CONTENT)
+    @Operation(
+            summary = "Change the current user's password",
+            description =
+                    "Changes the currently authenticated user's own password after verifying the"
+                            + " supplied old password.")
     public void changePassword(@Valid @RequestBody ChangePasswordRequest req) {
         var auth = SecurityContextHolder.getContext().getAuthentication();
         service.changePassword(new UserId(auth.getName()), req);

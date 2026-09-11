@@ -1,6 +1,7 @@
 package org.sparkcorporation.lims.delivery.web;
 
 import dev.sparksam.securedx.rbac.RequiresPermission;
+import io.swagger.v3.oas.annotations.Operation;
 import lombok.RequiredArgsConstructor;
 import org.jspecify.annotations.Nullable;
 import org.springframework.http.ResponseEntity;
@@ -26,6 +27,12 @@ public class SignController {
     private final SignDossierService signDossierService;
 
     @PostMapping("/{id}:sign")
+    @Operation(
+            summary = "Electronically sign a dossier's results",
+            description =
+                    "Applies the biologist's electronic signature to a fully bio-validated dossier."
+                        + " Idempotent (200 on repeat calls); returns 409 when the dossier is not"
+                        + " fully bio-validated.")
     @RequiresPermission("dossier.sign-electronically")
     public ResponseEntity<Void> sign(
             @PathVariable String id, @Nullable Authentication authentication) {

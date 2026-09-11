@@ -1,6 +1,7 @@
 package org.sparkcorporation.lims.order.web;
 
 import dev.sparksam.securedx.rbac.RequiresPermission;
+import io.swagger.v3.oas.annotations.Operation;
 import lombok.RequiredArgsConstructor;
 import org.jspecify.annotations.Nullable;
 import org.springframework.http.ResponseEntity;
@@ -27,6 +28,13 @@ public class SampleDestructionController {
     private final MarkSampleDestroyedService service;
 
     @PostMapping("/{id}:mark-destroyed")
+    @Operation(
+            summary = "Mark a sample as physically destroyed",
+            description =
+                    "Records the physical disposal of a sample once its retention period (CDC"
+                            + " Onglet « Conservation ») has elapsed. The action is audit-signed."
+                            + " Idempotent: a second call on an already-destroyed sample is a no-op"
+                            + " 204.")
     @RequiresPermission("sample.destroy")
     public ResponseEntity<Void> markDestroyed(
             @PathVariable String id, @Nullable Authentication authentication) {

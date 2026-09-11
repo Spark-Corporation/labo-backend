@@ -1,6 +1,7 @@
 package org.sparkcorporation.lims.result.web;
 
 import dev.sparksam.securedx.rbac.RequiresPermission;
+import io.swagger.v3.oas.annotations.Operation;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -32,6 +33,12 @@ public class ResultPdfController {
 
     @GetMapping("/{labFileId}/pdf")
     @RequiresPermission("lab-file.read")
+    @Operation(
+            summary = "Render the compte-rendu PDF for a dossier",
+            description =
+                    "Synchronously renders and returns the compte-rendu (CR) PDF for the given lab"
+                            + " file, inline. Returns 409 if any result on the dossier is not yet"
+                            + " biologically validated, and 404 if the lab file is unknown.")
     public ResponseEntity<byte[]> getResultCrPdf(@PathVariable String labFileId) {
         var cr = compteRenduApi.renderCompteRendu(new LabFileId(labFileId));
         return ResponseEntity.ok()

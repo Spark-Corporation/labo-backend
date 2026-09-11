@@ -5,6 +5,7 @@ import java.io.UncheckedIOException;
 import java.util.List;
 
 import dev.sparksam.securedx.rbac.RequiresPermission;
+import io.swagger.v3.oas.annotations.Operation;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -43,6 +44,12 @@ public class LabFileAttachmentController {
     private final AttachmentApi attachmentApi;
 
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @Operation(
+            summary = "Upload a lab-file attachment",
+            description =
+                    "Uploads a scanned document or file onto a lab file (dossier) — CDC §IV"
+                        + " \"joindre des fichiers par scan direct\". Returns 201 with the created"
+                        + " attachment's metadata.")
     @ResponseStatus(HttpStatus.CREATED)
     @RequiresPermission("lab-file.create")
     public AttachmentSummary upload(
@@ -59,6 +66,9 @@ public class LabFileAttachmentController {
     }
 
     @GetMapping
+    @Operation(
+            summary = "List a lab file's attachments",
+            description = "Returns the metadata of every attachment uploaded onto this lab file.")
     @RequiresPermission("lab-file.read")
     public List<AttachmentSummary> list(@PathVariable String labFileId) {
         requireLabFile(labFileId);
@@ -66,6 +76,9 @@ public class LabFileAttachmentController {
     }
 
     @GetMapping("/{attachmentId}")
+    @Operation(
+            summary = "Download a lab-file attachment",
+            description = "Streams the raw bytes of a single attachment as a file download.")
     @RequiresPermission("lab-file.read")
     public ResponseEntity<byte[]> download(
             @PathVariable String labFileId, @PathVariable String attachmentId) {
@@ -80,6 +93,9 @@ public class LabFileAttachmentController {
     }
 
     @DeleteMapping("/{attachmentId}")
+    @Operation(
+            summary = "Delete a lab-file attachment",
+            description = "Soft-deletes an attachment previously uploaded onto this lab file.")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     @RequiresPermission("lab-file.create")
     public void softDelete(@PathVariable String labFileId, @PathVariable String attachmentId) {

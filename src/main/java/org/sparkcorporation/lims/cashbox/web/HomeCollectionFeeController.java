@@ -5,6 +5,8 @@ import java.time.Instant;
 import jakarta.validation.Valid;
 
 import dev.sparksam.securedx.rbac.RequiresPermission;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
 import lombok.RequiredArgsConstructor;
 import org.jspecify.annotations.Nullable;
 import org.springframework.data.domain.Pageable;
@@ -31,12 +33,28 @@ public class HomeCollectionFeeController {
 
     @GetMapping
     @RequiresPermission("cashbox.home-collection.read")
+    @Operation(
+            summary = "Search home-collection fees",
+            description =
+                    "Returns a paginated, filterable list of recorded home-collection fees (amounts"
+                            + " in XOF), optionally restricted by recording-date range, lab file,"
+                            + " recording user, or cash register.")
     public HomeCollectionFeeSearchResponse list(
-            @RequestParam(required = false) @Nullable Instant from,
-            @RequestParam(required = false) @Nullable Instant to,
-            @RequestParam(required = false) @Nullable String labFileId,
-            @RequestParam(required = false) @Nullable String recordedBy,
-            @RequestParam(required = false) @Nullable String cashRegisterId,
+            @RequestParam(required = false)
+                    @Parameter(description = "Only fees recorded on or after this instant")
+                    @Nullable Instant from,
+            @RequestParam(required = false)
+                    @Parameter(description = "Only fees recorded on or before this instant")
+                    @Nullable Instant to,
+            @RequestParam(required = false)
+                    @Parameter(description = "Filter on the associated lab file's ULID")
+                    @Nullable String labFileId,
+            @RequestParam(required = false)
+                    @Parameter(description = "Filter on the ULID of the user who recorded the fee")
+                    @Nullable String recordedBy,
+            @RequestParam(required = false)
+                    @Parameter(description = "Filter on the cash register's ULID")
+                    @Nullable String cashRegisterId,
             Pageable pageable) {
         var filters =
                 new HomeCollectionFeeFilters(
@@ -52,6 +70,13 @@ public class HomeCollectionFeeController {
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     @RequiresPermission("cashbox.home-collection.record")
+    @Operation(
+            summary = "Record a home-collection fee",
+            description =
+                    "Records the fee (in XOF) charged for collecting a sample at a patient's home,"
+                        + " updates the lab file's home-collection-fee amount, and writes a"
+                        + " matching cashbox journal entry. Rejected if the patient or lab file is"
+                        + " unknown, the lab file is not OPEN, or the cash register is unknown.")
     public HomeCollectionFeeResponse create(@Valid @RequestBody HomeCollectionFeeRequest req) {
         return service.record(req, callerId());
     }

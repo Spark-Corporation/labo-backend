@@ -5,6 +5,8 @@ import java.io.UncheckedIOException;
 import java.util.List;
 
 import dev.sparksam.securedx.rbac.RequiresPermission;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -38,8 +40,16 @@ public class HomeCollectionFeeAttachmentController {
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @ResponseStatus(HttpStatus.CREATED)
     @RequiresPermission("cashbox.home-collection.record")
+    @Operation(
+            summary = "Upload a home-collection fee receipt scan",
+            description =
+                    "Uploads a scanned receipt and links it to the home-collection fee record as"
+                        + " its receipt-scan pointer. Independent of the fee-recording flow — can"
+                        + " happen before or after the fee is recorded.")
     public AttachmentSummary upload(
-            @PathVariable String feeId, @RequestParam("file") MultipartFile file) {
+            @PathVariable @Parameter(description = "ULID of the home-collection fee record")
+                    String feeId,
+            @RequestParam("file") MultipartFile file) {
         var scan =
                 new UploadedScan(
                         sanitizeFilename(file.getOriginalFilename()),
@@ -50,14 +60,25 @@ public class HomeCollectionFeeAttachmentController {
 
     @GetMapping
     @RequiresPermission("cashbox.home-collection.read")
-    public List<AttachmentSummary> list(@PathVariable String feeId) {
+    @Operation(
+            summary = "List a home-collection fee's receipt scans",
+            description = "Returns every attachment uploaded against this fee record.")
+    public List<AttachmentSummary> list(
+            @PathVariable @Parameter(description = "ULID of the home-collection fee record")
+                    String feeId) {
         return service.list(feeId);
     }
 
     @GetMapping("/{attachmentId}")
     @RequiresPermission("cashbox.home-collection.read")
+    @Operation(
+            summary = "Download a home-collection fee receipt scan",
+            description = "Streams the raw bytes of one previously uploaded attachment.")
     public ResponseEntity<byte[]> download(
-            @PathVariable String feeId, @PathVariable String attachmentId) {
+            @PathVariable @Parameter(description = "ULID of the home-collection fee record")
+                    String feeId,
+            @PathVariable @Parameter(description = "ULID of the attachment to download")
+                    String attachmentId) {
         var rendered = service.download(feeId, new AttachmentId(attachmentId));
         return ResponseEntity.ok()
                 .contentType(MediaType.parseMediaType(rendered.contentType()))
@@ -70,7 +91,14 @@ public class HomeCollectionFeeAttachmentController {
     @DeleteMapping("/{attachmentId}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     @RequiresPermission("cashbox.home-collection.record")
-    public void softDelete(@PathVariable String feeId, @PathVariable String attachmentId) {
+    @Operation(
+            summary = "Remove a home-collection fee receipt scan",
+            description = "Soft-deletes one previously uploaded attachment.")
+    public void softDelete(
+            @PathVariable @Parameter(description = "ULID of the home-collection fee record")
+                    String feeId,
+            @PathVariable @Parameter(description = "ULID of the attachment to remove")
+                    String attachmentId) {
         service.softDelete(feeId, new AttachmentId(attachmentId));
     }
 

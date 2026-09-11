@@ -1,6 +1,7 @@
 package org.sparkcorporation.lims.order.web;
 
 import dev.sparksam.securedx.rbac.RequiresPermission;
+import io.swagger.v3.oas.annotations.Operation;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -34,6 +35,12 @@ public class WorksheetPdfController {
     private final PdfRenderingService pdfService;
 
     @GetMapping("/{id}/worksheet.pdf")
+    @Operation(
+            summary = "Get a lab file's worksheet as PDF",
+            description =
+                    "Synchronously renders the dossier's bench worksheet (feuille de paillasse, CDC"
+                            + " §II) as a PDF and streams it as an attachment. Returns 404 when the"
+                            + " lab file id is unknown or soft-deleted.")
     @RequiresPermission("lab-file.read")
     public ResponseEntity<byte[]> get(@PathVariable String id) {
         var model = assembler.assemble(new LabFileId(id));

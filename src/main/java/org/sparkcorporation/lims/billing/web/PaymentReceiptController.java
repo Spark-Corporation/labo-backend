@@ -1,6 +1,7 @@
 package org.sparkcorporation.lims.billing.web;
 
 import dev.sparksam.securedx.rbac.RequiresPermission;
+import io.swagger.v3.oas.annotations.Operation;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -35,6 +36,11 @@ public class PaymentReceiptController {
 
     @GetMapping("/{id}/receipt.pdf")
     @RequiresPermission("invoice.read")
+    @Operation(
+            summary = "Print a payment receipt",
+            description =
+                    "Renders an A5 PDF receipt for a single payment, returned inline as "
+                            + "application/pdf bytes. Responds 404 if the payment id is unknown.")
     public ResponseEntity<byte[]> get(@PathVariable String id) {
         var model = assembler.assemble(new PaymentId(id));
         var rendered = pdfService.render(docType, model);

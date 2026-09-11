@@ -1,6 +1,8 @@
 package org.sparkcorporation.lims.result.web;
 
 import dev.sparksam.securedx.rbac.RequiresPermission;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -41,7 +43,16 @@ public class DossierExportController {
 
     @GetMapping("/{id}/export")
     @RequiresPermission("lab-file.read")
-    public ResponseEntity<byte[]> export(@PathVariable String id, @RequestParam String format) {
+    @Operation(
+            summary = "Export a dossier as a password-protected office document",
+            description =
+                    "Renders the result dossier as a Word (docx) or Excel (xlsx) document and"
+                        + " returns it password-protected. The generated password is carried in the"
+                        + " X-Export-Password response header (never logged).")
+    public ResponseEntity<byte[]> export(
+            @PathVariable @Parameter(description = "ULID of the lab file to export") String id,
+            @RequestParam @Parameter(description = "Output format: \"docx\" or \"xlsx\"")
+                    String format) {
         OfficeDocumentType<ResultReportModel> docType = selectDocType(format);
         var model = assembler.assemble(new LabFileId(id));
         RenderedOffice rendered = renderingService.render(docType, model);

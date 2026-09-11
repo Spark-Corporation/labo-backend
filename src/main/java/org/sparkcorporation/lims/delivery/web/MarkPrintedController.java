@@ -1,6 +1,7 @@
 package org.sparkcorporation.lims.delivery.web;
 
 import dev.sparksam.securedx.rbac.RequiresPermission;
+import io.swagger.v3.oas.annotations.Operation;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -23,6 +24,11 @@ public class MarkPrintedController {
     private final MarkPrintedService markPrintedService;
 
     @PostMapping("/{id}:mark-printed")
+    @Operation(
+            summary = "Confirm a dossier's compte-rendu was printed",
+            description =
+                    "Records that the staff member physically printed the dossier's compte-rendu."
+                            + " Returns 409 when the dossier is not PUBLISHED.")
     @RequiresPermission("dossier.print")
     public ResponseEntity<Void> markPrinted(@PathVariable String id) {
         markPrintedService.markPrinted(new LabFileId(id));

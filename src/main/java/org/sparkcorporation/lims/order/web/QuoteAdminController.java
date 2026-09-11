@@ -9,6 +9,8 @@ import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 
 import dev.sparksam.securedx.rbac.RequiresPermission;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
 import lombok.RequiredArgsConstructor;
 import org.jspecify.annotations.Nullable;
 import org.springframework.http.HttpStatus;
@@ -60,6 +62,13 @@ public class QuoteAdminController {
     private final QuoteSendService quoteSendService;
 
     @PostMapping
+    @Operation(
+            summary = "Open a new quote",
+            description =
+                    "Opens a new price quote (devis) for a patient at status DRAFT, resolving the"
+                            + " requested catalog analysis codes and bumping the quote-number"
+                            + " counter. Returns 201 with a Location header pointing at the new"
+                            + " quote.")
     @RequiresPermission("quote.create")
     public ResponseEntity<QuoteResponse> create(
             @Valid @RequestBody CreateQuoteRequest req, @Nullable Authentication authentication) {
@@ -68,25 +77,56 @@ public class QuoteAdminController {
     }
 
     @GetMapping
+    @Operation(
+            summary = "Search quotes",
+            description =
+                    "Returns a paginated, filterable list of quotes. All filters are optional and"
+                            + " combine as an AND; omitting a filter does not restrict on that"
+                            + " dimension.")
     @RequiresPermission("quote.read")
     public QuoteSearchResponse list(
-            @RequestParam(required = false) @Nullable String patientId,
-            @RequestParam(required = false) @Nullable String prescriberId,
-            @RequestParam(required = false) @Nullable QuoteStatus status,
-            @RequestParam(required = false) @Nullable Instant from,
-            @RequestParam(required = false) @Nullable Instant to,
-            @RequestParam(defaultValue = "0") @Min(0) int page,
-            @RequestParam(defaultValue = "20") @Min(1) @Max(100) int size) {
+            @Parameter(description = "Restrict to quotes drawn up for this patient.")
+                    @RequestParam(required = false)
+                    @Nullable String patientId,
+            @Parameter(description = "Restrict to quotes referencing this prescriber.")
+                    @RequestParam(required = false)
+                    @Nullable String prescriberId,
+            @Parameter(description = "Restrict to quotes currently in this lifecycle status.")
+                    @RequestParam(required = false)
+                    @Nullable QuoteStatus status,
+            @Parameter(description = "Restrict to quotes created on or after this instant.")
+                    @RequestParam(required = false)
+                    @Nullable Instant from,
+            @Parameter(description = "Restrict to quotes created on or before this instant.")
+                    @RequestParam(required = false)
+                    @Nullable Instant to,
+            @Parameter(description = "Zero-based page number to return.")
+                    @RequestParam(defaultValue = "0")
+                    @Min(0)
+                    int page,
+            @Parameter(description = "Number of items per page (max 100).")
+                    @RequestParam(defaultValue = "20")
+                    @Min(1)
+                    @Max(100)
+                    int size) {
         return service.search(patientId, prescriberId, status, from, to, page, size);
     }
 
     @GetMapping("/{id}")
+    @Operation(summary = "Get a quote", description = "Returns a single price quote (devis) by id.")
     @RequiresPermission("quote.read")
     public QuoteResponse get(@PathVariable String id) {
         return service.get(new QuoteId(id));
     }
 
     @PatchMapping("/{id}")
+    @Operation(
+            summary = "Update a quote",
+            description =
+                    "Partially updates a DRAFT quote's mutable fields (prescriber, expiry date)."
+                        + " quoteNumber, patientId and status are immutable via this endpoint and"
+                        + " are rejected with 422 if present in the body; status only transitions"
+                        + " via :lock / :convert.")
     @RequiresPermission("quote.create")
     public QuoteResponse update(@PathVariable String id, @RequestBody Map<String, Object> body) {
         if (body.containsKey("quoteNumber")) {
@@ -109,6 +149,7 @@ public class QuoteAdminController {
     }
 
     @DeleteMapping("/{id}")
+    @Operation(summary = "Delete a quote", description = "Deletes a price quote (devis) by id.")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     @RequiresPermission("quote.create")
     public void delete(@PathVariable String id) {
@@ -116,6 +157,12 @@ public class QuoteAdminController {
     }
 
     @PostMapping("/{id}/lines")
+    @Operation(
+            summary = "Add lines to a quote",
+            description =
+                    "Appends one or more catalog analyses as new lines on a DRAFT quote. Each code"
+                            + " is resolved against the analysis catalog and dedup-checked before"
+                            + " persistence.")
     @RequiresPermission("quote.create")
     public QuoteResponse addLines(
             @PathVariable String id, @Valid @RequestBody AddQuoteLinesRequest req) {
@@ -123,6 +170,9 @@ public class QuoteAdminController {
     }
 
     @DeleteMapping("/{id}/lines/{lineId}")
+    @Operation(
+            summary = "Remove a quote line",
+            description = "Removes a single analysis line from a DRAFT quote.")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     @RequiresPermission("quote.create")
     public void removeLine(@PathVariable String id, @PathVariable String lineId) {
@@ -130,12 +180,22 @@ public class QuoteAdminController {
     }
 
     @PostMapping("/{id}:lock")
+    @Operation(
+            summary = "Lock and price a quote",
+            description =
+                    "Transitions a DRAFT quote to LOCKED: prices every line (indiciary value B ×"
+                            + " rate × label count, in XOF) and freezes it against further edits.")
     @RequiresPermission("quote.lock")
     public QuoteResponse lock(@PathVariable String id) {
         return service.lock(new QuoteId(id));
     }
 
     @PostMapping("/{id}:send")
+    @Operation(
+            summary = "Send a quote to the patient",
+            description =
+                    "Sends a LOCKED quote to the patient over the requested notification channels."
+                            + " Returns 202 with the ids of the enqueued notifications.")
     @RequiresPermission("quote.send")
     public ResponseEntity<QuoteSendResponse> send(
             @PathVariable String id, @Valid @RequestBody SendQuoteRequest req) {
@@ -144,6 +204,13 @@ public class QuoteAdminController {
     }
 
     @PostMapping("/{id}:convert")
+    @Operation(
+            summary = "Convert a quote into a lab file",
+            description =
+                    "Converts a LOCKED quote into a new lab file (dossier) at status OPEN, carrying"
+                        + " over the quoted analyses and the requested urgent flag. Returns 201"
+                        + " with a Location header pointing at the new lab file (the new resource"
+                        + " is the lab file, not the quote).")
     @RequiresPermission("quote.create")
     public ResponseEntity<LabFileResponse> convert(
             @PathVariable String id,

@@ -5,6 +5,8 @@ import java.net.URI;
 import jakarta.validation.Valid;
 
 import dev.sparksam.securedx.rbac.RequiresPermission;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
 import lombok.RequiredArgsConstructor;
 import org.jspecify.annotations.Nullable;
 import org.springframework.data.domain.Pageable;
@@ -40,6 +42,12 @@ public class InsuranceController {
 
     @PostMapping
     @RequiresPermission("insurance.manage")
+    @Operation(
+            summary = "Create an insurance",
+            description =
+                    "Registers a new insurance payer: a coverageRate fraction of each patient"
+                            + " invoice is billed to it at the given bRate (XOF per indiciary point"
+                            + " B), the remainder stays payable by the patient.")
     public ResponseEntity<InsuranceResponse> create(
             @Valid @RequestBody InsuranceRequest.Create req) {
         var summary = api.create(mapper.toCommand(req));
@@ -49,9 +57,21 @@ public class InsuranceController {
 
     @GetMapping
     @RequiresPermission("lab-file.read")
+    @Operation(
+            summary = "Search insurances",
+            description =
+                    "Lists insurance payers matching an optional free-text query and"
+                            + " disabled-status filter.")
     public InsuranceSearchResponse list(
-            @RequestParam(required = false) @Nullable String q,
-            @RequestParam(required = false) @Nullable Boolean disabled,
+            @Parameter(description = "Free-text search on the insurance code and name.")
+                    @RequestParam(required = false)
+                    @Nullable String q,
+            @Parameter(
+                            description =
+                                    "Filter by disabled status; omit to return both active and"
+                                            + " disabled insurances.")
+                    @RequestParam(required = false)
+                    @Nullable Boolean disabled,
             Pageable pageable) {
         var page = api.search(q, disabled, pageable);
         var items = page.map(mapper::toResponse).getContent();
@@ -60,7 +80,11 @@ public class InsuranceController {
 
     @GetMapping("/{id}")
     @RequiresPermission("lab-file.read")
-    public InsuranceResponse get(@PathVariable String id) {
+    @Operation(
+            summary = "Get an insurance",
+            description = "Returns a single insurance payer by its id.")
+    public InsuranceResponse get(
+            @Parameter(description = "ULID of the insurance.") @PathVariable String id) {
         var iid = InsuranceId.of(id);
         return api.findById(iid)
                 .map(mapper::toResponse)
@@ -69,8 +93,14 @@ public class InsuranceController {
 
     @PutMapping("/{id}")
     @RequiresPermission("insurance.manage")
+    @Operation(
+            summary = "Update an insurance",
+            description =
+                    "Updates an insurance's contact details and/or billing rates; null fields are"
+                            + " left unchanged.")
     public InsuranceResponse update(
-            @PathVariable String id, @Valid @RequestBody InsuranceRequest.Update req) {
+            @Parameter(description = "ULID of the insurance.") @PathVariable String id,
+            @Valid @RequestBody InsuranceRequest.Update req) {
         var summary = api.update(InsuranceId.of(id), mapper.toCommand(req));
         return mapper.toResponse(summary);
     }
@@ -78,7 +108,12 @@ public class InsuranceController {
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     @RequiresPermission("insurance.manage")
-    public void delete(@PathVariable String id) {
+    @Operation(
+            summary = "Disable an insurance",
+            description =
+                    "Soft-deletes (disables) the insurance; it is excluded from active listings and"
+                            + " lookups thereafter.")
+    public void delete(@Parameter(description = "ULID of the insurance.") @PathVariable String id) {
         api.disable(InsuranceId.of(id));
     }
 }

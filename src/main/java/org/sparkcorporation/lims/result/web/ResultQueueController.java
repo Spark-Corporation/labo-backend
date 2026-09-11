@@ -4,6 +4,7 @@ import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 
 import dev.sparksam.securedx.rbac.RequiresPermission;
+import io.swagger.v3.oas.annotations.Operation;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.validation.annotation.Validated;
@@ -22,6 +23,11 @@ public class ResultQueueController {
 
     @GetMapping("/to-validate")
     @RequiresPermission("result.validate-bio")
+    @Operation(
+            summary = "List results awaiting biological validation",
+            description =
+                    "Returns a paginated queue of results currently in TECHNICAL_VALIDATED state,"
+                            + " i.e. awaiting the biologist's final validation.")
     public ResultQueueResponse toValidate(
             @RequestParam(defaultValue = "0") @Min(0) int page,
             @RequestParam(defaultValue = "20") @Min(1) @Max(200) int size) {
@@ -30,6 +36,11 @@ public class ResultQueueController {
 
     @GetMapping("/to-print")
     @RequiresPermission("result.validate-bio")
+    @Operation(
+            summary = "List biologically validated results pending printing",
+            description =
+                    "Returns a paginated queue of results that have reached BIOLOGICAL_VALIDATED"
+                            + " and are ready to be printed or delivered.")
     public ResultQueueResponse toPrint(
             @RequestParam(defaultValue = "0") @Min(0) int page,
             @RequestParam(defaultValue = "20") @Min(1) @Max(200) int size) {

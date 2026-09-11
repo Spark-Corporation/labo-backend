@@ -7,6 +7,8 @@ import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 
 import dev.sparksam.securedx.rbac.RequiresPermission;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.http.HttpStatus;
@@ -33,6 +35,11 @@ public class MatrixAdminController {
 
     @PostMapping
     @RequiresPermission("catalog.manage")
+    @Operation(
+            summary = "Create a matrix",
+            description =
+                    "Registers a new sample matrix/specimen type (e.g. blood, urine) usable on"
+                            + " analyses.")
     public ResponseEntity<MatrixResponse> create(@Valid @RequestBody CreateMatrixRequest req) {
         var resp = service.create(req);
         return ResponseEntity.created(URI.create("/api/v1/catalog/matrices/" + resp.id()))
@@ -41,10 +48,22 @@ public class MatrixAdminController {
 
     @GetMapping
     @RequiresPermission("catalog.manage")
+    @Operation(
+            summary = "Search matrices",
+            description = "Lists sample matrices, paginated, optionally including disabled ones.")
     public MatrixSearchResponse search(
-            @RequestParam(defaultValue = "true") boolean activeOnly,
-            @RequestParam(defaultValue = "0") @Min(0) int page,
-            @RequestParam(defaultValue = "20") @Min(1) @Max(100) int size) {
+            @Parameter(description = "When true (default), excludes soft-deleted matrices.")
+                    @RequestParam(defaultValue = "true")
+                    boolean activeOnly,
+            @Parameter(description = "Zero-based page number.")
+                    @RequestParam(defaultValue = "0")
+                    @Min(0)
+                    int page,
+            @Parameter(description = "Page size (1-100).")
+                    @RequestParam(defaultValue = "20")
+                    @Min(1)
+                    @Max(100)
+                    int size) {
         Page<MatrixResponse> result = service.search(activeOnly, page, size);
         return new MatrixSearchResponse(
                 result.getContent(),
@@ -56,21 +75,30 @@ public class MatrixAdminController {
 
     @GetMapping("/{id}")
     @RequiresPermission("catalog.manage")
-    public MatrixResponse get(@PathVariable String id) {
+    @Operation(summary = "Get a matrix", description = "Returns a single sample matrix by its id.")
+    public MatrixResponse get(
+            @Parameter(description = "ULID of the matrix.") @PathVariable String id) {
         return service.get(new MatrixId(id));
     }
 
     @PatchMapping("/{id}")
     @RequiresPermission("catalog.manage")
+    @Operation(
+            summary = "Update a matrix",
+            description =
+                    "Partially updates a matrix's name/description; null fields are left"
+                            + " unchanged.")
     public MatrixResponse update(
-            @PathVariable String id, @Valid @RequestBody UpdateMatrixRequest req) {
+            @Parameter(description = "ULID of the matrix.") @PathVariable String id,
+            @Valid @RequestBody UpdateMatrixRequest req) {
         return service.update(new MatrixId(id), req);
     }
 
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     @RequiresPermission("catalog.manage")
-    public void delete(@PathVariable String id) {
+    @Operation(summary = "Delete a matrix", description = "Soft-deletes the matrix.")
+    public void delete(@Parameter(description = "ULID of the matrix.") @PathVariable String id) {
         service.delete(new MatrixId(id));
     }
 }

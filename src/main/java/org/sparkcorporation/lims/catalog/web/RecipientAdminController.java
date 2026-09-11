@@ -7,6 +7,8 @@ import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 
 import dev.sparksam.securedx.rbac.RequiresPermission;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.http.HttpStatus;
@@ -33,6 +35,11 @@ public class RecipientAdminController {
 
     @PostMapping
     @RequiresPermission("catalog.manage")
+    @Operation(
+            summary = "Create a recipient",
+            description =
+                    "Registers a new sample recipient (container/tube type), optionally with a"
+                            + " fill volume and a default matrix it is normally used with.")
     public ResponseEntity<RecipientResponse> create(
             @Valid @RequestBody CreateRecipientRequest req) {
         var resp = service.create(req);
@@ -42,10 +49,24 @@ public class RecipientAdminController {
 
     @GetMapping
     @RequiresPermission("catalog.manage")
+    @Operation(
+            summary = "Search recipients",
+            description =
+                    "Lists sample recipients (container/tube types), paginated, optionally"
+                            + " including disabled ones.")
     public RecipientSearchResponse search(
-            @RequestParam(defaultValue = "true") boolean activeOnly,
-            @RequestParam(defaultValue = "0") @Min(0) int page,
-            @RequestParam(defaultValue = "20") @Min(1) @Max(100) int size) {
+            @Parameter(description = "When true (default), excludes soft-deleted recipients.")
+                    @RequestParam(defaultValue = "true")
+                    boolean activeOnly,
+            @Parameter(description = "Zero-based page number.")
+                    @RequestParam(defaultValue = "0")
+                    @Min(0)
+                    int page,
+            @Parameter(description = "Page size (1-100).")
+                    @RequestParam(defaultValue = "20")
+                    @Min(1)
+                    @Max(100)
+                    int size) {
         Page<RecipientResponse> result = service.search(activeOnly, page, size);
         return new RecipientSearchResponse(
                 result.getContent(),
@@ -57,21 +78,31 @@ public class RecipientAdminController {
 
     @GetMapping("/{id}")
     @RequiresPermission("catalog.manage")
-    public RecipientResponse get(@PathVariable String id) {
+    @Operation(
+            summary = "Get a recipient",
+            description = "Returns a single sample recipient by its id.")
+    public RecipientResponse get(
+            @Parameter(description = "ULID of the recipient.") @PathVariable String id) {
         return service.get(new RecipientId(id));
     }
 
     @PatchMapping("/{id}")
     @RequiresPermission("catalog.manage")
+    @Operation(
+            summary = "Update a recipient",
+            description =
+                    "Partially updates a recipient's attributes; null fields are left unchanged.")
     public RecipientResponse update(
-            @PathVariable String id, @Valid @RequestBody UpdateRecipientRequest req) {
+            @Parameter(description = "ULID of the recipient.") @PathVariable String id,
+            @Valid @RequestBody UpdateRecipientRequest req) {
         return service.update(new RecipientId(id), req);
     }
 
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     @RequiresPermission("catalog.manage")
-    public void delete(@PathVariable String id) {
+    @Operation(summary = "Delete a recipient", description = "Soft-deletes the recipient.")
+    public void delete(@Parameter(description = "ULID of the recipient.") @PathVariable String id) {
         service.delete(new RecipientId(id));
     }
 }

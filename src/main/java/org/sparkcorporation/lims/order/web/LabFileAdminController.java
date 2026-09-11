@@ -10,6 +10,8 @@ import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 
 import dev.sparksam.securedx.rbac.RequiresPermission;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
 import lombok.RequiredArgsConstructor;
 import org.jspecify.annotations.Nullable;
 import org.springframework.http.HttpStatus;
@@ -52,6 +54,13 @@ public class LabFileAdminController {
     private final LabFileService service;
 
     @PostMapping
+    @Operation(
+            summary = "Open a new lab file",
+            description =
+                    "Opens a new lab file (dossier) for a patient at status OPEN, resolving the"
+                            + " requested catalog analysis codes and bumping the registration"
+                            + " counter. Returns 201 with a Location header pointing at the new"
+                            + " dossier.")
     @RequiresPermission("lab-file.create")
     public ResponseEntity<LabFileResponse> create(
             @Valid @RequestBody CreateLabFileRequest req, @Nullable Authentication authentication) {
@@ -60,26 +69,62 @@ public class LabFileAdminController {
     }
 
     @GetMapping
+    @Operation(
+            summary = "Search lab files",
+            description =
+                    "Returns a paginated, filterable list of lab files. All filters are optional"
+                            + " and combine as an AND; omitting a filter does not restrict on that"
+                            + " dimension.")
     @RequiresPermission("lab-file.read")
     public LabFileSearchResponse list(
-            @RequestParam(required = false) @Nullable String patientId,
-            @RequestParam(required = false) @Nullable String prescriberId,
-            @RequestParam(required = false) @Nullable Boolean urgent,
-            @RequestParam(required = false) @Nullable LabFileStatus status,
-            @RequestParam(required = false) @Nullable Instant from,
-            @RequestParam(required = false) @Nullable Instant to,
-            @RequestParam(defaultValue = "0") @Min(0) int page,
-            @RequestParam(defaultValue = "20") @Min(1) @Max(100) int size) {
+            @Parameter(description = "Restrict to lab files opened for this patient.")
+                    @RequestParam(required = false)
+                    @Nullable String patientId,
+            @Parameter(description = "Restrict to lab files referencing this prescriber.")
+                    @RequestParam(required = false)
+                    @Nullable String prescriberId,
+            @Parameter(description = "Restrict to lab files flagged urgent (true) or not (false).")
+                    @RequestParam(required = false)
+                    @Nullable Boolean urgent,
+            @Parameter(description = "Restrict to lab files currently in this lifecycle status.")
+                    @RequestParam(required = false)
+                    @Nullable LabFileStatus status,
+            @Parameter(description = "Restrict to lab files created on or after this instant.")
+                    @RequestParam(required = false)
+                    @Nullable Instant from,
+            @Parameter(description = "Restrict to lab files created on or before this instant.")
+                    @RequestParam(required = false)
+                    @Nullable Instant to,
+            @Parameter(description = "Zero-based page number to return.")
+                    @RequestParam(defaultValue = "0")
+                    @Min(0)
+                    int page,
+            @Parameter(description = "Number of items per page (max 100).")
+                    @RequestParam(defaultValue = "20")
+                    @Min(1)
+                    @Max(100)
+                    int size) {
         return service.search(patientId, prescriberId, urgent, status, from, to, page, size);
     }
 
     @GetMapping("/{id}")
+    @Operation(
+            summary = "Get a lab file",
+            description = "Returns a single lab file (dossier) by id.")
     @RequiresPermission("lab-file.read")
     public LabFileResponse get(@PathVariable String id) {
         return service.get(new LabFileId(id));
     }
 
     @PatchMapping("/{id}")
+    @Operation(
+            summary = "Update a lab file",
+            description =
+                    "Partially updates a lab file's mutable fields (urgent, prescriber, préleveur,"
+                            + " billing fields). registrationNumber, patientId and status are"
+                            + " immutable via this endpoint and are rejected with 422 if present in"
+                            + " the body; status only transitions via the dedicated state-machine"
+                            + " endpoints.")
     @RequiresPermission("lab-file.create")
     public LabFileResponse update(@PathVariable String id, @RequestBody Map<String, Object> body) {
         if (body.containsKey("registrationNumber")) {
@@ -111,6 +156,12 @@ public class LabFileAdminController {
     }
 
     @PutMapping("/{id}/rendezvous")
+    @Operation(
+            summary = "Schedule or clear a lab file's appointment",
+            description =
+                    "Sets the dossier's rendez-vous time, or clears it when rendezVousAt is null."
+                        + " This is an explicit set/clear, distinct from the PATCH \"no-change\""
+                        + " semantics.")
     @RequiresPermission("lab-file.create")
     public LabFileResponse scheduleRendezVous(
             @PathVariable String id, @RequestBody RendezVousRequest req) {
@@ -118,6 +169,7 @@ public class LabFileAdminController {
     }
 
     @DeleteMapping("/{id}")
+    @Operation(summary = "Delete a lab file", description = "Deletes a lab file (dossier) by id.")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     @RequiresPermission("lab-file.create")
     public void delete(@PathVariable String id) {

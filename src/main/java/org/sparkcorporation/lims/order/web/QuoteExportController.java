@@ -1,6 +1,8 @@
 package org.sparkcorporation.lims.order.web;
 
 import dev.sparksam.securedx.rbac.RequiresPermission;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -28,8 +30,17 @@ public class QuoteExportController {
     private final OfficeRenderingService renderingService;
 
     @GetMapping("/{id}/export")
+    @Operation(
+            summary = "Export a quote to Word",
+            description =
+                    "Renders a price quote (devis) as a Word (.docx) document and streams it as an"
+                        + " attachment (CDC §III). Only the docx format is currently supported.")
     @RequiresPermission("quote.read")
-    public ResponseEntity<byte[]> export(@PathVariable String id, @RequestParam String format) {
+    public ResponseEntity<byte[]> export(
+            @PathVariable String id,
+            @Parameter(description = "Export format; only \"docx\" is currently supported.")
+                    @RequestParam
+                    String format) {
         if (!"docx".equalsIgnoreCase(format)) {
             throw new UnsupportedExportFormatException(format, "docx");
         }

@@ -5,6 +5,8 @@ import java.io.UncheckedIOException;
 import java.util.List;
 
 import dev.sparksam.securedx.rbac.RequiresPermission;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -38,8 +40,15 @@ public class ExpenseAttachmentController {
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @ResponseStatus(HttpStatus.CREATED)
     @RequiresPermission("cashbox.expense.record")
+    @Operation(
+            summary = "Upload an expense justification scan",
+            description =
+                    "Uploads a scanned justification document and links it to the expense as its"
+                            + " justification-scan pointer. Re-uploading replaces the pointer; the"
+                            + " prior attachment row is kept independently.")
     public AttachmentSummary upload(
-            @PathVariable String expenseId, @RequestParam("file") MultipartFile file) {
+            @PathVariable @Parameter(description = "ULID of the expense") String expenseId,
+            @RequestParam("file") MultipartFile file) {
         var scan =
                 new UploadedScan(
                         sanitizeFilename(file.getOriginalFilename()),
@@ -50,14 +59,23 @@ public class ExpenseAttachmentController {
 
     @GetMapping
     @RequiresPermission("cashbox.expense.read")
-    public List<AttachmentSummary> list(@PathVariable String expenseId) {
+    @Operation(
+            summary = "List an expense's justification scans",
+            description = "Returns every attachment uploaded against this expense.")
+    public List<AttachmentSummary> list(
+            @PathVariable @Parameter(description = "ULID of the expense") String expenseId) {
         return service.list(expenseId);
     }
 
     @GetMapping("/{attachmentId}")
     @RequiresPermission("cashbox.expense.read")
+    @Operation(
+            summary = "Download an expense justification scan",
+            description = "Streams the raw bytes of one previously uploaded attachment.")
     public ResponseEntity<byte[]> download(
-            @PathVariable String expenseId, @PathVariable String attachmentId) {
+            @PathVariable @Parameter(description = "ULID of the expense") String expenseId,
+            @PathVariable @Parameter(description = "ULID of the attachment to download")
+                    String attachmentId) {
         var rendered = service.download(expenseId, new AttachmentId(attachmentId));
         return ResponseEntity.ok()
                 .contentType(MediaType.parseMediaType(rendered.contentType()))
@@ -70,7 +88,13 @@ public class ExpenseAttachmentController {
     @DeleteMapping("/{attachmentId}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     @RequiresPermission("cashbox.expense.record")
-    public void softDelete(@PathVariable String expenseId, @PathVariable String attachmentId) {
+    @Operation(
+            summary = "Remove an expense justification scan",
+            description = "Soft-deletes one previously uploaded attachment.")
+    public void softDelete(
+            @PathVariable @Parameter(description = "ULID of the expense") String expenseId,
+            @PathVariable @Parameter(description = "ULID of the attachment to remove")
+                    String attachmentId) {
         service.softDelete(expenseId, new AttachmentId(attachmentId));
     }
 

@@ -5,6 +5,8 @@ import java.time.LocalDate;
 import jakarta.validation.constraints.Pattern;
 
 import dev.sparksam.securedx.rbac.RequiresPermission;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
 import lombok.RequiredArgsConstructor;
 import org.jspecify.annotations.Nullable;
 import org.springframework.format.annotation.DateTimeFormat;
@@ -35,40 +37,72 @@ public class StatsController {
 
     @GetMapping("/activity")
     @RequiresPermission("stats.read")
+    @Operation(
+            summary = "Get activity recap",
+            description =
+                    "Returns an activity recap over dossiers registered in the given date range:"
+                        + " total dossiers, urgent and biologically-validated counts, and the"
+                        + " distinct-patient cohort split (all vs. new, the latter being patients"
+                        + " created inside the range). Rejects from > to with 400.")
     public ActivityResponse activity(
-            @RequestParam("from") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
-            @RequestParam("to") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
-            @RequestParam(required = false)
+            @Parameter(description = "Inclusive start date of the range.")
+                    @RequestParam("from")
+                    @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
+                    LocalDate from,
+            @Parameter(description = "Inclusive end date of the range.")
+                    @RequestParam("to")
+                    @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
+                    LocalDate to,
+            @Parameter(description = "Restrict to dossiers billed to this insurance (ULID).")
+                    @RequestParam(required = false)
                     @Pattern(
                             regexp = ULID_REGEX,
                             message = "insuranceId must be a valid 26-character ULID")
                     @Nullable String insuranceId,
-            @RequestParam(required = false)
+            @Parameter(description = "Restrict to dossiers linked to this partner lab (ULID).")
+                    @RequestParam(required = false)
                     @Pattern(
                             regexp = ULID_REGEX,
                             message = "partnerId must be a valid 26-character ULID")
                     @Nullable String partnerId,
-            @RequestParam(required = false)
+            @Parameter(description = "Restrict to dossiers referred by this prescriber (ULID).")
+                    @RequestParam(required = false)
                     @Pattern(
                             regexp = ULID_REGEX,
                             message = "prescriberId must be a valid 26-character ULID")
                     @Nullable String prescriberId,
-            @RequestParam(required = false) @Nullable String sex) {
+            @Parameter(description = "Restrict to patients of this sex ('M' or 'F').")
+                    @RequestParam(required = false)
+                    @Nullable String sex) {
         return ActivityResponse.from(
                 readModel.activity(from, to, insuranceId, partnerId, prescriberId, sex));
     }
 
     @GetMapping("/by-discipline")
     @RequiresPermission("stats.read")
+    @Operation(
+            summary = "Get result counts by discipline",
+            description =
+                    "Returns, per discipline, the resulted-line and out-of-range-line counts over"
+                        + " dossiers registered in the given date range. Discipline is attributed"
+                        + " from each line's component analysis.")
     public ByDisciplineResponse byDiscipline(
-            @RequestParam("from") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
-            @RequestParam("to") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
-            @RequestParam(required = false)
+            @Parameter(description = "Inclusive start date of the range.")
+                    @RequestParam("from")
+                    @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
+                    LocalDate from,
+            @Parameter(description = "Inclusive end date of the range.")
+                    @RequestParam("to")
+                    @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
+                    LocalDate to,
+            @Parameter(description = "Restrict to dossiers billed to this insurance (ULID).")
+                    @RequestParam(required = false)
                     @Pattern(
                             regexp = ULID_REGEX,
                             message = "insuranceId must be a valid 26-character ULID")
                     @Nullable String insuranceId,
-            @RequestParam(required = false)
+            @Parameter(description = "Restrict to dossiers linked to this partner lab (ULID).")
+                    @RequestParam(required = false)
                     @Pattern(
                             regexp = ULID_REGEX,
                             message = "partnerId must be a valid 26-character ULID")
@@ -78,10 +112,26 @@ public class StatsController {
 
     @GetMapping("/by-prescriber")
     @RequiresPermission("stats.read")
+    @Operation(
+            summary = "Get dossier counts by prescriber",
+            description =
+                    "Returns, per prescriber, the number of dossiers registered in the given date"
+                        + " range, ordered by descending count. Dossiers without a prescriber are"
+                        + " excluded since they cannot be attributed to one.")
     public ByPrescriberResponse byPrescriber(
-            @RequestParam("from") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
-            @RequestParam("to") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
-            @RequestParam(required = false)
+            @Parameter(description = "Inclusive start date of the range.")
+                    @RequestParam("from")
+                    @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
+                    LocalDate from,
+            @Parameter(description = "Inclusive end date of the range.")
+                    @RequestParam("to")
+                    @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
+                    LocalDate to,
+            @Parameter(
+                            description =
+                                    "Restrict to dossiers with an analysis request in this"
+                                            + " discipline (ULID).")
+                    @RequestParam(required = false)
                     @Pattern(
                             regexp = ULID_REGEX,
                             message = "disciplineId must be a valid 26-character ULID")
@@ -91,10 +141,24 @@ public class StatsController {
 
     @GetMapping("/analyses")
     @RequiresPermission("stats.read")
+    @Operation(
+            summary = "Get result breakdown by analysis",
+            description =
+                    "Returns, per analysis, the resulted, normal and out-of-range (high/low) result"
+                            + " line counts over dossiers registered in the given date range."
+                            + " High/low counts only cover out-of-range lines backed by a numeric"
+                            + " reference interval; qualitative abnormals contribute to neither.")
     public AnalysesResponse analyses(
-            @RequestParam("from") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
-            @RequestParam("to") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
-            @RequestParam(required = false)
+            @Parameter(description = "Inclusive start date of the range.")
+                    @RequestParam("from")
+                    @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
+                    LocalDate from,
+            @Parameter(description = "Inclusive end date of the range.")
+                    @RequestParam("to")
+                    @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
+                    LocalDate to,
+            @Parameter(description = "Restrict to analyses in this discipline (ULID).")
+                    @RequestParam(required = false)
                     @Pattern(
                             regexp = ULID_REGEX,
                             message = "disciplineId must be a valid 26-character ULID")
@@ -104,10 +168,26 @@ public class StatsController {
 
     @GetMapping("/antibiograms")
     @RequiresPermission("stats.read")
+    @Operation(
+            summary = "Get antibiogram sensitivity counts",
+            description =
+                    "Returns, per antibiotic, the sensible/intermediate/resistant reading counts"
+                        + " over antibiograms whose owning result was registered in the given date"
+                        + " range.")
     public AntibiogramsResponse antibiograms(
-            @RequestParam("from") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
-            @RequestParam("to") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
-            @RequestParam(required = false)
+            @Parameter(description = "Inclusive start date of the range.")
+                    @RequestParam("from")
+                    @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
+                    LocalDate from,
+            @Parameter(description = "Inclusive end date of the range.")
+                    @RequestParam("to")
+                    @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
+                    LocalDate to,
+            @Parameter(
+                            description =
+                                    "Restrict to results whose analysis belongs to this discipline"
+                                            + " (ULID).")
+                    @RequestParam(required = false)
                     @Pattern(
                             regexp = ULID_REGEX,
                             message = "disciplineId must be a valid 26-character ULID")
@@ -117,15 +197,30 @@ public class StatsController {
 
     @GetMapping("/patients")
     @RequiresPermission("stats.read")
+    @Operation(
+            summary = "Get patient demographics recap",
+            description =
+                    "Returns patient demographics over dossiers registered in the given date range:"
+                        + " the distinct-patient cohort split (all/new/returning), a breakdown by"
+                        + " sex, and a breakdown by age band (derived from each result's"
+                        + " patient-category snapshot).")
     public PatientStatsResponse patients(
-            @RequestParam("from") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
-            @RequestParam("to") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
-            @RequestParam(required = false)
+            @Parameter(description = "Inclusive start date of the range.")
+                    @RequestParam("from")
+                    @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
+                    LocalDate from,
+            @Parameter(description = "Inclusive end date of the range.")
+                    @RequestParam("to")
+                    @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
+                    LocalDate to,
+            @Parameter(description = "Restrict to dossiers billed to this insurance (ULID).")
+                    @RequestParam(required = false)
                     @Pattern(
                             regexp = ULID_REGEX,
                             message = "insuranceId must be a valid 26-character ULID")
                     @Nullable String insuranceId,
-            @RequestParam(required = false)
+            @Parameter(description = "Restrict to dossiers linked to this partner lab (ULID).")
+                    @RequestParam(required = false)
                     @Pattern(
                             regexp = ULID_REGEX,
                             message = "partnerId must be a valid 26-character ULID")

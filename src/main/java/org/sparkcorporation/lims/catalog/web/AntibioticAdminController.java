@@ -7,6 +7,8 @@ import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 
 import dev.sparksam.securedx.rbac.RequiresPermission;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.http.HttpStatus;
@@ -33,6 +35,11 @@ public class AntibioticAdminController {
 
     @PostMapping
     @RequiresPermission("catalog.manage")
+    @Operation(
+            summary = "Create an antibiotic",
+            description =
+                    "Registers a new antibiotic catalog entry, including its antibiogram"
+                            + " reference/intermediate diameter thresholds.")
     public ResponseEntity<AntibioticResponse> create(
             @Valid @RequestBody CreateAntibioticRequest req) {
         var resp = service.create(req);
@@ -42,10 +49,22 @@ public class AntibioticAdminController {
 
     @GetMapping
     @RequiresPermission("catalog.manage")
+    @Operation(
+            summary = "Search antibiotics",
+            description = "Lists antibiotics, paginated, optionally including disabled ones.")
     public AntibioticSearchResponse search(
-            @RequestParam(defaultValue = "true") boolean activeOnly,
-            @RequestParam(defaultValue = "0") @Min(0) int page,
-            @RequestParam(defaultValue = "20") @Min(1) @Max(100) int size) {
+            @Parameter(description = "When true (default), excludes soft-deleted antibiotics.")
+                    @RequestParam(defaultValue = "true")
+                    boolean activeOnly,
+            @Parameter(description = "Zero-based page number.")
+                    @RequestParam(defaultValue = "0")
+                    @Min(0)
+                    int page,
+            @Parameter(description = "Page size (1-100).")
+                    @RequestParam(defaultValue = "20")
+                    @Min(1)
+                    @Max(100)
+                    int size) {
         Page<AntibioticResponse> result = service.search(activeOnly, page, size);
         return new AntibioticSearchResponse(
                 result.getContent(),
@@ -57,21 +76,31 @@ public class AntibioticAdminController {
 
     @GetMapping("/{id}")
     @RequiresPermission("catalog.manage")
-    public AntibioticResponse get(@PathVariable String id) {
+    @Operation(
+            summary = "Get an antibiotic",
+            description = "Returns a single antibiotic by its id.")
+    public AntibioticResponse get(
+            @Parameter(description = "ULID of the antibiotic.") @PathVariable String id) {
         return service.get(new AntibioticId(id));
     }
 
     @PatchMapping("/{id}")
     @RequiresPermission("catalog.manage")
+    @Operation(
+            summary = "Update an antibiotic",
+            description = "Partially updates an antibiotic; null fields are left unchanged.")
     public AntibioticResponse update(
-            @PathVariable String id, @Valid @RequestBody UpdateAntibioticRequest req) {
+            @Parameter(description = "ULID of the antibiotic.") @PathVariable String id,
+            @Valid @RequestBody UpdateAntibioticRequest req) {
         return service.update(new AntibioticId(id), req);
     }
 
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     @RequiresPermission("catalog.manage")
-    public void delete(@PathVariable String id) {
+    @Operation(summary = "Delete an antibiotic", description = "Soft-deletes the antibiotic.")
+    public void delete(
+            @Parameter(description = "ULID of the antibiotic.") @PathVariable String id) {
         service.delete(new AntibioticId(id));
     }
 }

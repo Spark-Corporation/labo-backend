@@ -5,6 +5,8 @@ import java.time.LocalDate;
 import java.time.ZoneOffset;
 
 import dev.sparksam.securedx.rbac.RequiresPermission;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
 import lombok.RequiredArgsConstructor;
 import org.jspecify.annotations.Nullable;
 import org.springframework.format.annotation.DateTimeFormat;
@@ -34,11 +36,23 @@ public class PaillasseWorksheetController {
 
     @GetMapping("/{disciplineId}/worksheet.pdf")
     @RequiresPermission("lab-file.read")
+    @Operation(
+            summary = "Render a paillasse worklist PDF",
+            description =
+                    "Generates the PDF worklist of analyses registered for the given discipline"
+                        + " (paillasse) within the date range, keyed on registration date. from/to"
+                        + " default to today (UTC) when omitted.")
     public ResponseEntity<byte[]> get(
-            @PathVariable String disciplineId,
-            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
+            @PathVariable @Parameter(description = "ULID of the discipline (paillasse) to render")
+                    String disciplineId,
+            @RequestParam(required = false)
+                    @Parameter(
+                            description = "Start of the registration-date range (default: today)")
+                    @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
                     @Nullable LocalDate from,
-            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
+            @RequestParam(required = false)
+                    @Parameter(description = "End of the registration-date range (default: today)")
+                    @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
                     @Nullable LocalDate to) {
         var today = LocalDate.ofInstant(clock.instant(), ZoneOffset.UTC);
         var effectiveFrom = from == null ? today : from;

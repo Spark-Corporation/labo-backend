@@ -1,12 +1,18 @@
 package org.sparkcorporation.lims.shared.web;
 
 import java.util.Arrays;
+import java.util.LinkedHashMap;
 import java.util.List;
 
 import dev.sparksam.securedx.rbac.RequiresPermission;
 import io.swagger.v3.oas.models.Components;
 import io.swagger.v3.oas.models.OpenAPI;
+import io.swagger.v3.oas.models.Operation;
 import io.swagger.v3.oas.models.info.Info;
+import io.swagger.v3.oas.models.media.IntegerSchema;
+import io.swagger.v3.oas.models.media.ObjectSchema;
+import io.swagger.v3.oas.models.media.Schema;
+import io.swagger.v3.oas.models.media.StringSchema;
 import io.swagger.v3.oas.models.security.SecurityRequirement;
 import io.swagger.v3.oas.models.security.SecurityScheme;
 import org.springdoc.core.customizers.OperationCustomizer;
@@ -117,6 +123,169 @@ public class OpenApiConfig {
                             : operation.getDescription() + "\n\n" + note);
             return operation;
         };
+    }
+
+    /**
+     * secured-x's {@code AuthController} lives outside our source tree, so its request/response
+     * DTOs (some of them {@code Map<String, Object>} or {@code Object}) cannot be annotated with
+     * {@code @Schema} the way our own controllers are. This customizer rewrites the three auth
+     * operations' summaries, descriptions and body schemas by hand so the document reads as
+     * concretely as our own endpoints instead of showing generic maps/objects.
+     */
+    @Bean
+    public OperationCustomizer authEndpointOperationCustomizer() {
+        return (operation, handlerMethod) -> {
+            if (!AUTH_CONTROLLER.equals(handlerMethod.getMethod().getDeclaringClass().getName())) {
+                return operation;
+            }
+            switch (handlerMethod.getMethod().getName()) {
+                case "login" -> describeLogin(operation);
+                case "refresh" -> describeRefresh(operation);
+                case "logout" -> describeLogout(operation);
+                default -> {
+                    // no other handlers on AuthController
+                }
+            }
+            return operation;
+        };
+    }
+
+    private static final String AUTH_CONTROLLER =
+            "dev.sparksam.securedx.starter.controller.AuthController";
+
+    private static void describeLogin(Operation operation) {
+        operation.setSummary("Log in");
+        operation.setDescription(
+                "Authenticates against the given provider and issues an access/refresh token "
+                        + "pair. Only the \"local\" provider is enabled; its payload takes "
+                        + "username and password.");
+
+        var payloadSchema =
+                new ObjectSchema()
+                        .description(
+                                "Credentials for the given provider; shape is provider-specific.")
+                        .addProperty(
+                                "username",
+                                new StringSchema()
+                                        .description("Local account username.")
+                                        .example("jdoe"))
+                        .addProperty(
+                                "password",
+                                new StringSchema()
+                                        .description("Local account password.")
+                                        .example("changeme"));
+        var requestSchema =
+                new ObjectSchema()
+                        .addProperty(
+                                "provider",
+                                new StringSchema()
+                                        .description(
+                                                "Auth provider to use; only \"local\" is enabled.")
+                                        .example("local"))
+                        .addProperty("payload", payloadSchema);
+        var requestExample = new LinkedHashMap<String, Object>();
+        requestExample.put("provider", "local");
+        var payloadExample = new LinkedHashMap<String, Object>();
+        payloadExample.put("username", "jdoe");
+        payloadExample.put("password", "changeme");
+        requestExample.put("payload", payloadExample);
+        replaceRequestBody(operation, requestSchema, requestExample);
+
+        var responseSchema =
+                new ObjectSchema()
+                        .description("Issued token pair.")
+                        .addProperty(
+                                "accessToken",
+                                new StringSchema()
+                                        .description(
+                                                "Short-lived JWT; send as \"Authorization: Bearer"
+                                                        + " <accessToken>\" on subsequent"
+                                                        + " requests."))
+                        .addProperty(
+                                "refreshToken",
+                                new StringSchema()
+                                        .description(
+                                                "Long-lived token; exchange it for a new access"
+                                                        + " token via POST /auth/refresh."))
+                        .addProperty(
+                                "expiresIn",
+                                new IntegerSchema()
+                                        .format("int64")
+                                        .description("Access token lifetime, in seconds."))
+                        .addProperty(
+                                "subject",
+                                new StringSchema().description("Authenticated subject (user id)."));
+        var responseExample = new LinkedHashMap<String, Object>();
+        responseExample.put("accessToken", "eyJhbGciOi...");
+        responseExample.put("refreshToken", "eyJhbGciOi...");
+        responseExample.put("expiresIn", 3600);
+        responseExample.put("subject", "3f7e2c1a-4b5d-4e6f-8a9b-0c1d2e3f4a5b");
+        replaceResponseBodies(operation, responseSchema, responseExample);
+    }
+
+    private static void describeRefresh(Operation operation) {
+        operation.setSummary("Refresh an access token");
+        operation.setDescription(
+                "Exchanges a still-valid refresh token for a new access/refresh token pair.");
+
+        var requestSchema =
+                new ObjectSchema()
+                        .addProperty(
+                                "refreshToken",
+                                new StringSchema()
+                                        .description(
+                                                "Refresh token previously issued by POST"
+                                                        + " /auth/login or POST /auth/refresh.")
+                                        .example("eyJhbGciOi..."));
+        replaceRequestBody(operation, requestSchema, null);
+    }
+
+    private static void describeLogout(Operation operation) {
+        operation.setSummary("Log out");
+        operation.setDescription(
+                "Invalidates the caller's current session server-side. Takes no request body.");
+    }
+
+    /** Overwrites every media type's schema (and example, if given) on the request body. */
+    private static void replaceRequestBody(Operation operation, Schema<?> schema, Object example) {
+        if (operation.getRequestBody() == null || operation.getRequestBody().getContent() == null) {
+            return;
+        }
+        operation
+                .getRequestBody()
+                .getContent()
+                .values()
+                .forEach(
+                        mediaType -> {
+                            mediaType.setSchema(schema);
+                            if (example != null) {
+                                mediaType.setExample(example);
+                            }
+                        });
+    }
+
+    /** Overwrites every declared response's media-type schema and example, where one has a body. */
+    private static void replaceResponseBodies(
+            Operation operation, Schema<?> schema, Object example) {
+        if (operation.getResponses() == null) {
+            return;
+        }
+        operation
+                .getResponses()
+                .values()
+                .forEach(
+                        response -> {
+                            if (response.getContent() == null) {
+                                return;
+                            }
+                            response.getContent()
+                                    .values()
+                                    .forEach(
+                                            mediaType -> {
+                                                mediaType.setSchema(schema);
+                                                mediaType.setExample(example);
+                                            });
+                        });
     }
 
     /**

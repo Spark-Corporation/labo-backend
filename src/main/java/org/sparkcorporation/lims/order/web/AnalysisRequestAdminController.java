@@ -3,6 +3,7 @@ package org.sparkcorporation.lims.order.web;
 import jakarta.validation.Valid;
 
 import dev.sparksam.securedx.rbac.RequiresPermission;
+import io.swagger.v3.oas.annotations.Operation;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -30,6 +31,13 @@ public class AnalysisRequestAdminController {
     private final AnalysisRequestService service;
 
     @PostMapping
+    @Operation(
+            summary = "Add analyses to a lab file",
+            description =
+                    "Bulk-adds one or more catalog analyses to an existing OPEN lab file. Each code"
+                        + " is validated and duplicate-checked transactionally; the first invalid"
+                        + " code rolls back the entire batch. Returns the updated lab file (200,"
+                        + " not 201, since no new top-level resource is created).")
     @RequiresPermission("lab-file.create")
     public LabFileResponse addAnalyses(
             @PathVariable String labFileId, @Valid @RequestBody AddAnalysesRequest req) {
@@ -37,6 +45,9 @@ public class AnalysisRequestAdminController {
     }
 
     @DeleteMapping("/{requestId}")
+    @Operation(
+            summary = "Remove an analysis from a lab file",
+            description = "Removes a previously requested analysis from an OPEN lab file.")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     @RequiresPermission("lab-file.create")
     public void remove(@PathVariable String labFileId, @PathVariable String requestId) {

@@ -7,6 +7,8 @@ import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 
 import dev.sparksam.securedx.rbac.RequiresPermission;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.http.HttpStatus;
@@ -33,6 +35,11 @@ public class TechniqueAdminController {
 
     @PostMapping
     @RequiresPermission("catalog.manage")
+    @Operation(
+            summary = "Create a technique",
+            description =
+                    "Registers a new analytical technique that can be linked to one or more"
+                            + " analyses.")
     public ResponseEntity<TechniqueResponse> create(
             @Valid @RequestBody CreateTechniqueRequest req) {
         var resp = service.create(req);
@@ -42,10 +49,23 @@ public class TechniqueAdminController {
 
     @GetMapping
     @RequiresPermission("catalog.manage")
+    @Operation(
+            summary = "Search techniques",
+            description =
+                    "Lists analytical techniques, paginated, optionally including disabled ones.")
     public TechniqueSearchResponse search(
-            @RequestParam(defaultValue = "true") boolean activeOnly,
-            @RequestParam(defaultValue = "0") @Min(0) int page,
-            @RequestParam(defaultValue = "20") @Min(1) @Max(100) int size) {
+            @Parameter(description = "When true (default), excludes soft-deleted techniques.")
+                    @RequestParam(defaultValue = "true")
+                    boolean activeOnly,
+            @Parameter(description = "Zero-based page number.")
+                    @RequestParam(defaultValue = "0")
+                    @Min(0)
+                    int page,
+            @Parameter(description = "Page size (1-100).")
+                    @RequestParam(defaultValue = "20")
+                    @Min(1)
+                    @Max(100)
+                    int size) {
         Page<TechniqueResponse> result = service.search(activeOnly, page, size);
         return new TechniqueSearchResponse(
                 result.getContent(),
@@ -57,21 +77,32 @@ public class TechniqueAdminController {
 
     @GetMapping("/{id}")
     @RequiresPermission("catalog.manage")
-    public TechniqueResponse get(@PathVariable String id) {
+    @Operation(
+            summary = "Get a technique",
+            description = "Returns a single analytical technique by its id.")
+    public TechniqueResponse get(
+            @Parameter(description = "ULID of the technique.") @PathVariable String id) {
         return service.get(new TechniqueId(id));
     }
 
     @PatchMapping("/{id}")
     @RequiresPermission("catalog.manage")
+    @Operation(
+            summary = "Update a technique",
+            description =
+                    "Partially updates a technique's name/description; null fields are left"
+                            + " unchanged.")
     public TechniqueResponse update(
-            @PathVariable String id, @Valid @RequestBody UpdateTechniqueRequest req) {
+            @Parameter(description = "ULID of the technique.") @PathVariable String id,
+            @Valid @RequestBody UpdateTechniqueRequest req) {
         return service.update(new TechniqueId(id), req);
     }
 
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     @RequiresPermission("catalog.manage")
-    public void delete(@PathVariable String id) {
+    @Operation(summary = "Delete a technique", description = "Soft-deletes the technique.")
+    public void delete(@Parameter(description = "ULID of the technique.") @PathVariable String id) {
         service.delete(new TechniqueId(id));
     }
 }

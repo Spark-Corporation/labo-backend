@@ -6,6 +6,7 @@ import java.util.List;
 import jakarta.validation.Valid;
 
 import dev.sparksam.securedx.rbac.RequiresPermission;
+import io.swagger.v3.oas.annotations.Operation;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -34,6 +35,11 @@ public class PaymentController {
 
     @PostMapping("/api/v1/payments")
     @RequiresPermission("payment.collect")
+    @Operation(
+            summary = "Record a payment",
+            description =
+                    "Records a payment made against a lab file's invoice through a given "
+                            + "cash register, and links it to the invoice if one has been issued.")
     public ResponseEntity<PaymentResponse> record(@Valid @RequestBody PaymentRequest req) {
         var resp = service.record(req, currentUserId());
         return ResponseEntity.created(URI.create("/api/v1/payments/" + resp.id())).body(resp);
@@ -41,6 +47,9 @@ public class PaymentController {
 
     @GetMapping("/api/v1/lab-files/{labFileId}/payments")
     @RequiresPermission("invoice.read")
+    @Operation(
+            summary = "List a lab file's payments",
+            description = "Lists every payment recorded against a lab file, oldest first.")
     public List<PaymentResponse> listByLabFile(@PathVariable String labFileId) {
         return service.findByLabFileId(new LabFileId(labFileId));
     }

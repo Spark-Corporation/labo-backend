@@ -5,6 +5,8 @@ import java.time.Instant;
 import jakarta.validation.Valid;
 
 import dev.sparksam.securedx.rbac.RequiresPermission;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
 import lombok.RequiredArgsConstructor;
 import org.jspecify.annotations.Nullable;
 import org.springframework.data.domain.Pageable;
@@ -31,12 +33,29 @@ public class ExpenseController {
 
     @GetMapping
     @RequiresPermission("cashbox.expense.read")
+    @Operation(
+            summary = "Search cashbox expenses",
+            description =
+                    "Returns a paginated, filterable list of recorded expenses (amounts in XOF),"
+                            + " optionally restricted by recording-date range, category, recording"
+                            + " user, or cash register.")
     public ExpenseSearchResponse list(
-            @RequestParam(required = false) @Nullable Instant from,
-            @RequestParam(required = false) @Nullable Instant to,
-            @RequestParam(required = false) @Nullable String categoryId,
-            @RequestParam(required = false) @Nullable String recordedBy,
-            @RequestParam(required = false) @Nullable String cashRegisterId,
+            @RequestParam(required = false)
+                    @Parameter(description = "Only expenses recorded on or after this instant")
+                    @Nullable Instant from,
+            @RequestParam(required = false)
+                    @Parameter(description = "Only expenses recorded on or before this instant")
+                    @Nullable Instant to,
+            @RequestParam(required = false)
+                    @Parameter(description = "Filter on the expense category's ULID")
+                    @Nullable String categoryId,
+            @RequestParam(required = false)
+                    @Parameter(
+                            description = "Filter on the ULID of the user who recorded the expense")
+                    @Nullable String recordedBy,
+            @RequestParam(required = false)
+                    @Parameter(description = "Filter on the cash register's ULID")
+                    @Nullable String cashRegisterId,
             Pageable pageable) {
         var filters =
                 new ExpenseFilters(
@@ -52,6 +71,12 @@ public class ExpenseController {
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     @RequiresPermission("cashbox.expense.record")
+    @Operation(
+            summary = "Record a cashbox expense",
+            description =
+                    "Records a new expense (amount in XOF) against an active expense category and a"
+                        + " cash register, and writes a matching cashbox journal entry. Rejected if"
+                        + " the category is unknown or inactive, or the cash register is unknown.")
     public ExpenseResponse create(@Valid @RequestBody ExpenseRequest req) {
         return service.record(req, callerId());
     }
