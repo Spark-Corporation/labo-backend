@@ -36,8 +36,8 @@ public interface InvoiceRepository extends JpaRepository<Invoice, String> {
     @Query(
             """
             SELECT i FROM Invoice i
-            WHERE (:from IS NULL OR i.issuedAt >= :from)
-              AND (:to IS NULL OR i.issuedAt < :to)
+            WHERE (CAST(:from AS java.time.Instant) IS NULL OR i.issuedAt >= :from)
+              AND (CAST(:to AS java.time.Instant) IS NULL OR i.issuedAt < :to)
               AND (:customerKind IS NULL OR i.customerKind = :customerKind)
               AND (:customerId IS NULL OR i.customerId = :customerId)
               AND (:#{#labFileIds == null} = true OR i.labFileId IN :labFileIds)

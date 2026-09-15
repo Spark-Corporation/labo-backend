@@ -70,8 +70,8 @@ public interface LabFileRepository extends JpaRepository<LabFile, String> {
                AND (:prescriberId IS NULL OR lf.prescriberId = :prescriberId)
                AND (:urgent IS NULL OR lf.urgent = :urgent)
                AND (:status IS NULL OR lf.status = :status)
-               AND (:from IS NULL OR lf.createdAt >= :from)
-               AND (:to IS NULL OR lf.createdAt <  :to)
+               AND (CAST(:from AS java.time.Instant) IS NULL OR lf.createdAt >= :from)
+               AND (CAST(:to AS java.time.Instant) IS NULL OR lf.createdAt <  :to)
              ORDER BY lf.createdAt DESC
             """)
     Page<LabFile> search(

@@ -39,7 +39,8 @@ public interface PrescriberRepository extends JpaRepository<Prescriber, String> 
             """
             SELECT p FROM Prescriber p LEFT JOIN FETCH p.specialty s
             WHERE p.deletedAt IS NULL
-              AND (:nameQuery IS NULL OR LOWER(p.name) LIKE LOWER(CONCAT('%', :nameQuery, '%')))
+              AND (:nameQuery IS NULL
+                   OR LOWER(p.name) LIKE LOWER(CONCAT('%', CAST(:nameQuery AS String), '%')))
               AND (:specialtyCode IS NULL OR s.code = :specialtyCode)
             ORDER BY p.name
             """)

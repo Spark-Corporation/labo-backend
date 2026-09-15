@@ -59,8 +59,8 @@ public interface QuoteRepository extends JpaRepository<Quote, String> {
                AND (:patientId IS NULL OR q.patientId = :patientId)
                AND (:prescriberId IS NULL OR q.prescriberId = :prescriberId)
                AND (:status IS NULL OR q.status = :status)
-               AND (:from IS NULL OR q.createdAt >= :from)
-               AND (:to IS NULL OR q.createdAt <  :to)
+               AND (CAST(:from AS java.time.Instant) IS NULL OR q.createdAt >= :from)
+               AND (CAST(:to AS java.time.Instant) IS NULL OR q.createdAt <  :to)
              ORDER BY q.createdAt DESC
             """)
     Page<Quote> search(

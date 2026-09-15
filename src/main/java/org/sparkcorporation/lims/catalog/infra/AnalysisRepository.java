@@ -60,7 +60,8 @@ public interface AnalysisRepository extends JpaRepository<Analysis, String> {
                 LEFT JOIN FETCH a.matrix
                 LEFT JOIN FETCH a.recipient
             WHERE a.deletedAt IS NULL
-              AND (:nameQuery IS NULL OR LOWER(a.name) LIKE LOWER(CONCAT('%', :nameQuery, '%')))
+              AND (:nameQuery IS NULL
+                   OR LOWER(a.name) LIKE LOWER(CONCAT('%', CAST(:nameQuery AS String), '%')))
               AND (:disciplineCode IS NULL OR d.code = :disciplineCode)
               AND (:kind IS NULL OR a.kind = :kind)
             ORDER BY a.code
