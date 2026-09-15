@@ -34,6 +34,9 @@ public class OpenApiConfig {
 
     private static final String BEARER_SCHEME = "bearer-jwt";
 
+    /** Illustrative access-token lifetime (seconds) shown in the login response example. */
+    private static final int EXAMPLE_EXPIRES_IN_SECONDS = 3600;
+
     @Bean
     public OpenAPI limsOpenApi() {
         return new OpenAPI()
@@ -45,12 +48,12 @@ public class OpenApiConfig {
                                         """
                                         Laboratory Information Management System — REST API.
 
-                                        **Authentication.** Obtain a token from `POST /auth/login` \
+                                        **Authentication.** Obtain a token from `POST /api/v1/auth/login` \
                                         with body `{"provider":"local","payload":\
                                         {"username":"…","password":"…"}}`. It returns \
                                         `accessToken`, `refreshToken`, `expiresIn` and `subject`. \
-                                        Refresh via `POST /auth/refresh` with `{"refreshToken":"…"}`\
-                                        , and end the session with `POST /auth/logout`. These come \
+                                        Refresh via `POST /api/v1/auth/refresh` with `{"refreshToken":"…"}`\
+                                        , and end the session with `POST /api/v1/auth/logout`. These come \
                                         from the secured-x starter, so their request bodies are \
                                         typed loosely below — the shapes given here are \
                                         authoritative.
@@ -87,7 +90,8 @@ public class OpenApiConfig {
                                                 .scheme("bearer")
                                                 .bearerFormat("JWT")
                                                 .description(
-                                                        "Access token from POST /auth/login.")))
+                                                        "Access token from POST"
+                                                                + " /api/v1/auth/login.")))
                 .addSecurityItem(new SecurityRequirement().addList(BEARER_SCHEME));
     }
 
@@ -206,7 +210,7 @@ public class OpenApiConfig {
                                 new StringSchema()
                                         .description(
                                                 "Long-lived token; exchange it for a new access"
-                                                        + " token via POST /auth/refresh."))
+                                                        + " token via POST /api/v1/auth/refresh."))
                         .addProperty(
                                 "expiresIn",
                                 new IntegerSchema()
@@ -218,7 +222,7 @@ public class OpenApiConfig {
         var responseExample = new LinkedHashMap<String, Object>();
         responseExample.put("accessToken", "eyJhbGciOi...");
         responseExample.put("refreshToken", "eyJhbGciOi...");
-        responseExample.put("expiresIn", 3600);
+        responseExample.put("expiresIn", EXAMPLE_EXPIRES_IN_SECONDS);
         responseExample.put("subject", "3f7e2c1a-4b5d-4e6f-8a9b-0c1d2e3f4a5b");
         replaceResponseBodies(operation, responseSchema, responseExample);
     }
@@ -235,7 +239,8 @@ public class OpenApiConfig {
                                 new StringSchema()
                                         .description(
                                                 "Refresh token previously issued by POST"
-                                                        + " /auth/login or POST /auth/refresh.")
+                                                        + " /api/v1/auth/login or POST"
+                                                        + " /api/v1/auth/refresh.")
                                         .example("eyJhbGciOi..."));
         replaceRequestBody(operation, requestSchema, null);
     }

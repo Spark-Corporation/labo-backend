@@ -970,7 +970,7 @@ Authentication is provided by the **secured-x** library (sibling project at `~/D
 - Implementing the `LocalCredentialStore`, `UserKeyPairStore`, and `AuditChainStore` SPIs against LIMS PostgreSQL (`local_credentials`, `user_key_pairs`, `signed_actions` tables — see §6.2).
 - Configuring JWT lifetimes via `application.yml`: access token 15 min, refresh token 8 h, rotating.
 
-The `/auth/login`, `/auth/refresh`, `/auth/logout` endpoints come from `secured-x-spring-boot-starter`. JWT signing uses RS256 with a PEM key pair; the public key is rotatable. MFA, password reset, and brute-force lockout are **not** in CDC scope and are not implemented.
+The `/api/v1/auth/login`, `/api/v1/auth/refresh`, `/api/v1/auth/logout` endpoints come from `secured-x-spring-boot-starter`. JWT signing uses RS256 with a PEM key pair; the public key is rotatable. MFA, password reset, and brute-force lockout are **not** in CDC scope and are not implemented.
 
 ### 9.2 Authorization
 Role-based with fine-grained permissions:
@@ -1621,7 +1621,7 @@ pipeline {
 
 ## 19. Security Hardening Checklist
 
-- [ ] Default deny on all endpoints; explicit `permitAll` for `/auth/*` and Actuator health
+- [ ] Default deny on all endpoints; explicit `permitAll` for `/api/v1/auth/*` and Actuator health
 - [ ] Argon2id password hashing with per-environment cost
 - [ ] CSRF disabled (stateless JWT) but CORS strictly configured per origin
 - [ ] OWASP Dependency-Check in CI; fail on CVSS ≥ 7

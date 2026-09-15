@@ -39,7 +39,7 @@ class DisabledUserAcceptanceIT extends IntegrationTestBase {
         RestClient http = RestClient.builder().baseUrl("http://localhost:" + port).build();
         HttpStatusCode status =
                 http.post()
-                        .uri("/auth/login")
+                        .uri("/api/v1/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)
                         .body(
                                 Map.of(

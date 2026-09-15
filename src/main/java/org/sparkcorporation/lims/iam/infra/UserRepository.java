@@ -28,13 +28,25 @@ public interface UserRepository extends JpaRepository<User, String> {
             """)
     Set<String> findPermissionNamesByUserId(@Param("userId") String userId);
 
+    /**
+     * Both filters are optional; a null means "no filter".
+     *
+     * <p>The explicit {@code CAST(... AS String)} around every use of the two parameters is load
+     * bearing, not decoration. With a bare {@code :q}, Hibernate has no type to infer when the
+     * bound value is null and falls back to a binary type, so PostgreSQL receives {@code
+     * lower(bytea)} and rejects the statement at parse time — {@code function lower(bytea) does not
+     * exist} — failing the whole unfiltered listing, not just the LIKE branch. The cast pins the
+     * parameter to varchar so a null binds as a null varchar and the {@code IS NULL} guard
+     * short-circuits as intended.
+     */
     @Query(
             """
             SELECT u FROM User u
-            WHERE (:q IS NULL OR LOWER(u.email) LIKE LOWER(CONCAT('%', :q, '%'))
-                              OR LOWER(u.fullName) LIKE LOWER(CONCAT('%', :q, '%')))
-              AND (:roleName IS NULL OR EXISTS (
-                    SELECT 1 FROM u.roles r WHERE r.name = :roleName))
+            WHERE (CAST(:q AS String) IS NULL
+                      OR LOWER(u.email) LIKE LOWER(CONCAT('%', CAST(:q AS String), '%'))
+                      OR LOWER(u.fullName) LIKE LOWER(CONCAT('%', CAST(:q AS String), '%')))
+              AND (CAST(:roleName AS String) IS NULL OR EXISTS (
+                    SELECT 1 FROM u.roles r WHERE r.name = CAST(:roleName AS String)))
             """)
     Page<User> search(
             @Param("q") @org.springframework.lang.Nullable String q,

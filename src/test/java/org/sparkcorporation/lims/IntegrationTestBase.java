@@ -79,8 +79,8 @@ public abstract class IntegrationTestBase {
     }
 
     /**
-     * Logs in via secured-x's {@code /auth/login} endpoint with provider {@code local} and returns
-     * the issued JWT access token. The caller is responsible for attaching it as a {@code
+     * Logs in via secured-x's {@code /api/v1/auth/login} endpoint with provider {@code local} and
+     * returns the issued JWT access token. The caller is responsible for attaching it as a {@code
      * Authorization: Bearer <jwt>} header on subsequent requests.
      *
      * <p>The seeded test admin (see Chunk 1 Task 1.5) is {@code admin@test.local} / {@code
@@ -97,7 +97,7 @@ public abstract class IntegrationTestBase {
         @SuppressWarnings("unchecked")
         Map<String, Object> response =
                 http.post()
-                        .uri("/auth/login")
+                        .uri("/api/v1/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)
                         .body(body)
                         .retrieve()

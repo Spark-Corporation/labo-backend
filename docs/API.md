@@ -26,7 +26,7 @@ endpoints contributed by the `secured-x` starter.
 |---|---|
 | Local dev | `http://localhost:8080` |
 | Application prefix | `/api/v1` |
-| Auth prefix | `/auth` (**not** under `/api/v1`) |
+| Auth prefix | `/api/v1/auth` (same `/api/v1` prefix as the rest of the API) |
 | Ops | `/actuator/health`, `/actuator/info`, `/actuator/prometheus` |
 
 Everything is JSON (`application/json`) unless the endpoint is explicitly a file download
@@ -41,7 +41,7 @@ version.
 
 Three endpoints, served by the `secured-x` starter, all public:
 
-#### `POST /auth/login`
+#### `POST /api/v1/auth/login`
 
 ```jsonc
 // request
@@ -65,13 +65,13 @@ Three endpoints, served by the `secured-x` starter, all public:
 provider-specific; the local provider reads `username` and `password`. Bad credentials come
 back as `401` with no body distinction between "unknown user" and "wrong password".
 
-#### `POST /auth/refresh`
+#### `POST /api/v1/auth/refresh`
 
 ```jsonc
-{ "refreshToken": "…" }   // → same LoginResponse shape as /auth/login
+{ "refreshToken": "…" }   // → same LoginResponse shape as /api/v1/auth/login
 ```
 
-#### `POST /auth/logout`
+#### `POST /api/v1/auth/logout`
 
 No body, no response body. Requires the bearer token.
 

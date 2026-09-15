@@ -67,4 +67,19 @@ class JpaUserRepositoryTest extends IntegrationTestBase {
                 .extracting(User::email)
                 .anyMatch(e -> e.contains("technician") || e.contains("tech"));
     }
+
+    /**
+     * Unfiltered listing — what {@code GET /api/v1/admin/users} issues with no query string. Used
+     * to blow up with {@code function lower(bytea) does not exist}: a null {@code :q} left
+     * Hibernate without a type to infer, so it bound the parameter as binary and PostgreSQL
+     * rejected the statement at parse time. See the CAST in {@link UserRepository#search}.
+     */
+    @Test
+    void search_with_both_filters_null_returns_all_users() {
+        var users =
+                userRepo.search(null, null, org.springframework.data.domain.PageRequest.of(0, 10));
+        assertThat(users.getContent())
+                .extracting(User::email)
+                .contains("admin@test.local", "technician@test.local");
+    }
 }
